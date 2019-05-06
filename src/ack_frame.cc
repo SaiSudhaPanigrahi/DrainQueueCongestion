@@ -1,0 +1,141 @@
+#include "ack_frame.h"
+void PacketQueue::Add(PacketNumber p){
+    if(packet_deque_.empty()){
+        packet_deque_.push_front(Interval<PacketNumber>(p,p+1));
+        return;
+    }
+    Interval<PacketNumber> back=packet_deque_.back();
+    if(back.Max()==p){
+        packet_deque_.back().SetMax(p+1);
+        return;
+    }
+    if(back.Max()<p){
+    packet_deque_.push_back(Interval<PacketNumber>(p,p+1));
+        return;
+    }
+    Interval<PacketNumber> front=packet_deque_.front();
+    if(front.Min()>p+1){
+        packet_deque_.push_front(Interval<PacketNumber>(p,p+1));
+        return;
+    }
+    if(front.Min()==p+1){
+        packet_deque_.front().SetMin(p);
+        return;
+    }
+    int i=packet_deque_.size()-1;
+    while(i>=0){
+        Interval<PacketNumber> temp=packet_deque_[i];
+        if(temp.Contains(p)){
+            return;
+        }
+        if(temp.Max()==p){
+            packet_deque_[i].SetMax(p+1);
+            return;
+        }
+        Interval<PacketNumber> before=packet_deque_[i-1];
+        if(temp.Min()==p+1){
+            packet_deque_[i].SetMin(p);
+            if(i>0&&before.Max()==p){
+                packet_deque_[i-1].SetMax(temp.Max());
+                packet_deque_.erase(packet_deque_.begin()+i);
+            }
+            return;
+        }
+        if(temp.Max()<p){
+            packet_deque_.insert(packet_deque_.begin()+i+1,Interval<PacketNumber>(p,p+1));
+        }
+        i--;
+
+    }
+    return ;
+}
+void PacketQueue::AddRange(PacketNumber l,PacketNumber h){
+//seems quite useless;
+    if(l>h){
+        return;
+    }
+    PacketNumber i=l;
+    for(i=l;i<=h;i++){
+        Add(i);
+    }
+
+}
+bool PacketQueue::Contains(PacketNumber p){
+    if(packet_deque_.empty()){
+        return false;
+    }
+    Interval<PacketNumber> front=packet_deque_.front();
+    Interval<PacketNumber> back=packet_deque_.back();
+    if(front.Min()>p||back.Max()<=p){
+        return false;
+    }
+    int len=packet_deque_.size();
+    int i=0;
+    for(i=0;i<len;i++){
+        Interval<PacketNumber> temp=packet_deque_[i];
+        if(temp.Contains(p)){
+            return true;
+        }
+    }
+    return false;
+}
+void PacketQueue::RemoveUpTo(PacketNumber p){
+    if(packet_deque_.empty()){
+        return;
+    }
+    int len=packet_deque_.size();
+    int i=0;
+    while(!packet_deque_.empty()){
+        auto it=packet_deque_.begin();
+        Interval<PacketNumber> temp=(*it);
+        if(p<temp.Min()){
+            return;
+        }
+        if(temp.Contains(p)){
+            it->SetMin(p);
+            return;
+        }
+        if(p>=temp.Max()){
+            packet_deque_.erase(it);
+        }
+        i++;
+        if(i>len){
+            printf("bug\n");
+            break;
+        }
+    }
+}
+PacketNumber PacketQueue::Min(){
+    return packet_deque_.front().Min();
+}
+PacketNumber PacketQueue::Max(){
+    return packet_deque_.back().Max();
+}
+void PacketQueue::Print(){
+    if(packet_deque_.empty()){
+        return;
+    }
+    int len=packet_deque_.size();
+    int i=0;
+    for(i=0;i<len;i++){
+        Interval<PacketNumber> temp=packet_deque_[i];
+        printf("%llu,%llu\n",temp.Min(),temp.Max());
+
+    }
+}
+/*  test
+int main(){
+    PacketQueue packets;
+    int i=0;
+    for (i=0;i<10;i++){
+        if(i==3){continue;}
+        if(i==6){continue;}
+        packets.Add(i);
+    }
+    packets.Print();
+    //packets.RemoveUpTo(7);
+    packets.Add(5);
+    packets.AddRange(1,3);
+    packets.Print();
+    return 0;
+}*/
