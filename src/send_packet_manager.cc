@@ -1,6 +1,8 @@
 #include "send_packet_manager.h"
 #include "logging.h"
 #include <algorithm>
+SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
+:acked_observer_(acked_observer){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
                       ContainsRetransData retrans,uint64_t send_ts){
     bool set_inflight=(retrans==CON_RE_YES);
@@ -57,6 +59,14 @@ void SendPacketManager::OnAckEnd(uint64_t time){
             DLOG(WARNING)<<"acked unsent packet";
         }else{
             if(info->inflight){
+                if(acked_observer_){
+                    for(auto frame_it=info->retransble_frames.begin();
+                    frame_it!=info->retransble_frames.end();frame_it++){
+                        acked_observer_->OnAckStream(frame_it->stream_frame.id,
+                                                     frame_it->stream_frame.offset,
+                                                     frame_it->stream_frame.len);
+                    }
+                }
                unacked_packets_.RemoveFromInflight(seq);
             }
             last_ack_frame_.packets.Add(seq);
@@ -137,6 +147,10 @@ void SendPacketManager::Test2(){
 }
     PacketNumber least_unacked=unacked_packets_.GetLeastUnacked();
     DLOG(INFO)<<"least unacked "<<least_unacked;
+    TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(least_unacked);
+    if(!info){
+        DLOG(INFO)<<"not sent";
+    }
 }
 void SendPacketManager::InvokeLossDetection(uint64_t time){
     unacked_packets_.InvokeLossDetection(packets_acked_,packets_lost_);

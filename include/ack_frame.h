@@ -53,9 +53,12 @@ struct AckFrame{
 };
 class RecvPktMger{
 public:
-    void OnRecvPkt(PacketNumber seq);
+    void OnRecvPkt(PacketNumber seq,TimeType time);
 private:
+    bool first_received_{true};
+    PacketNumber largest_received_{0};
     AckFrame frame;
 };
+void ack_frame_test();
 #endif
 

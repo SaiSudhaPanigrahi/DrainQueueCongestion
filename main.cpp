@@ -8,12 +8,10 @@ int main(){
     con.Test();
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();
-    PacketNumber  number=1234;
-    PacketNumberHash hash;
-    printf("%llu\n",hash(number));
-    SendPacketManager manager;
+    /*SendPacketManager manager(nullptr);
     manager.Test();
     manager.Test2();
+    ack_frame_test();*/
     return 0;
 }
 

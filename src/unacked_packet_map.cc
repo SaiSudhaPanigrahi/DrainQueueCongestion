@@ -41,7 +41,9 @@ bool UnackedPacketMap::IsUnacked(PacketNumber seq){
     return false;
 }
 void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,LostPackerVector &packets_lost){
-    DCHECK(!packets_acked.empty());
+    if(packets_acked.empty()){
+        return;
+    }
     auto acked_it=packets_acked.begin();
     PacketNumber first_seq=acked_it->seq;
     DCHECK(first_seq>=least_unacked_);

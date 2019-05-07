@@ -17,4 +17,9 @@ enum TransType:uint8_t{
     TT_LOSS_RETRANS,
     TT_RTO_RETRANS,
 };
+class StreamAckedObserver{
+public:
+   virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len)=0;
+   virtual ~StreamAckedObserver(){}
+};
 #endif

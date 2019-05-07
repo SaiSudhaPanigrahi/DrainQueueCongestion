@@ -1,4 +1,5 @@
 #include "ack_frame.h"
+#include "logging.h"
 void PacketQueue::Add(PacketNumber p){
     if(packet_deque_.empty()){
         packet_deque_.push_front(Interval<PacketNumber>(p,p+1));
@@ -100,7 +101,7 @@ void PacketQueue::RemoveUpTo(PacketNumber p){
         }
         i++;
         if(i>len){
-            printf("bug\n");
+            DLOG(FATAL)<<"bug";
             break;
         }
     }
@@ -123,19 +124,17 @@ void PacketQueue::Print(){
 
     }
 }
-/*  test
-int main(){
+void ack_frame_test(){
     PacketQueue packets;
-    int i=0;
-    for (i=0;i<10;i++){
+    int i=1;
+    for (i=1;i<10;i++){
         if(i==3){continue;}
         if(i==6){continue;}
         packets.Add(i);
     }
     packets.Print();
-    //packets.RemoveUpTo(7);
-    packets.Add(5);
-    packets.AddRange(1,3);
+    packets.RemoveUpTo(6);
+    //packets.Add(5);
+   // packets.AddRange(1,3);
     packets.Print();
-    return 0;
-}*/
+}
