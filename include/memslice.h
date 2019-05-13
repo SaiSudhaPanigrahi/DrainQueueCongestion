@@ -8,6 +8,7 @@
 #include "proto_utils.h"
 #include "byte_codec.h"
 #include "interval.h"
+namespace dqc{
 class MyAlloc:public AbstractAlloc{
 public:
     MyAlloc(){}
@@ -131,4 +132,5 @@ private:
     // inflight Bytes, waiting to be acked
     uint64_t bytes_inflight_{0};
 };
+}//namespace dqc;
 #endif

@@ -4,6 +4,7 @@
 #include "unacked_packet_map.h"
 #include "linked_hash_map.h"
 #include "ack_frame.h"
+namespace dqc{
 class SendPacketManager{
 public:
     SendPacketManager(StreamAckedObserver *acked_observer);
@@ -32,4 +33,5 @@ private:
     PacketQueue::const_reverse_iterator ack_packet_itor_;
 
 };
+}//namespace dqc;
 #endif

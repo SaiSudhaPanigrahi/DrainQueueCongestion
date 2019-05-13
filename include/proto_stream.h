@@ -3,6 +3,7 @@
 #include "memslice.h"
 #include "proto_con_visitor.h"
 #include <string>
+namespace dqc{
 class ProtoStream{
 public:
     ProtoStream(ProtoConVisitor *visitor,uint32_t id);
@@ -26,4 +27,5 @@ private:
     StreamSendBuffer send_buf_;
     std::map<StreamOffset,ByteCount> sent_info_;
 };
+}
 #endif

@@ -9,6 +9,7 @@
 #define MY_FROM_HERE MY_FROM_HERE_FUNC(__FUNCTION__)
 #define MY_FROM_HERE_FUNC(fun) \
 Location(fun,__FILE__ ":" MY_PROTO_STRINGNIZE(__LINE__))
+namespace dqc{
 class Location{
 public:
     Location(const char *fun_name,const char *file_line):
@@ -74,4 +75,5 @@ private:
 struct iovec MakeIovec(std::string&data);
 void CopyToBuffer(const struct iovec*iov,int iov_count,
                   size_t iov_offset,size_t buf_len,char*buf);
+}//namespace dqc;
 #endif

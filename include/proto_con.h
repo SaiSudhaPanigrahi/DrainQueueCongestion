@@ -7,6 +7,7 @@
 #include "send_packet_manager.h"
 #include <deque>
 #include <map>
+namespace dqc{
 class ProtoCon:public ProtoConVisitor,StreamAckedObserver{
 public:
     ProtoCon();
@@ -30,4 +31,5 @@ private:
     PacketNumber seq_{1};
     SendPacketManager sent_manager_;
 };
+}//namespace dqc;
 #endif

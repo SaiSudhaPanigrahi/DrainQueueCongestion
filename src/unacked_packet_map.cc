@@ -1,5 +1,6 @@
 #include "unacked_packet_map.h"
 #include "logging.h"
+namespace dqc{
 void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,uint64_t send_ts,bool set_flight)
 {
     if(none_sent_){
@@ -74,7 +75,9 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
 void UnackedPacketMap::RemoveFromInflight(PacketNumber seq){
     TransmissionInfo *info=GetTransmissionInfo(seq);
     if(info&&info->inflight){
-        bytes_inflight_-=info->bytes_sent;
+        ByteCount bytes_sent=info->bytes_sent;
+        bytes_sent=std::min(bytes_sent,bytes_inflight_);
+        bytes_inflight_-=bytes_sent;
         info->inflight=false;
     }
 }
@@ -88,3 +91,4 @@ void UnackedPacketMap::RemoveObsolete(){
         least_unacked_++;
     }
 }
+}//namespace dqc;

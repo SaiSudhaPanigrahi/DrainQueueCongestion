@@ -6,6 +6,22 @@
 #include <set>
 template<typename T>
 class Interval{
+private:
+  // Type trait for deriving the return type for QuicInterval::Length.  If
+  // operator-() is not defined for T, then the return type is void.  This makes
+  // the signature for Length compile so that the class can be used for such T,
+  // but code that calls Length would still generate a compilation error.
+  template <typename U>
+  class DiffTypeOrVoid {
+   private:
+    template <typename V>
+    static auto f(const V* v) -> decltype(*v - *v);
+    template <typename V>
+    static void f(...);
+
+   public:
+    using type = typename std::decay<decltype(f<U>(nullptr))>::type;
+  };
 public:
 typedef Interval<T> value_type;
 Interval():min_(),max_(){}
@@ -25,8 +41,14 @@ bool Contains(const Interval<T> &i) const{
  const T&Max() const{
     return max_;
 }
- const T&Min()const{
+ const T&Min() const{
     return min_;
+}
+bool Empty() const{
+    return Min()>=Max();
+}
+typename DiffTypeOrVoid<T>::type Length() const{
+    return (Empty()?Min():Max())-Min();
 }
 Interval<T>& operator=(const value_type &o){
     min_=o.Min();

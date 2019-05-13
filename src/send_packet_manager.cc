@@ -1,6 +1,7 @@
 #include "send_packet_manager.h"
 #include "logging.h"
 #include <algorithm>
+namespace dqc{
 SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
 :acked_observer_(acked_observer){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
@@ -183,3 +184,4 @@ void SendPacketManager::MarkForRetrans(PacketNumber seq){
         pendings_[seq]=copy;
     }
 }
+}//namespace dqc;

@@ -2,6 +2,7 @@
 #define UNACKED_PACKET_MAP_H_
 #include "proto_packets.h"
 #include <deque>
+namespace dqc{
 class UnackedPacketMap{
 public:
     void AddSentPacket(SerializedPacket *packet,PacketNumber old,uint64_t send_ts,bool set_flight);
@@ -17,4 +18,5 @@ private:
     PacketNumber least_unacked_{0};
     ByteCount bytes_inflight_{0};
 };
+}//namespace dqc;
 #endif

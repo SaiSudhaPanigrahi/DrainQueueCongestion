@@ -2,6 +2,7 @@
 #include "proto_con.h"
 #include "proto_utils.h"
 #include "byte_codec.h"
+namespace dqc{
 ProtoCon::ProtoCon():sent_manager_(this){
 
 }
@@ -72,6 +73,7 @@ void ProtoCon::Test(){
     sent_manager_.OnAckStart(3,0);
     sent_manager_.OnAckRange(1,4);
     sent_manager_.OnAckEnd(0);
+    DLOG(INFO)<<"next "<<sent_manager_.GetLeastUnacked();
     alloc->Delete(data);
 }
 ProtoStream *ProtoCon::CreateStream(){
@@ -109,7 +111,6 @@ int ProtoCon::Send(ProtoStream *stream,char *buf){
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,0);
     int available=writer.length();
     memcpy(buf,src,available);
-    printf("available %d\n",available);
     return available;
 }
 void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len){
@@ -131,3 +132,4 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len){
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,0);
     }
 }
+}//namespace dqc;

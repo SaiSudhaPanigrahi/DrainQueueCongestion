@@ -3,6 +3,7 @@
 #include "logging.h"
 #include <stdio.h>
 #include <string.h>
+namespace dqc{
 char *MyAlloc::New(size_t size,Location loc){
     char *addr=new char [size];
 #if !defined (NDEBUG)
@@ -200,4 +201,4 @@ bool StreamSendBuffer::Acked(StreamOffset offset,ByteCount len){
     CleanUpBufferedSlice();
     return true;
 }
-
+}//namespace dqc;

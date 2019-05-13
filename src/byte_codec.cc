@@ -40,6 +40,16 @@ bool DataReader::ReadUInt64(uint64_t *result){
     }
     return true;
 }
+bool DataReader::ReadBytesToUInt64(uint32_t num_len,uint64_t *result){
+    *result=0u;
+    if(HOST_ORDER==endianness_){
+        return ReadBytes(result,num_len);
+    }
+    if(!ReadBytes(reinterpret_cast<char*>(result) + sizeof(*result) - num_len,num_len)){
+        return false;
+    }
+    *result=basic::NetToHost64(*result);
+}
 bool DataReader::ReadBytes(void*result,uint32_t size){
     if(!CanRead(size)){
         OnFailure();
@@ -85,6 +95,16 @@ bool DataWriter::WriteUInt64(uint64_t value){
     }
     return WriteBytes(&value,sizeof(uint64_t));
 }
+bool DataWriter::WriteBytesToUInt64(uint32_t num_bytes, uint64_t value){
+    if(num_bytes>sizeof(value)){
+        return false;
+    }
+    if(HOST_ORDER==endianness_){
+        return WriteBytes(&value,num_bytes);
+    }
+    value=basic::HostToNet64(value);
+    return WriteBytes(reinterpret_cast<char*>(&value)+sizeof(value)-num_bytes,num_bytes);
+}
 bool DataWriter::WriteBytes(const void *value,uint32_t size){
     char *dst=BeginWrite(size);
     if(!dst){
@@ -103,4 +123,28 @@ char* DataWriter::BeginWrite(uint32_t bytes){
     }
     return buf_+pos_;
 }
+}
+#include <iostream>
+#include "byte_codec.h"
+#include <string.h>
+void byte_order_test(){
+    uint64_t a=12;
+    uint16_t b=1234;
+    uint32_t c=43217;
+    uint64_t d=123456789;
+    char buf[1500];
+    basic::DataWriter w(buf,1500,basic::NETWORK_ORDER);
+    w.WriteBytesToUInt64(2,a);
+    w.WriteUInt16(b);
+    w.WriteUInt32(c);
+    w.WriteUInt64(d);
+    basic::DataReader r(buf,1500,basic::NETWORK_ORDER);
+    uint16_t a1=0;
+    r.ReadUInt16(&a1);
+    std::cout<<std::to_string(a1)<<std::endl;
+    uint64_t b1=0;
+    r.ReadBytesToUInt64(2,&b1);
+    std::cout<<std::to_string(b1)<<std::endl;
+    r.ReadBytesToUInt64(4,&b1);
+    std::cout<<std::to_string(b1)<<std::endl;
 }

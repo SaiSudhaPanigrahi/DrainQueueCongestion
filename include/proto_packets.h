@@ -2,6 +2,7 @@
 #define PROTO_PACKET_H_
 #include "proto_comm.h"
 #include <vector>
+namespace dqc{
 struct PacketStream{
 PacketStream(uint32_t id1,StreamOffset offset1,ByteCount len1)
 :id(id1),offset(offset1),len(len1){}
@@ -38,4 +39,5 @@ struct PendingRetransmission{
 PacketNumber  number;
 ProtoFrames retransble_frames;
 };
+}//namespace dqc;
 #endif

@@ -2,6 +2,7 @@
 #include "flag_impl.h"
 #include "proto_utils.h"
 #include "logging.h"
+namespace dqc{
 ProtoStream::ProtoStream(ProtoConVisitor *visitor,uint32_t id)
 :visitor_(visitor)
 ,stream_id_(id)
@@ -64,3 +65,4 @@ void ProtoStream::WriteBufferedData(){
 void ProtoStream::OnConsumedData(ByteCount len){
     send_buf_.Consumed(len);
 }
+}//namespace dqc;

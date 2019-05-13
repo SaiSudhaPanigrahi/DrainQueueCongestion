@@ -1,5 +1,5 @@
 #include "ack_frame.h"
-#include "logging.h"
+namespace dqc{
 void PacketQueue::Add(PacketNumber p){
     if(packet_deque_.empty()){
         packet_deque_.push_front(Interval<PacketNumber>(p,p+1));
@@ -106,10 +106,10 @@ void PacketQueue::RemoveUpTo(PacketNumber p){
         }
     }
 }
-PacketNumber PacketQueue::Min(){
+PacketNumber PacketQueue::Min() const{
     return packet_deque_.front().Min();
 }
-PacketNumber PacketQueue::Max(){
+PacketNumber PacketQueue::Max() const{
     return packet_deque_.back().Max();
 }
 void PacketQueue::Print(){
@@ -124,17 +124,10 @@ void PacketQueue::Print(){
 
     }
 }
-void ack_frame_test(){
-    PacketQueue packets;
-    int i=1;
-    for (i=1;i<10;i++){
-        if(i==3){continue;}
-        if(i==6){continue;}
-        packets.Add(i);
-    }
-    packets.Print();
-    packets.RemoveUpTo(6);
-    //packets.Add(5);
-   // packets.AddRange(1,3);
-    packets.Print();
+PacketNumber PacketQueue::LastIntervalLength() const{
+    DCHECK(!Empty());
+    return packet_deque_.back().Length();
 }
+AckFrame::AckFrame()
+:largest_acked(0),ack_delay_time(TimeDelta::Infinite()){}
+}//namespace dqc;

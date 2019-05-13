@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <memory.h>
 #include <stdio.h>
+namespace dqc{
 std::string Location::ToString() const{
     char buf[256];
     snprintf(buf,sizeof(buf),"%s@%s",fun_name_,file_line_);
@@ -62,3 +63,4 @@ char RandomLetter::GetLetter(){
     char x=a+index;
     return x;
 }
+}//namespace dqc;
