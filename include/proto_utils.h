@@ -1,8 +1,9 @@
 #ifndef  PROTO_UTILS_H
 #define  PROTO_UTILS_H
+#include <string>
+#include <sstream>
 #include "proto_types.h"
 #include "random.h"
-#include <string>
 #define STRINGIZE_NO_EXPANSION(x) #x
 //black magic
 #define MY_PROTO_STRINGNIZE(x) STRINGIZE_NO_EXPANSION(x)
@@ -75,5 +76,17 @@ private:
 struct iovec MakeIovec(std::string&data);
 void CopyToBuffer(const struct iovec*iov,int iov_count,
                   size_t iov_offset,size_t buf_len,char*buf);
+template <typename... Args>
+inline std::string QuicStrCatImpl(const Args&... args) {
+  std::ostringstream oss;
+  int dummy[] = {1, (oss << args, 0)...};
+  static_cast<void>(dummy);
+  return oss.str();
+}
+// Merges given strings or numbers with no delimiter.
+template <typename... Args>
+inline std::string QuicStrCat(const Args&... args) {
+  return QuicStrCatImpl(std::forward<const Args&>(args)...);
+}
 }//namespace dqc;
 #endif

@@ -4,11 +4,16 @@
 #include <vector>
 namespace dqc{
 struct PacketStream{
-PacketStream(uint32_t id1,StreamOffset offset1,ByteCount len1)
-:id(id1),offset(offset1),len(len1){}
-uint32_t id;
+PacketStream():PacketStream(-1,0,0,false){}
+PacketStream(uint32_t id,StreamOffset offset,PacketLength len,bool fin)
+:PacketStream(id,offset,nullptr,len,fin){}
+PacketStream(uint32_t id1,StreamOffset offset1,char*data1,PacketLength len1,bool fin1)
+:stream_id(id1),offset(offset1),len(len1),fin(fin1),data_buffer(data1){}
+uint32_t stream_id;
 StreamOffset offset;
-ByteCount len;
+PacketLength len;
+bool fin;
+const char *data_buffer{nullptr};
 };
 struct ProtoFrame{
 explicit ProtoFrame(PacketStream frame):stream_frame(frame){

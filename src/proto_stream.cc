@@ -55,11 +55,12 @@ void ProtoStream::SimuPacketGenerator(){
 void ProtoStream::WriteBufferedData(){
     uint64_t payload_len=FLAG_packet_payload;
     uint64_t buffered=BufferedBytes();
+    bool fin=false;
     if(buffered>0){
         uint64_t len=std::min(payload_len,buffered);
         StreamOffset offset=send_buf_.StreamBytesWritten();
         OnConsumedData(len);
-        visitor_->WritevData(id(),offset,len);
+        visitor_->WritevData(id(),offset,len,fin);
     }
 }
 void ProtoStream::OnConsumedData(ByteCount len){

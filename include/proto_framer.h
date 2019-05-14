@@ -4,12 +4,14 @@
 #include "byte_codec.h"
 #include "proto_time.h"
 #include "proto_error_codes.h"
+#include "proto_packets.h"
 namespace dqc{
 struct AckFrame;
 class ProtoFramer;
 class ProtoFrameVisitor{
 public:
   virtual ~ProtoFrameVisitor(){}
+  virtual bool OnStreamFrame(PacketStream &frame)=0;
   virtual void OnError(ProtoFramer* framer) = 0;
   // Called when largest acked of an AckFrame has been parsed.
   virtual bool OnAckFrameStart(PacketNumber largest_acked,
@@ -28,7 +30,8 @@ public:
 };
 class ProtoFramer{
 public:
-bool AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer);
+  bool AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer);
+  bool ProcessFrameData(basic::DataReader* reader, const ProtoPacketHeader& header);
   struct AckFrameInfo {
     AckFrameInfo();
     AckFrameInfo(const AckFrameInfo& other)=default;
@@ -60,6 +63,10 @@ bool AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer);
     visitor_=visitor;
   }
 private:
+    bool ProcessStreamFrame(basic::DataReader* reader,
+                            uint8_t frame_type,
+                            PacketStream* frame);
+    bool ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type);
     void set_detailed_error(const char* error) { detailed_error_ = error; }
     bool RaiseError(ProtoErrorCode error);
     bool process_timestamps_{false};

@@ -28,7 +28,9 @@ int main(){
     //ack_frame_test();
     //proto_types_test();
     //interval_test();
-   // byte_order_test();
+    //byte_order_test();
+   //test_proto_framer();
+   //test_ufloat();
    test_proto_framer();
 }
 

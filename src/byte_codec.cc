@@ -62,8 +62,61 @@ bool DataReader::ReadBytes(void*result,uint32_t size){
     pos_+=size;
     return true;
 }
+bool DataReader::ReadUFloat16(uint64_t* result){
+  uint16_t value;
+  if (!ReadUInt16(&value)) {
+    return false;
+  }
+
+  *result = value;
+  if (*result < (1 << kUFloat16MantissaEffectiveBits)) {
+    // Fast path: either the value is denormalized (no hidden bit), or
+    // normalized (hidden bit set, exponent offset by one) with exponent zero.
+    // Zero exponent offset by one sets the bit exactly where the hidden bit is.
+    // So in both cases the value encodes itself.
+    return true;
+  }
+
+  uint16_t exponent =
+      value >> kUFloat16MantissaBits;  // No sign extend on uint!
+  // After the fast pass, the exponent is at least one (offset by one).
+  // Un-offset the exponent.
+  --exponent;
+  DCHECK_GE(exponent, 1);
+  DCHECK_LE(exponent, kUFloat16MaxExponent);
+  // Here we need to clear the exponent and set the hidden bit. We have already
+  // decremented the exponent, so when we subtract it, it leaves behind the
+  // hidden bit.
+  *result -= exponent << kUFloat16MantissaBits;
+  *result <<= exponent;
+  DCHECK_GE(*result,
+            static_cast<uint64_t>(1 << kUFloat16MantissaEffectiveBits));
+  DCHECK_LE(*result, kUFloat16MaxValue);
+  return true;
+}
+bool DataReader::ReadStringPiece16(std::string * result){
+    uint16_t result_len=0;
+    if(!ReadUInt16(&result_len)){
+        return false;
+    }
+    return ReadStringPiece(result,result_len);
+}
+bool DataReader::ReadStringPiece(std::string * result, size_t size){
+      // Make sure that we have enough data to read.
+  if (!CanRead(size)) {
+    OnFailure();
+    return false;
+  }
+  *result=std::string(data_ + pos_, size);
+  // Iterate.
+  pos_ += size;
+    return true;
+}
 bool DataReader::IsDoneReading() const {
   return len_ == pos_;
+}
+size_t DataReader::BytesRemaining() const {
+  return len_ - pos_;
 }
 bool DataReader::CanRead(uint32_t bytes){
     return bytes<=(len_-pos_);

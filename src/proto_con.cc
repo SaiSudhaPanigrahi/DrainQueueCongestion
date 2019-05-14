@@ -15,9 +15,9 @@ ProtoCon::~ProtoCon(){
         delete stream;
     }
 }
-void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len){
+void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
 
-    waiting_info_.emplace_back(id,offset,len);
+    waiting_info_.emplace_back(id,offset,len,fin);
 }
 void ProtoCon::OnAckStream(uint32_t id,StreamOffset off,ByteCount len){
     ProtoStream *stream=GetStream(id);
@@ -66,8 +66,8 @@ void ProtoCon::Test(){
         PendingRetransmission pend=sent_manager_.NextPendingRetrans();
         for(auto frame_it=pend.retransble_frames.begin();
         frame_it!=pend.retransble_frames.end();frame_it++){
-            Retransmit(frame_it->stream_frame.id,frame_it->stream_frame.offset,
-                       frame_it->stream_frame.len);
+            Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
+                       frame_it->stream_frame.len,frame_it->stream_frame.fin);
         }
     }
     sent_manager_.OnAckStart(3,0);
@@ -113,7 +113,7 @@ int ProtoCon::Send(ProtoStream *stream,char *buf){
     memcpy(buf,src,available);
     return available;
 }
-void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len){
+void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     ProtoStream *stream=GetStream(id);
     if(stream){
         DLOG(INFO)<<"retrans "<<off;
@@ -121,7 +121,7 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len){
     memset(src,0,sizeof(src));
     basic::DataWriter writer(src,sizeof(src));
     stream->WriteStreamData(off,len,&writer);
-    struct PacketStream info(id,off,len);
+    struct PacketStream info(id,off,len,fin);
     ProtoFrame frame(info);
     SerializedPacket serialized;
     serialized.number=AllocSeq();

@@ -64,7 +64,7 @@ void SendPacketManager::OnAckEnd(uint64_t time){
                 if(acked_observer_){
                     for(auto frame_it=info->retransble_frames.begin();
                     frame_it!=info->retransble_frames.end();frame_it++){
-                        acked_observer_->OnAckStream(frame_it->stream_frame.id,
+                        acked_observer_->OnAckStream(frame_it->stream_frame.stream_id,
                                                      frame_it->stream_frame.offset,
                                                      frame_it->stream_frame.len);
                     }
@@ -80,7 +80,7 @@ class PacketGenerator{
 public:
     PacketGenerator(){}
     SerializedPacket CreateStream(){
-        PacketStream stream(id_,offset_,stream_len_);
+        PacketStream stream(id_,offset_,stream_len_,false);
         offset_+=stream_len_;
         ProtoFrame frame(stream);
         SerializedPacket packet;

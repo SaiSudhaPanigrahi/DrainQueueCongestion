@@ -1,6 +1,7 @@
 #ifndef BYTE_CODEC_H_
 #define BYTE_CODEC_H_
 #include <cstddef>
+#include <string>
 #include "byte_order.h"
 namespace basic{
 enum Endianness{
@@ -18,7 +19,11 @@ public:
     bool ReadUInt64(uint64_t *result);
     bool ReadBytesToUInt64(uint32_t num_len,uint64_t *result);
     bool ReadBytes(void*result,uint32_t size);
+    bool ReadUFloat16(uint64_t* result);
+    bool ReadStringPiece16(std::string * result);
+    bool ReadStringPiece(std::string * result, size_t size);
     bool IsDoneReading() const ;
+    size_t BytesRemaining() const;
 private:
     bool CanRead(uint32_t bytes);
     void OnFailure();

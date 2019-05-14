@@ -58,16 +58,8 @@ struct AckFrame{
     PacketNumber largest_acked;
     TimeDelta ack_delay_time;
 };
-class RecvPktMger{
-public:
-    void OnRecvPkt(PacketNumber seq,TimeType time);
-private:
-    bool first_received_{true};
-    PacketNumber largest_received_{0};
-    AckFrame frame;
-};
 inline PacketNumber LargestAcked(const AckFrame& frame) {
-  DCHECK(frame.packets.Empty() || frame.packets.Max() == frame.largest_acked);
+  DCHECK((!frame.packets.Empty()) &&frame.packets.Max() > frame.largest_acked);
   return frame.largest_acked;
 }
 }//namespace dqc;
