@@ -8,6 +8,7 @@ bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
                       ContainsRetransData retrans,uint64_t send_ts){
     bool set_inflight=(retrans==CON_RE_YES);
     unacked_packets_.AddSentPacket(packet,old,send_ts,set_inflight);
+    return true;
 }
 bool SendPacketManager::HasPendingForRetrans(){
     return !pendings_.empty();
@@ -143,7 +144,7 @@ void SendPacketManager::Test2(){
         if(len>0){
             off=pending.retransble_frames.front().stream_frame.offset;
         }
-        printf("%d %llu\n",len,off);
+        DLOG(INFO)<<len<<" "<<off;
         Retransmitted(pending.number);
 }
     PacketNumber least_unacked=unacked_packets_.GetLeastUnacked();

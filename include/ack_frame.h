@@ -44,17 +44,17 @@ public:
     size_t size(){
         return packet_deque_.size();
     }
-    PacketNumber LastIntervalLength() const;
+    ByteCount LastIntervalLength() const;
     private:
     std::deque<Interval<PacketNumber>> packet_deque_;
 };
-typedef std::vector<std::pair<PacketNumber,TimeType>> PacketVector;
+typedef std::vector<std::pair<PacketNumber,ProtoTime>> PacketVector;
 struct AckFrame{
     AckFrame();
     AckFrame(const AckFrame &o)=default;
     ~AckFrame(){}
     PacketQueue packets;
-    PacketVector packet_time;
+    PacketVector received_packet_times;
     PacketNumber largest_acked;
     TimeDelta ack_delay_time;
 };

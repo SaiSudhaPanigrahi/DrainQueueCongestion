@@ -38,10 +38,16 @@ bool Contains(const T &t) const{
 bool Contains(const Interval<T> &i) const{
     return Min()<=i.Min()&&Max()>=i.Max();
 }
- const T&Max() const{
+const T&Max() const{
     return max_;
 }
- const T&Min() const{
+const T&Min() const{
+    return min_;
+}
+const T&max() const{
+    return max_;
+}
+const T&min() const{
     return min_;
 }
 bool Empty() const{

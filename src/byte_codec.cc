@@ -1,6 +1,8 @@
-#include "byte_codec.h"
 #include <memory.h>
-#include <stdio.h>
+#include <limits>
+#include "byte_codec.h"
+#include "basic_constants.h"
+#include "logging.h"
 namespace basic{
 DataReader::DataReader(const char* buf,uint32_t len)
 :DataReader(buf,len,NETWORK_ORDER){}
@@ -49,6 +51,7 @@ bool DataReader::ReadBytesToUInt64(uint32_t num_len,uint64_t *result){
         return false;
     }
     *result=basic::NetToHost64(*result);
+    return true;
 }
 bool DataReader::ReadBytes(void*result,uint32_t size){
     if(!CanRead(size)){
@@ -58,6 +61,9 @@ bool DataReader::ReadBytes(void*result,uint32_t size){
     memcpy(result,data_+pos_,size);
     pos_+=size;
     return true;
+}
+bool DataReader::IsDoneReading() const {
+  return len_ == pos_;
 }
 bool DataReader::CanRead(uint32_t bytes){
     return bytes<=(len_-pos_);
@@ -114,6 +120,47 @@ bool DataWriter::WriteBytes(const void *value,uint32_t size){
     pos_+=size;
     return true;
 }
+bool DataWriter::WriteUFloat16(uint64_t value){
+  uint16_t result;
+  if (value < (UINT64_C(1) << kUFloat16MantissaEffectiveBits)) {
+    // Fast path: either the value is denormalized, or has exponent zero.
+    // Both cases are represented by the value itself.
+    result = static_cast<uint16_t>(value);
+  } else if (value >= kUFloat16MaxValue) {
+    // Value is out of range; clamp it to the maximum representable.
+    result = std::numeric_limits<uint16_t>::max();
+  } else {
+    // The highest bit is between position 13 and 42 (zero-based), which
+    // corresponds to exponent 1-30. In the output, mantissa is from 0 to 10,
+    // hidden bit is 11 and exponent is 11 to 15. Shift the highest bit to 11
+    // and count the shifts.
+    uint16_t exponent = 0;
+    for (uint16_t offset = 16; offset > 0; offset /= 2) {
+      // Right-shift the value until the highest bit is in position 11.
+      // For offset of 16, 8, 4, 2 and 1 (binary search over 1-30),
+      // shift if the bit is at or above 11 + offset.
+      if (value >= (UINT64_C(1) << (kUFloat16MantissaBits + offset))) {
+        exponent += offset;
+        value >>= offset;
+      }
+    }
+
+    DCHECK_GE(exponent, 1);
+    DCHECK_LE(exponent, kUFloat16MaxExponent);
+    DCHECK_GE(value, UINT64_C(1) << kUFloat16MantissaBits);
+    DCHECK_LT(value, UINT64_C(1) << kUFloat16MantissaEffectiveBits);
+
+    // Hidden bit (position 11) is set. We should remove it and increment the
+    // exponent. Equivalently, we just add it to the exponent.
+    // This hides the bit.
+    result = static_cast<uint16_t>(value + (exponent << kUFloat16MantissaBits));
+  }
+
+  if (endianness_ == NETWORK_ORDER) {
+    result = basic::HostToNet16(result);
+  }
+  return WriteBytes(&result, sizeof(result));
+}
 char* DataWriter::BeginWrite(uint32_t bytes){
     if(pos_>capacity_){
         return nullptr;
@@ -123,28 +170,4 @@ char* DataWriter::BeginWrite(uint32_t bytes){
     }
     return buf_+pos_;
 }
-}
-#include <iostream>
-#include "byte_codec.h"
-#include <string.h>
-void byte_order_test(){
-    uint64_t a=12;
-    uint16_t b=1234;
-    uint32_t c=43217;
-    uint64_t d=123456789;
-    char buf[1500];
-    basic::DataWriter w(buf,1500,basic::NETWORK_ORDER);
-    w.WriteBytesToUInt64(2,a);
-    w.WriteUInt16(b);
-    w.WriteUInt32(c);
-    w.WriteUInt64(d);
-    basic::DataReader r(buf,1500,basic::NETWORK_ORDER);
-    uint16_t a1=0;
-    r.ReadUInt16(&a1);
-    std::cout<<std::to_string(a1)<<std::endl;
-    uint64_t b1=0;
-    r.ReadBytesToUInt64(2,&b1);
-    std::cout<<std::to_string(b1)<<std::endl;
-    r.ReadBytesToUInt64(4,&b1);
-    std::cout<<std::to_string(b1)<<std::endl;
 }

@@ -120,11 +120,11 @@ void PacketQueue::Print(){
     int i=0;
     for(i=0;i<len;i++){
         Interval<PacketNumber> temp=packet_deque_[i];
-        printf("%llu,%llu\n",temp.Min(),temp.Max());
+        DLOG(INFO)<<temp.Min()<<" "<<temp.Max();
 
     }
 }
-PacketNumber PacketQueue::LastIntervalLength() const{
+ByteCount PacketQueue::LastIntervalLength() const{
     DCHECK(!Empty());
     return packet_deque_.back().Length();
 }

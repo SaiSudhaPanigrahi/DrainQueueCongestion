@@ -18,6 +18,7 @@ public:
     bool ReadUInt64(uint64_t *result);
     bool ReadBytesToUInt64(uint32_t num_len,uint64_t *result);
     bool ReadBytes(void*result,uint32_t size);
+    bool IsDoneReading() const ;
 private:
     bool CanRead(uint32_t bytes);
     void OnFailure();
@@ -43,6 +44,7 @@ public:
     bool WriteUInt64(uint64_t value);
     bool WriteBytesToUInt64(uint32_t num_bytes, uint64_t value);
     bool WriteBytes(const void *value,uint32_t size);
+    bool WriteUFloat16(uint64_t value);
 private:
     char* BeginWrite(uint32_t bytes);
     char *buf_{0};
@@ -51,5 +53,4 @@ private:
     Endianness endianness_{HOST_ORDER};
 };
 }
-void byte_order_test();
 #endif
