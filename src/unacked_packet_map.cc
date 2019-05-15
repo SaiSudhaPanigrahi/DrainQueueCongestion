@@ -1,7 +1,7 @@
 #include "unacked_packet_map.h"
 #include "logging.h"
 namespace dqc{
-void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,uint64_t send_ts,bool set_flight)
+void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight)
 {
     if(none_sent_){
         least_unacked_=packet->number;

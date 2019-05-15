@@ -7,4 +7,7 @@ void interval_test();
 void byte_order_test();
 void test_proto_framer();
 void test_ufloat();
+void test_time();
+void test_stream_endecode();
+void test_test();
 #endif

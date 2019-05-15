@@ -36,6 +36,96 @@ ProtoStream *ProtoCon::GetOrCreateStream(uint32_t id){
 void ProtoCon::Close(uint32_t id){
 
 }
+bool ProtoCon::OnStreamFrame(PacketStream &frame){
+    DLOG(INFO)<<"should not be called";
+    return true;
+}
+void ProtoCon::OnError(ProtoFramer* framer){
+
+}
+bool ProtoCon::OnAckFrameStart(PacketNumber largest_acked,
+                                 TimeDelta ack_delay_time){
+  DLOG(INFO)<<largest_acked;
+  return true;
+}
+bool ProtoCon::OnAckRange(PacketNumber start, PacketNumber end){
+    DLOG(INFO)<<start<<" "<<end;
+    return true;
+}
+bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
+                                ProtoTime timestamp){
+    return true;
+}
+bool ProtoCon::OnAckFrameEnd(PacketNumber start){
+    DLOG(INFO)<<start;
+    return true;
+}
+bool ProtoCon::WriteStreamData(uint32_t id,
+                               StreamOffset offset,
+                               ByteCount len,
+                               basic::DataWriter *writer){
+    ProtoStream *stream=GetStream(id);
+    if(!stream){
+        return false;
+    }
+    return stream->WriteStreamData(offset,len,writer);
+}
+ProtoStream *ProtoCon::CreateStream(){
+    uint32_t id=stream_id_;
+    ProtoStream *stream=new ProtoStream(this,id);
+    stream_id_++;
+    streams_.insert(std::make_pair(id,stream));
+    return stream;
+}
+ProtoStream *ProtoCon::GetStream(uint32_t id){
+    ProtoStream *stream=nullptr;
+    std::map<uint32_t,ProtoStream*>::iterator found=streams_.find(id);
+    if(found!=streams_.end()){
+        stream=found->second;
+    }
+    return stream;
+}
+int ProtoCon::Send(ProtoStream *stream,char *buf){
+    if(waiting_info_.empty()){
+        return 0;
+    }
+    struct PacketStream info=waiting_info_.front();
+    waiting_info_.pop_front();
+    char src[1500];
+    memset(src,0,sizeof(src));
+    basic::DataWriter writer(src,sizeof(src));
+    stream->WriteStreamData(info.offset,info.len,&writer);
+    ProtoFrame frame(info);
+    SerializedPacket serialized;
+    serialized.number=AllocSeq();
+    serialized.buf=nullptr;//buf addr is not quite useful;
+    //TODO add header info;
+    serialized.len=writer.length();
+    serialized.retransble_frames.push_back(frame);
+    sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
+    int available=writer.length();
+    memcpy(buf,src,available);
+    return available;
+}
+void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
+    ProtoStream *stream=GetStream(id);
+    if(stream){
+        DLOG(INFO)<<"retrans "<<off;
+    char src[1500];
+    memset(src,0,sizeof(src));
+    basic::DataWriter writer(src,sizeof(src));
+    stream->WriteStreamData(off,len,&writer);
+    struct PacketStream info(id,off,len,fin);
+    ProtoFrame frame(info);
+    SerializedPacket serialized;
+    serialized.number=AllocSeq();
+    serialized.buf=nullptr;//buf addr is not quite useful;
+    //TODO add header info;
+    serialized.len=writer.length();
+    serialized.retransble_frames.push_back(frame);
+    sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
+    }
+}
 void ProtoCon::Test(){
     uint32_t id=0;
     ProtoStream *stream=GetOrCreateStream(id);
@@ -75,61 +165,5 @@ void ProtoCon::Test(){
     sent_manager_.OnAckEnd(0);
     DLOG(INFO)<<"next "<<sent_manager_.GetLeastUnacked();
     alloc->Delete(data);
-}
-ProtoStream *ProtoCon::CreateStream(){
-    uint32_t id=stream_id_;
-    ProtoStream *stream=new ProtoStream(this,id);
-    stream_id_++;
-    streams_.insert(std::make_pair(id,stream));
-    return stream;
-}
-ProtoStream *ProtoCon::GetStream(uint32_t id){
-    ProtoStream *stream=nullptr;
-    std::map<uint32_t,ProtoStream*>::iterator found=streams_.find(id);
-    if(found!=streams_.end()){
-        stream=found->second;
-    }
-    return stream;
-}
-int ProtoCon::Send(ProtoStream *stream,char *buf){
-    if(waiting_info_.empty()){
-        return 0;
-    }
-    struct PacketStream info=waiting_info_.front();
-    waiting_info_.pop_front();
-    char src[1500];
-    memset(src,0,sizeof(src));
-    basic::DataWriter writer(src,sizeof(src));
-    stream->WriteStreamData(info.offset,info.len,&writer);
-    ProtoFrame frame(info);
-    SerializedPacket serialized;
-    serialized.number=AllocSeq();
-    serialized.buf=nullptr;//buf addr is not quite useful;
-    //TODO add header info;
-    serialized.len=writer.length();
-    serialized.retransble_frames.push_back(frame);
-    sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,0);
-    int available=writer.length();
-    memcpy(buf,src,available);
-    return available;
-}
-void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
-    ProtoStream *stream=GetStream(id);
-    if(stream){
-        DLOG(INFO)<<"retrans "<<off;
-    char src[1500];
-    memset(src,0,sizeof(src));
-    basic::DataWriter writer(src,sizeof(src));
-    stream->WriteStreamData(off,len,&writer);
-    struct PacketStream info(id,off,len,fin);
-    ProtoFrame frame(info);
-    SerializedPacket serialized;
-    serialized.number=AllocSeq();
-    serialized.buf=nullptr;//buf addr is not quite useful;
-    //TODO add header info;
-    serialized.len=writer.length();
-    serialized.retransble_frames.push_back(frame);
-    sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,0);
-    }
 }
 }//namespace dqc;

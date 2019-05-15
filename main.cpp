@@ -9,12 +9,6 @@
 #include "fun_test.h"
 #include "proto_framer.h"
 #include "proto_time.h"
-namespace dqc{
-    const uint32_t kShit=1234;
-}
-namespace shit{
-    const uint32_t kShit=4567;
-}
 using namespace dqc;
 int main(){
     /*ProtoCon con;
@@ -25,13 +19,8 @@ int main(){
     manager.Test();
     manager.Test2();
     */
-    //ack_frame_test();
-    //proto_types_test();
-    //interval_test();
-    //byte_order_test();
-   //test_proto_framer();
-   //test_ufloat();
-   test_proto_framer();
+
+   test_test();
 }
 
 

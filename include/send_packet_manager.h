@@ -9,7 +9,7 @@ class SendPacketManager{
 public:
     SendPacketManager(StreamAckedObserver *acked_observer);
     bool OnSentPacket(SerializedPacket *packet,PacketNumber old,
-                      ContainsRetransData retrans,uint64_t send_ts);
+                      ContainsRetransData retrans,ProtoTime send_ts);
 typedef linked_hash_map<PacketNumber,TransmissionInfo,PacketNumberHash> PendingRetransmissionMap;
     PacketNumber GetLeastUnacked(){ return unacked_packets_.GetLeastUnacked();}
     bool HasPendingForRetrans();

@@ -3,6 +3,18 @@
 #include <stdint.h>
 #include <cstddef>
 #include <vector>
+#ifdef WIN_32
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <stdarg.h>
+#include <errno.h>
+#endif
+//copy from razor project;
+typedef struct sockaddr_in  su_addr;
 namespace dqc{
 typedef uint64_t StreamOffset;
 typedef uint64_t ByteCount;

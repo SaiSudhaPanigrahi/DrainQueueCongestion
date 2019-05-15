@@ -2,6 +2,7 @@
 #define PROTO_STREAM_H_
 #include "memslice.h"
 #include "proto_con_visitor.h"
+#include "proto_stream_data_producer.h"
 #include <string>
 namespace dqc{
 class ProtoStream{

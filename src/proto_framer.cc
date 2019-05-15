@@ -111,6 +111,52 @@ size_t GetAckFrameTimeStampSize(const AckFrame& ack) {
          (kQuicTimestampLength + kQuicTimestampPacketNumberGapLength) *
              (ack.received_packet_times.size() - 1);
 }
+size_t GetStreamIdSize(uint32_t stream_id){
+  // Sizes are 1 through 4 bytes.
+  for (int i = 1; i <= 4; ++i) {
+    stream_id >>= 8;
+    if (stream_id == 0) {
+      return i;
+    }
+  }
+  DLOG(FATAL)<< "Failed to determine StreamID Size.";
+  return 4;
+}
+size_t GetStreamOffsetSize(StreamOffset offset){
+  // 0 is a special case.
+  if (offset == 0) {
+    return 0;
+  }
+  // 2 through 8 are the remaining sizes.
+  offset >>= 8;
+  for (int i = 2; i <= 8; ++i) {
+    offset >>= 8;
+    if (offset == 0) {
+      return i;
+    }
+  }
+  DLOG(FATAL)<< "Failed to determine StreamOffsetSize.";
+  return 8;
+}
+bool AppendStreamId(size_t stream_id_length,
+                    uint32_t stream_id,
+                    basic::DataWriter* writer){
+  if (stream_id_length == 0 || stream_id_length > 4) {
+    DLOG(FATAL)<< "Invalid stream_id_length: " << stream_id_length;
+    return false;
+  }
+  return writer->WriteBytesToUInt64(stream_id_length, stream_id);
+}
+bool AppendStreamOffset(size_t offset_length,
+                        StreamOffset offset,
+                        basic::DataWriter* writer){
+  if (offset_length == 1 || offset_length > 8) {
+    DLOG(FATAL)<< "Invalid stream_offset_length: " << offset_length;
+    return false;
+  }
+
+  return writer->WriteBytesToUInt64(offset_length, offset);
+}
 ProtoFramer::AckFrameInfo::AckFrameInfo()
 :max_block_length(0)
 ,first_block_length(0)
@@ -143,6 +189,48 @@ ProtoFramer::AckFrameInfo ProtoFramer::GetAckFrameInfo(const AckFrame& frame){
         std::max(new_ack_info.max_block_length, interval.Length());
   }
   return new_ack_info;
+}
+bool ProtoFramer::AppendStreamFrame(const PacketStream& frame,
+                                    bool no_stream_frame_length,
+                                    basic::DataWriter* writer){
+
+  if (!AppendStreamId(GetStreamIdSize(frame.stream_id), frame.stream_id,
+                      writer)) {
+    DLOG(INFO)<< "Writing stream id size failed.";
+    return false;
+  }
+  if (!AppendStreamOffset(
+          GetStreamOffsetSize(frame.offset),
+          frame.offset, writer)) {
+    DLOG(INFO)<< "Writing offset size failed.";
+    return false;
+  }
+  if (!no_stream_frame_length) {
+    if ((frame.len> std::numeric_limits<uint16_t>::max()) ||
+        !writer->WriteUInt16(static_cast<uint16_t>(frame.len))) {
+      DLOG(INFO)<< "Writing stream frame length failed";
+      return false;
+    }
+  }
+
+  if (data_producer_ != nullptr) {
+    DCHECK_EQ(nullptr, frame.data_buffer);
+    if (frame.len== 0) {
+      return true;
+    }
+    if (data_producer_->WriteStreamData(frame.stream_id, frame.offset,
+                                        frame.len,
+                                        writer) != true) {
+      DLOG(FATAL)<< "Writing frame data failed.";
+      return false;
+    }
+    return true;
+  }
+  if (!writer->WriteBytes(frame.data_buffer, frame.len)) {
+    DLOG(FATAL)<< "Writing frame data failed.";
+    return false;
+  }
+    return true;
 }
 bool ProtoFramer::AppendPacketNumber(ProtoPacketNumberLength packet_number_length,
                                  PacketNumber packet_number,

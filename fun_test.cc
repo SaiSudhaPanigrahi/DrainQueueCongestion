@@ -10,6 +10,11 @@
 #include "logging.h"
 #include "fun_test.h"
 #include "received_packet_manager.h"
+#include "rtt_stats.h"
+#include "packet_writer.h"
+#include "proto_con.h"
+#include "proto_stream_data_producer.h"
+#include "proto_packets.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -119,6 +124,53 @@ public:
         return true;
     }
 };
+class FakeDataProducer:public ProtoStreamDataProducer{
+public:
+    void SetData(const char*data,size_t len){
+        data_=data;
+        len_=len;
+    }
+    bool WriteStreamData(uint32_t id,
+                                 StreamOffset offset,
+                                 ByteCount len,
+                                 basic::DataWriter *writer) override{
+    DLOG(INFO)<<offset<<" "<<len;
+    return writer->WriteBytes(data_,len);
+}
+private:
+    const char *data_{nullptr};
+    uint32_t len_{0};
+};
+class DebugStreamFrame:public ProtoFrameVisitor{
+public:
+    virtual bool OnStreamFrame(PacketStream &frame) override{
+        DLOG(INFO)<<"recv "<<frame.stream_id<<" "<<frame.len;
+    return true;
+    }
+    virtual void OnError(ProtoFramer* framer) override{
+    }
+    virtual bool OnAckFrameStart(PacketNumber largest_acked,
+                                 TimeDelta ack_delay_time) override{
+                                 }
+    virtual bool OnAckRange(PacketNumber start,
+                            PacketNumber end) override{
+                            }
+    virtual bool OnAckTimestamp(PacketNumber packet_number,
+                                ProtoTime timestamp) override{
+                                }
+    virtual bool OnAckFrameEnd(PacketNumber start) override{
+    }
+};
+class FakeReceiver:public PacketWriterInterface{
+public:
+    //first to implement stream encoder and decoder;
+    int WritePacket(const char*buf,size_t size,su_addr &dst) override{
+
+        return 0;
+    }
+private:
+    ReceivdPacketManager recv_manager_;
+};
 }
 
 void test_proto_framer(){
@@ -133,6 +185,7 @@ void test_proto_framer(){
         PacketNumber seq=static_cast<PacketNumber>(i);
         receiver.RecordPacketReceived(seq,ts);
     }
+    receiver.RecordPacketReceived(3,ts);
     const AckFrame &ack_frame=receiver.GetUpdateAckFrame();
     char wbuf[1500];
     DataWriter w(wbuf,1500,basic::NETWORK_ORDER);
@@ -142,4 +195,40 @@ void test_proto_framer(){
     decoder.set_visitor(&ack_visitor);
     ProtoPacketHeader fakeheader;
     decoder.ProcessFrameData(&r,fakeheader);
+}
+void test_time(){
+    RttStats rtt_stats_;
+    rtt_stats_.UpdateRtt(TimeDelta::FromMilliseconds(100),TimeDelta::Zero(),ProtoTime::Zero());
+    rtt_stats_.UpdateRtt(TimeDelta::FromMilliseconds(120),TimeDelta::Zero(),ProtoTime::Zero());
+    TimeDelta srtt=rtt_stats_.smoothed_rtt();
+    DLOG(INFO)<<srtt.ToMilliseconds();
+}
+void test_stream_endecode(){
+    std::string data("hello word");
+    FakeDataProducer producer;
+    producer.SetData(data.data(),data.length());
+    ProtoFramer encoder;
+    PacketStream stream(0,0,data.length(),false);
+    char wbuf[1500];
+    basic::DataWriter w(wbuf,1500);
+    encoder.set_data_producer(&producer);
+    //add type stream frame
+    w.WriteUInt8(0x80);
+    encoder.AppendStreamFrame(stream,true,&w);
+    basic::DataReader r(wbuf,w.length());
+    ProtoFramer decoder;
+    DebugStreamFrame frame_visitor;
+    decoder.set_visitor(&frame_visitor);
+    ProtoPacketHeader header;
+    decoder.ProcessFrameData(&r,header);
+}
+void test_test(){
+    //ack_frame_test();
+    //proto_types_test();
+    //interval_test();
+    //byte_order_test();
+   //test_proto_framer();
+   test_stream_endecode();
+   //test_ufloat();
+    //test_time();
 }

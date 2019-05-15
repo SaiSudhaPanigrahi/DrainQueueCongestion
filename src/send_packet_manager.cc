@@ -5,7 +5,7 @@ namespace dqc{
 SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
 :acked_observer_(acked_observer){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
-                      ContainsRetransData retrans,uint64_t send_ts){
+                      ContainsRetransData retrans,ProtoTime send_ts){
     bool set_inflight=(retrans==CON_RE_YES);
     unacked_packets_.AddSentPacket(packet,old,send_ts,set_inflight);
     return true;
@@ -111,8 +111,8 @@ void SendPacketManager::Test(){
     for(i=1;i<=10;i+=2){
     SerializedPacket stream=generator.CreateStream();
     SerializedPacket ack=generator.CreateAck();
-    OnSentPacket(&stream,0,CON_RE_YES,0);
-    OnSentPacket(&ack,0,CON_RE_NO,0);
+    OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
+    OnSentPacket(&ack,0,CON_RE_NO,ProtoTime::Zero());
     }
 //lost 2 3 4 6 7
     OnAckStart(10,0);
@@ -122,7 +122,7 @@ void SendPacketManager::Test(){
     OnAckEnd(0);
     for(i=1;i<=5;i++){
     SerializedPacket stream=generator.CreateStream();
-    OnSentPacket(&stream,0,CON_RE_YES,0);
+    OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
     }
     // l 11
     OnAckStart(13,0);

@@ -5,6 +5,7 @@
 #include "proto_time.h"
 #include "proto_error_codes.h"
 #include "proto_packets.h"
+#include "proto_stream_data_producer.h"
 namespace dqc{
 struct AckFrame;
 class ProtoFramer;
@@ -31,6 +32,9 @@ public:
 class ProtoFramer{
 public:
   bool AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer);
+  bool AppendStreamFrame(const PacketStream& frame,
+                         bool no_stream_frame_length,
+                         basic::DataWriter* writer);
   bool ProcessFrameData(basic::DataReader* reader, const ProtoPacketHeader& header);
   struct AckFrameInfo {
     AckFrameInfo();
@@ -59,6 +63,9 @@ public:
   void set_process_timestamps(bool process_timestamps) {
     process_timestamps_ = process_timestamps;
   }
+  void set_data_producer(ProtoStreamDataProducer *data_producer){
+    data_producer_=data_producer;
+  }
   void set_visitor(ProtoFrameVisitor *visitor){
     visitor_=visitor;
   }
@@ -72,9 +79,18 @@ private:
     bool process_timestamps_{false};
     ProtoTime creation_time_{ProtoTime::Zero()};
     ProtoFrameVisitor *visitor_{nullptr};
+    ProtoStreamDataProducer *data_producer_{nullptr};
     const char *detailed_error_{nullptr};
 };
 size_t GetMinAckFrameSize(PacketNumber largest_observed_length);
 size_t GetAckFrameTimeStampSize(const AckFrame& ack);
+size_t GetStreamIdSize(uint32_t stream_id);
+size_t GetStreamOffsetSize(StreamOffset offset);
+bool AppendStreamId(size_t stream_id_length,
+                    uint32_t stream_id,
+                    basic::DataWriter* writer);
+bool AppendStreamOffset(size_t offset_length,
+                        StreamOffset offset,
+                        basic::DataWriter* writer);
 }//namespace dqc;
 #endif

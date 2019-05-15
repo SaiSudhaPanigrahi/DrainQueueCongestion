@@ -5,7 +5,7 @@
 namespace dqc{
 class UnackedPacketMap{
 public:
-    void AddSentPacket(SerializedPacket *packet,PacketNumber old,uint64_t send_ts,bool set_flight);
+    void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight);
     TransmissionInfo *GetTransmissionInfo(PacketNumber seq);
     PacketNumber GetLeastUnacked(){ return least_unacked_;}
     bool IsUnacked(PacketNumber seq);

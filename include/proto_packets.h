@@ -1,6 +1,7 @@
 #ifndef PROTO_PACKET_H_
 #define PROTO_PACKET_H_
 #include "proto_comm.h"
+#include "proto_time.h"
 #include <vector>
 namespace dqc{
 struct PacketStream{
@@ -31,10 +32,10 @@ ProtoFrames retransble_frames;
 };
 struct TransmissionInfo{
 TransmissionInfo()
-:send_time(0),bytes_sent(0),inflight(false),state(SPS_NERVER_SENT){}
-TransmissionInfo(uint64_t send_time,PacketLength bytes_sent)
+:send_time(ProtoTime::Zero()),bytes_sent(0),inflight(false),state(SPS_NERVER_SENT){}
+TransmissionInfo(ProtoTime send_time,PacketLength bytes_sent)
 :send_time(send_time),bytes_sent(bytes_sent),inflight(false),state(SPS_OUT){}
-uint64_t send_time;
+ProtoTime send_time;
 PacketLength bytes_sent;
 bool inflight;
 SentPacketState state;
