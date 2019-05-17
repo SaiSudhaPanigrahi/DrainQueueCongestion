@@ -15,10 +15,10 @@ int main(){
     con.Test();
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();*/
-    /*SendPacketManager manager(nullptr);
-    manager.Test();
-    manager.Test2();
-    */
+    //SendPacketManager manager(nullptr);
+    //manager.Test();
+    //manager.Test2();
+
 
    test_test();
 }

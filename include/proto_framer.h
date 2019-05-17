@@ -59,6 +59,8 @@ public:
                              PacketNumber length,
                              basic::DataWriter* writer);
   bool AppendTimestampsToAckFrame (const AckFrame& frame,basic::DataWriter* writer);
+    uint8_t GetStreamFrameTypeByte(const PacketStream& frame,
+                                   bool last_frame_in_packet) const;
   // Allows enabling or disabling of timestamp processing and serialization.
   void set_process_timestamps(bool process_timestamps) {
     process_timestamps_ = process_timestamps;
@@ -92,5 +94,7 @@ bool AppendStreamId(size_t stream_id_length,
 bool AppendStreamOffset(size_t offset_length,
                         StreamOffset offset,
                         basic::DataWriter* writer);
+bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer);
+bool ProcessPacketHeader(basic::DataReader* reader,ProtoPacketHeader& header);
 }//namespace dqc;
 #endif

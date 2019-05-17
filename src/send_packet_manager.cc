@@ -30,7 +30,7 @@ void SendPacketManager::Retransmitted(PacketNumber number){
         DLOG(WARNING)<<number<<" not exist";
     }
 }
-void SendPacketManager::OnAckStart(PacketNumber largest,uint64_t time){
+void SendPacketManager::OnAckStart(PacketNumber largest,ProtoTime time){
     /*if(unacked_packets_.IsUnacked(largest)){
 
     }*/
@@ -51,7 +51,7 @@ void SendPacketManager::OnAckRange(PacketNumber start,PacketNumber end){
         packets_acked_.push_back(AckedPacket(acked,0,0));
     }
 }
-void SendPacketManager::OnAckEnd(uint64_t time){
+void SendPacketManager::OnAckEnd(ProtoTime time){
 
     std::reverse(packets_acked_.begin(),packets_acked_.end());
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
@@ -115,24 +115,24 @@ void SendPacketManager::Test(){
     OnSentPacket(&ack,0,CON_RE_NO,ProtoTime::Zero());
     }
 //lost 2 3 4 6 7
-    OnAckStart(10,0);
+    OnAckStart(10,ProtoTime::Zero());
     OnAckRange(8,11);
     OnAckRange(5,6);
     OnAckRange(1,2);
-    OnAckEnd(0);
+    OnAckEnd(ProtoTime::Zero());
     for(i=1;i<=5;i++){
     SerializedPacket stream=generator.CreateStream();
     OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
     }
     // l 11
-    OnAckStart(13,0);
+    OnAckStart(13,ProtoTime::Zero());
     OnAckRange(12,14);
     OnAckRange(1,11);
-    OnAckEnd(0);
-    OnAckStart(15,0);
+    OnAckEnd(ProtoTime::Zero());
+    OnAckStart(15,ProtoTime::Zero());
     OnAckRange(15,16);
     OnAckRange(1,14);
-    OnAckEnd(0);
+    OnAckEnd(ProtoTime::Zero());
     DLOG(INFO)<<"size "<<last_ack_frame_.packets.size();
 }
 void SendPacketManager::Test2(){
@@ -154,7 +154,7 @@ void SendPacketManager::Test2(){
         DLOG(INFO)<<"not sent";
     }
 }
-void SendPacketManager::InvokeLossDetection(uint64_t time){
+void SendPacketManager::InvokeLossDetection(ProtoTime time){
     unacked_packets_.InvokeLossDetection(packets_acked_,packets_lost_);
     for(auto it=packets_lost_.begin();
     it!=packets_lost_.end();it++){

@@ -15,14 +15,14 @@ typedef linked_hash_map<PacketNumber,TransmissionInfo,PacketNumberHash> PendingR
     bool HasPendingForRetrans();
     PendingRetransmission NextPendingRetrans();
     void Retransmitted(PacketNumber number);
-    void OnAckStart(PacketNumber largest,uint64_t time);
+    void OnAckStart(PacketNumber largest,ProtoTime time);
     void OnAckRange(PacketNumber start,PacketNumber end);
-    void OnAckEnd(uint64_t time);
+    void OnAckEnd(ProtoTime time);
     void Test();
     void Test2();
 private:
     StreamAckedObserver *acked_observer_{nullptr};
-    void InvokeLossDetection(uint64_t time);
+    void InvokeLossDetection(ProtoTime time);
     void MarkForRetrans(PacketNumber seq);
     UnackedPacketMap unacked_packets_;
     PendingRetransmissionMap pendings_;

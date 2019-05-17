@@ -9,5 +9,6 @@ void test_proto_framer();
 void test_ufloat();
 void test_time();
 void test_stream_endecode();
+void test_readbuf();
 void test_test();
 #endif

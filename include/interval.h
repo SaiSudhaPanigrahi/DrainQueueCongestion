@@ -72,8 +72,22 @@ template<class T>
 class IntervalSet{
 public:
     typedef Interval<T> value_type;
+private:
+    struct IntervalLess{
+        bool operator()(const value_type &a,const value_type &b) const;
+    };
+    typedef typename std::set<Interval<T>,IntervalLess> Set;
+public:
+    typedef typename Set::iterator iterator;
+    typedef typename Set::const_iterator const_iterator;
     IntervalSet(){}
     ~IntervalSet(){}
+    const_iterator begin() const {
+        return intervals_.begin();
+    }
+    const_iterator end()  const{
+        return intervals_.end();
+    }
     void Clear(){
         intervals_.clear();
     }
@@ -83,6 +97,9 @@ public:
     bool Empty() const{
         return intervals_.empty();
     }
+    void Swap(IntervalSet<T> *o){
+        intervals_.swap(o->intervals_);
+    }
     void Add(const T&min,const T&max){
         Add(value_type(min,max));
     }
@@ -91,18 +108,42 @@ public:
         return Contain(value_type(min,max));
     }
     bool Contain(const value_type&interval) const;
+    bool IsDisjoint(const T&min,const T&max) const{
+        return IsDisjoint(value_type(min,max));
+    }
+    bool IsDisjoint(const value_type&interval) const;
+  // Returns an iterator pointing to the first value_type which goes after
+  // the given value.
+  //
+  // Example:
+  //   [10, 20)  [30, 40)
+  //             ^          UpperBound(10)
+  //             ^          UpperBound(15)
+  //             ^          UpperBound(20)
+  //             ^          UpperBound(25)
+    const_iterator UpperBound(const T&value) const{
+        return intervals_.upper_bound(value_type(value,value));
+    }
+  // Returns an iterator pointing to the first value_type which contains or
+  // goes after the given value.
+  //
+  // Example:
+  //   [10, 20)  [30, 40)
+  //   ^                    LowerBound(10)
+  //   ^                    LowerBound(15)
+  //             ^          LowerBound(20)
+  //             ^          LowerBound(25)
+    const_iterator LowerBound(const T& value) const{
+        return intervals_.lower_bound(value_type(value,value));
+    }
     void Test(const T &min,const T &max);
+
 private:
-    struct IntervalLess{
-        bool operator()(const value_type &a,const value_type &b) const;
-    };
-    typedef typename std::set<Interval<T>,IntervalLess> Set;
-    typedef typename Set::iterator iterator;
     void Compact(iterator begin,iterator end);
 private:
     Set intervals_;
 };
-//Be careful. a the value waiting for insert.
+//Be careful. the value waiting for insert.
 //a.Max()>b.Max()  for Contain
 //I found the memslice can not be free due to contain.
 template<class T>
@@ -161,5 +202,19 @@ bool IntervalSet<T>::Contain(const value_type&interval) const{
     }
     it--;
     return it->Contains(interval);
+}
+template<class T>
+bool IntervalSet<T>::IsDisjoint(const value_type&interval) const{
+  if (interval.Empty())
+    return true;
+  value_type tmp(interval.min(), interval.min());
+  // Find the first interval with min() > interval.min()
+  const_iterator it = intervals_.upper_bound(tmp);
+  if (it != intervals_.end() && interval.max() > it->min())
+    return false;
+  if (it == intervals_.begin())
+    return true;
+  --it;
+  return it->max() <= interval.min();
 }
 #endif

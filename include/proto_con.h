@@ -7,6 +7,7 @@
 #include "send_packet_manager.h"
 #include "proto_framer.h"
 #include "proto_stream_data_producer.h"
+#include "packet_writer.h"
 #include <deque>
 #include <map>
 namespace dqc{
@@ -19,6 +20,9 @@ public:
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     ProtoStream *GetOrCreateStream(uint32_t id);
     void Close(uint32_t id);
+    void set_packet_writer(PacketWriterInterface *writer){
+        packet_writer_=writer;
+    }
     void Test();
     PacketNumber AllocSeq(){
         return seq_++;
@@ -40,7 +44,7 @@ public:
 private:
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);
-    int Send(ProtoStream *stream,char *buf);
+    int Send();
     void Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin);
     std::map<uint32_t,ProtoStream*> streams_;
     std::deque<PacketStream> waiting_info_;
@@ -48,6 +52,8 @@ private:
     PacketNumber seq_{1};
     SendPacketManager sent_manager_;
     su_addr peer_;
+    ProtoFramer frame_encoder_;
+    PacketWriterInterface *packet_writer_{nullptr};
 };
 }//namespace dqc;
 #endif

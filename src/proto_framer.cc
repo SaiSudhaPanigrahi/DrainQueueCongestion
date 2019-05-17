@@ -7,6 +7,8 @@
 #define QUIC_PREDICT_FALSE_IMPL(x) x
 #define QUIC_PREDICT_FALSE(x) QUIC_PREDICT_FALSE_IMPL(x)
 namespace dqc{
+// public header;
+const uint8_t kPublicHeaderSequenceNumberShift = 4;
 // Number of bytes reserved for the frame type preceding each frame.
 const size_t kFrameTypeSize = 1;
 // Size in bytes reserved for the delta time of the largest observed
@@ -138,6 +140,25 @@ size_t GetStreamOffsetSize(StreamOffset offset){
   DLOG(FATAL)<< "Failed to determine StreamOffsetSize.";
   return 8;
 }
+bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer){
+    ProtoPacketNumberLength len=GetMinPktNumLen(header.packet_number);
+    uint8_t public_flags=0;
+    uint32_t seq_len=len;
+    public_flags|=(PktNumLen2Flag(len)<<kPublicHeaderSequenceNumberShift);
+    if(writer->WriteBytes(&public_flags,1)){
+        return writer->WriteBytesToUInt64(seq_len,header.packet_number);
+    }
+    return false;
+}
+bool ProcessPacketHeader(basic::DataReader* reader,ProtoPacketHeader& header){
+    uint8_t public_flags=0;
+    if(reader->ReadBytes(&public_flags,1)){
+        ProtoPacketNumberLength len=ReadPacketNumberLength(public_flags >> kPublicHeaderSequenceNumberShift);
+        uint32_t seq_len=len;
+        return reader->ReadBytesToUInt64(seq_len,&header.packet_number);
+    }
+    return false;
+}
 bool AppendStreamId(size_t stream_id_length,
                     uint32_t stream_id,
                     basic::DataWriter* writer){
@@ -156,6 +177,31 @@ bool AppendStreamOffset(size_t offset_length,
   }
 
   return writer->WriteBytesToUInt64(offset_length, offset);
+}
+uint8_t ProtoFramer::GetStreamFrameTypeByte(const PacketStream& frame,
+                                   bool last_frame_in_packet) const{
+  uint8_t type_byte = 0;
+  // Fin bit.
+  type_byte |= frame.fin ? kQuicStreamFinMask : 0;
+
+  // Data Length bit.
+  type_byte <<= kQuicStreamDataLengthShift;
+  type_byte |= last_frame_in_packet ? 0 : kQuicStreamDataLengthMask;
+
+  // Offset 3 bits.
+  type_byte <<= kQuicStreamShift;
+  const size_t offset_len =
+      GetStreamOffsetSize(frame.offset);
+  if (offset_len > 0) {
+    type_byte |= offset_len - 1;
+  }
+
+  // stream id 2 bits.
+  type_byte <<= kQuicStreamIdShift;
+  type_byte |= GetStreamIdSize(frame.stream_id) - 1;
+  type_byte |= kQuicFrameTypeStreamMask;  // Set Stream Frame Type to 1.
+
+  return type_byte;
 }
 ProtoFramer::AckFrameInfo::AckFrameInfo()
 :max_block_length(0)

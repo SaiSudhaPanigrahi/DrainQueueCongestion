@@ -15,6 +15,7 @@
 #include "proto_con.h"
 #include "proto_stream_data_producer.h"
 #include "proto_packets.h"
+#include "proto_stream_sequencer.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -144,21 +145,26 @@ private:
 class DebugStreamFrame:public ProtoFrameVisitor{
 public:
     virtual bool OnStreamFrame(PacketStream &frame) override{
-        DLOG(INFO)<<"recv "<<frame.stream_id<<" "<<frame.len;
-    return true;
+        std::string str(frame.data_buffer,frame.len);
+        DLOG(INFO)<<"recv "<<str.c_str();
+        return true;
     }
     virtual void OnError(ProtoFramer* framer) override{
     }
     virtual bool OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time) override{
+                                 return true;
                                  }
     virtual bool OnAckRange(PacketNumber start,
                             PacketNumber end) override{
+                                return true;
                             }
     virtual bool OnAckTimestamp(PacketNumber packet_number,
                                 ProtoTime timestamp) override{
+            return true;
                                 }
     virtual bool OnAckFrameEnd(PacketNumber start) override{
+        return true;
     }
 };
 class FakeReceiver:public PacketWriterInterface{
@@ -178,14 +184,14 @@ void test_proto_framer(){
     dqc::DebugAck ack_visitor;
     dqc::ReceivdPacketManager receiver;
     dqc::ProtoTime ts(dqc::ProtoTime::Zero());
-    for(int i=1;i<=10;i++){
-        if(3==i||7==i){
+    for(int i=1;i<=2;i++){
+        if(1==i||7==i){
             continue;
         }
         PacketNumber seq=static_cast<PacketNumber>(i);
         receiver.RecordPacketReceived(seq,ts);
     }
-    receiver.RecordPacketReceived(3,ts);
+    //receiver.RecordPacketReceived(3,ts);
     const AckFrame &ack_frame=receiver.GetUpdateAckFrame();
     char wbuf[1500];
     DataWriter w(wbuf,1500,basic::NETWORK_ORDER);
@@ -207,14 +213,24 @@ void test_stream_endecode(){
     std::string data("hello word");
     FakeDataProducer producer;
     producer.SetData(data.data(),data.length());
+    std::string data1("hello word1");
+    PacketStream stream1(0,data.length(),data1.length(),false);
     ProtoFramer encoder;
     PacketStream stream(0,0,data.length(),false);
     char wbuf[1500];
     basic::DataWriter w(wbuf,1500);
     encoder.set_data_producer(&producer);
     //add type stream frame
-    w.WriteUInt8(0x80);
-    encoder.AppendStreamFrame(stream,true,&w);
+    // true ,no data length
+    uint8_t type=encoder.GetStreamFrameTypeByte(stream,false);
+    w.WriteUInt8(type);//offset 0 will ignored
+    uint32_t print_type=type;
+    printf("type %x\n",print_type);
+    encoder.AppendStreamFrame(stream,false,&w);
+    type=encoder.GetStreamFrameTypeByte(stream1,false);
+    w.WriteUInt8(type);
+    producer.SetData(data1.data(),data1.length());
+    encoder.AppendStreamFrame(stream1,false,&w);
     basic::DataReader r(wbuf,w.length());
     ProtoFramer decoder;
     DebugStreamFrame frame_visitor;
@@ -222,13 +238,39 @@ void test_stream_endecode(){
     ProtoPacketHeader header;
     decoder.ProcessFrameData(&r,header);
 }
+void test_readbuf(){
+    /*IntervalSet<int> readble;
+    readble.Add(100,200);
+    IntervalSet<int> read2;
+    read2.Swap(&readble);
+    auto it=read2.UpperBound(100);
+    if(it==read2.end()){
+        DLOG(INFO)<<read2.Size();
+    }else{
+        if(it==read2.begin()){
+            //should not be happen,
+            //first add then upper_bound
+            DLOG(WARNING)<<"all small";
+        }else{
+            it--;
+            DLOG(INFO)<<it->min()<<" "<<it->max();
+        }
+    }*/
+    char data[1500];
+    ProtoStreamSequencer sequencer(nullptr);
+    sequencer.OnFrameData(1500,data,1500);
+    DLOG(INFO)<<sequencer.ReadbleSize();
+    sequencer.OnFrameData(0,data,1500);
+    DLOG(INFO)<<sequencer.ReadbleSize();
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
     //interval_test();
     //byte_order_test();
    //test_proto_framer();
-   test_stream_endecode();
+   //test_stream_endecode();
    //test_ufloat();
     //test_time();
+    test_readbuf();
 }
