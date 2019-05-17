@@ -9,6 +9,7 @@
 #include "fun_test.h"
 #include "proto_framer.h"
 #include "proto_time.h"
+#include <vector>
 using namespace dqc;
 int main(){
     /*ProtoCon con;
@@ -20,7 +21,7 @@ int main(){
     //manager.Test2();
 
 
-   test_test();
+    test_test();
 }
 
 

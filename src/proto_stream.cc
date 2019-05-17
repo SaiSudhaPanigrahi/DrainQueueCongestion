@@ -1,10 +1,12 @@
 #include "proto_stream.h"
+#include "proto_packets.h"
 #include "flag_impl.h"
 #include "proto_utils.h"
 #include "logging.h"
 namespace dqc{
 ProtoStream::ProtoStream(ProtoConVisitor *visitor,uint32_t id)
 :visitor_(visitor)
+,sequencer_(this)
 ,stream_id_(id)
 ,send_buf_(AbstractAlloc::Instance()){
 }
@@ -49,8 +51,11 @@ bool ProtoStream::WriteStreamData(StreamOffset offset,ByteCount len,basic::DataW
     }
     return ret;
 }
-void ProtoStream::SimuPacketGenerator(){
-
+void ProtoStream::OnStreamFrame(PacketStream &frame){
+    sequencer_.OnFrameData(frame.offset,frame.data_buffer,frame.len);
+}
+void ProtoStream::OnDataAvailable(){
+    //TODO
 }
 void ProtoStream::WriteBufferedData(){
     uint64_t payload_len=FLAG_packet_payload;

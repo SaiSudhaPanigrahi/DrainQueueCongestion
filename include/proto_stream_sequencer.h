@@ -2,6 +2,7 @@
 #define PROTO_STREAM_SEQUENCER_H_
 #include <string>
 #include <deque>
+#include <vector>
 #include "interval.h"
 #include "proto_types.h"
 #include "proto_utils.h"
@@ -29,18 +30,19 @@ public:
         r.Reset();
         return *this;
     }
-    size_t ReadbleSize() const{
+    size_t ReadbleBytes() const{
         return r_pos_r_-r_pos_;
     }
     size_t WritebleSize() const{
         return cap_-w_len_;
     }
-    int Read(char *dst,size_t size);
+    char *ReadWithoutCopy(size_t size);
     int Write(const char*data,size_t size,size_t off);
-    bool IsFull(){
+    size_t Comsumed(size_t size);
+    bool IsFull() const{
         return w_len_==cap_;
     }
-    bool IsReadDone(){
+    bool IsReadDone() const{
         return r_pos_==cap_;
     }
     StreamOffset Offset() const{
@@ -68,8 +70,9 @@ public:
     ProtoStreamSequencer(StreamInterface *stream,size_t max_buffer_capacity_bytes=1024);
     ~ProtoStreamSequencer();
     void OnFrameData(StreamOffset o,const char *buf,size_t len);
-    size_t ReadbleSize() const{ return readble_len_ ;}
-    int GetReadableRegions(iovec* iov, size_t iov_len) const;
+    size_t ReadbleBytes() const{ return readble_len_ ;}
+    size_t GetIovLength() const;
+    size_t GetReadableRegions(iovec* iov, size_t iov_len) const;
     void MarkConsumed(size_t num_bytes_consumed);
 private:
     size_t GetBlockIndex(StreamOffset o);
@@ -77,16 +80,17 @@ private:
     void ExtendBlocks();
     void CheckReadableSize();
     //IntervalSet<StreamOffset>  bytes_received_;
-    std::set<StreamOffset> waiting_offset_;
+    //std::set<StreamOffset> waiting_offset_;
     StreamOffset readable_offset_{0};
     StreamOffset max_offset_{0};
     size_t readble_len_{0};
     std::deque<ReadBuffer> blocks_;
     StreamOffset blocks_l_off_{0};
     StreamOffset blocks_r_off_{0};
+    StreamInterface *stream_{nullptr};
     // The maximum total capacity of this buffer in byte, as constructed.
     const size_t max_buffer_capacity_bytes_;
-    StreamInterface *stream_{nullptr};
+    std::vector<size_t> consuming_;
 };
 }
 #endif

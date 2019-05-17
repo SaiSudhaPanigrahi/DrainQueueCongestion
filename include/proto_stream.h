@@ -3,9 +3,11 @@
 #include "memslice.h"
 #include "proto_con_visitor.h"
 #include "proto_stream_data_producer.h"
+#include "proto_stream_sequencer.h"
 #include <string>
 namespace dqc{
-class ProtoStream{
+struct PacketStream;
+class ProtoStream:public ProtoStreamSequencer::StreamInterface{
 public:
     ProtoStream(ProtoConVisitor *visitor,uint32_t id);
     ~ProtoStream(){}
@@ -19,11 +21,13 @@ public:
     uint32_t id(){
         return stream_id_;
     }
-    void SimuPacketGenerator();
+    virtual void OnStreamFrame(PacketStream &frame);
+    virtual void OnDataAvailable() override;
 private:
     void WriteBufferedData();
     void OnConsumedData(ByteCount len);
     ProtoConVisitor *visitor_{nullptr};
+    ProtoStreamSequencer sequencer_;
     uint32_t stream_id_{0};
     StreamSendBuffer send_buf_;
     std::map<StreamOffset,ByteCount> sent_info_;

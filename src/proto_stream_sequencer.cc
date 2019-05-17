@@ -3,7 +3,7 @@
 #include "proto_stream_sequencer.h"
 namespace dqc{
 //8*1024;
-const uint16_t kBlockSize=500;
+const uint16_t kBlockSize=1000;
 ReadBuffer::ReadBuffer(StreamOffset offset,size_t block_size,Location loc){
     buf_=AbstractAlloc::Instance()->New(block_size,loc);
     cap_=block_size;
@@ -15,26 +15,18 @@ ReadBuffer::~ReadBuffer(){
         buf_=nullptr;
     }
 }
-int ReadBuffer::Read(char *dst,size_t size){
-    int ret=-1;
-    if(buf_){
-        size_t copy=std::min(size,ReadbleSize());
-        if(copy>0){
-            memcpy(dst,buf_+r_pos_,copy);
-            r_pos_+=copy;
-            ret=copy;
-        }else{
-            ret=0;
-        }
-    }
-    return ret;
+char * ReadBuffer::ReadWithoutCopy(size_t size){
+    char *addr=buf_+r_pos_;
+    size_t off=std::min(size,ReadbleBytes());
+    //r_pos_+=off;
+    return addr;
 }
 int ReadBuffer::Write(const char*data,size_t size,size_t off){
     int ret =-1;
     size_t avail=cap_-off;
     size_t copy=std::min(avail,size);
     char *dst=buf_+off;
-    if(copy>0){
+    if(copy>0&&w_info_.IsDisjoint(off,off+copy)){
         memcpy(dst,data,copy);
         w_info_.Add(off,off+copy);
         w_len_+=copy;
@@ -42,6 +34,11 @@ int ReadBuffer::Write(const char*data,size_t size,size_t off){
         ExtendReadPosR(off);
     }
     return ret;
+}
+size_t ReadBuffer::Comsumed(size_t size){
+    size_t consumed=std::min(ReadbleBytes(),size);
+    r_pos_+=consumed;
+    return consumed;
 }
 void ReadBuffer::Reset(){
     w_info_.Clear();
@@ -72,6 +69,7 @@ ProtoStreamSequencer::~ProtoStreamSequencer(){
 }
 void ProtoStreamSequencer::OnFrameData(StreamOffset o,const char *buf,size_t len){
     if(o<readable_offset_){
+        DLOG(INFO)<<"duplicate "<<o;
         return ;
     }
     StreamOffset off_end=o+len;
@@ -97,11 +95,49 @@ void ProtoStreamSequencer::OnFrameData(StreamOffset o,const char *buf,size_t len
     }
     CheckReadableSize();
 }
-int ProtoStreamSequencer::GetReadableRegions(iovec* iov, size_t iov_len) const{
-
+size_t ProtoStreamSequencer::GetIovLength() const{
+    return readble_len_/kBlockSize+2;
 }
+size_t ProtoStreamSequencer::GetReadableRegions(iovec* iov, size_t iov_len) const{
+    size_t i=0;
+    int read=0;
+    int read_byte=ReadbleBytes();
+    if(readble_len_>0){
+    for(i=0;i<iov_len;i++){
+        const ReadBuffer &const_buffer=blocks_.at(i);
+        ReadBuffer *buffer=const_cast<ReadBuffer*>(&const_buffer);
+        size_t block_read_size=buffer->ReadbleBytes();
+        iov[i].iov_len=block_read_size;
+        char *base=buffer->ReadWithoutCopy(block_read_size);
+        iov[i].iov_base=(void*)base;
+        read+=block_read_size;
+        if(read>=read_byte){
+            break;
+        }
+    }
+    }
+    return i+1;
+}
+//maybe have the choice do not consume all readble bytes;
 void ProtoStreamSequencer::MarkConsumed(size_t num_bytes_consumed){
-
+    auto vec_it=consuming_.begin();
+    size_t remain=num_bytes_consumed;
+    while(!blocks_.empty()){
+        auto it=blocks_.begin();
+        size_t conusmed=std::min(remain,*vec_it);
+        conusmed=it->Comsumed(conusmed);
+        remain-=conusmed;
+        if(it->IsReadDone()){
+            DLOG(INFO)<<"read done";
+            blocks_.erase(it);
+        }else{
+            break;
+        }
+        if(0==remain){
+            break;
+        }
+        vec_it++;
+    }
 }
 size_t ProtoStreamSequencer::GetBlockIndex(StreamOffset o){
     StreamOffset start=blocks_.begin()->Offset();
@@ -126,14 +162,21 @@ void ProtoStreamSequencer::ExtendBlocks(){
 }
 void ProtoStreamSequencer::CheckReadableSize(){
     readble_len_=0;
+    std::vector<size_t> nullvec;
+    consuming_.swap(nullvec);
     for(auto it=blocks_.begin();it!=blocks_.end();it++){
-        size_t readable=it->ReadbleSize();
+        size_t readable=it->ReadbleBytes();
         if(readable>0){
+            consuming_.push_back(readable);
+            readable_offset_+=readable;
             readble_len_+=readable;
         }
         if(!it->IsFull()){
             break;
         }
+    }
+    if(readble_len_>0&&stream_){
+        stream_->OnDataAvailable();
     }
 }
 }

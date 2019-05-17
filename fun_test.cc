@@ -2,6 +2,7 @@
 #include <string>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include "ack_frame.h"
 #include "interval.h"
 #include "proto_types.h"
@@ -257,11 +258,37 @@ void test_readbuf(){
         }
     }*/
     char data[1500];
+    int i=0;
+    for (i=0;i<1500;i++){
+        data[i]=RandomLetter::Instance()->GetLetter();
+    }
     ProtoStreamSequencer sequencer(nullptr);
     sequencer.OnFrameData(1500,data,1500);
-    DLOG(INFO)<<sequencer.ReadbleSize();
+    DLOG(INFO)<<sequencer.ReadbleBytes();
     sequencer.OnFrameData(0,data,1500);
-    DLOG(INFO)<<sequencer.ReadbleSize();
+    DLOG(INFO)<<sequencer.ReadbleBytes();
+    size_t iov_len=sequencer.GetIovLength();
+    std::unique_ptr<iovec[]> iovs(new iovec[iov_len]);
+    int read=0;
+    read=sequencer.GetReadableRegions(iovs.get(),iov_len);
+    iovec *temp=iovs.get();
+    char rbuf[3000];
+    size_t off=0;
+    for(int i=0;i<read;i++){
+        memcpy(rbuf+off,temp[i].iov_base,temp[i].iov_len);
+        off+=temp[i].iov_len;
+        if(off>=3000){
+            break;
+        }
+    }
+    sequencer.MarkConsumed(off);
+    for(i=0;i<1500;i++){
+        if(data[i]!=rbuf[i]){
+            break;
+        }
+    }
+    DLOG(INFO)<<i;
+    AbstractAlloc::Instance()->CheckMemLeak();
 }
 void test_test(){
     //ack_frame_test();
