@@ -203,7 +203,7 @@ void test_proto_framer(){
     ProtoPacketHeader fakeheader;
     decoder.ProcessFrameData(&r,fakeheader);
 }
-void test_time(){
+void test_rtt(){
     RttStats rtt_stats_;
     rtt_stats_.UpdateRtt(TimeDelta::FromMilliseconds(100),TimeDelta::Zero(),ProtoTime::Zero());
     rtt_stats_.UpdateRtt(TimeDelta::FromMilliseconds(120),TimeDelta::Zero(),ProtoTime::Zero());
@@ -290,6 +290,62 @@ void test_readbuf(){
     DLOG(INFO)<<i;
     AbstractAlloc::Instance()->CheckMemLeak();
 }
+void test_stop_waiting(){
+    ProtoPacketHeader header1;
+    header1.packet_number=10;
+    PacketNumber unacked1=4;
+    char buf[20];
+    basic::DataWriter w(buf,20);
+    AppendPacketHeader(header1,&w);
+    ProtoFramer framer1;
+    framer1.AppendStopWaitingFrame(header1,unacked1,&w);
+    basic::DataReader r(buf,w.length());
+    ProtoPacketHeader header2;
+    ProcessPacketHeader(&r,header2);
+    PacketNumber unacked2=0;
+    framer1.ProcessStopWaitingFrame(&r,header2,&unacked2);
+    DLOG(INFO)<<header2.packet_number<<" "<<unacked2;
+}
+namespace dqc{
+const TimeDelta granularity=TimeDelta::FromMilliseconds(1);
+CounterDelegate::CounterDelegate(AlarmTest *test){
+        test_=test;
+}
+CounterDelegate::~CounterDelegate(){
+    printf("delete delegate\n");
+}
+void CounterDelegate::OnAlarm(){
+    count_++;
+    printf("%d\n",count_);
+    test_->OnTrigger();
+}
+ProtoTime AlarmTest::TimeOut(int64_t gap){
+    int64_t now_ms=TimeMillis();
+    TimeDelta delta=TimeDelta::FromMilliseconds(now_ms);
+    ProtoTime now=ProtoTime::Zero()+delta;
+    delta=TimeDelta::FromMilliseconds(gap);
+    ProtoTime timeout=now+delta;
+    return timeout;
+}
+void AlarmTest::OnTrigger(){
+
+    ProtoTime timeout=TimeOut(100);
+    alarm_->Update(timeout,granularity);
+}
+}
+void test_alarm(){
+    MainEngine engine;
+    ProcessAlarmFactory factory(&engine);
+    AlarmTest alarmtest;
+    std::unique_ptr<CounterDelegate> delegate(new CounterDelegate(&alarmtest));
+    alarmtest.alarm_=factory.CreateAlarm(std::move(delegate));
+    alarmtest.alarm_->Set(alarmtest.TimeOut(10));
+    int64_t now_ms=TimeMillis();
+    int64_t stop_time=now_ms+5000;
+    while(TimeMillis()<stop_time){
+        engine.HeartBeat();
+    }
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
@@ -298,6 +354,7 @@ void test_test(){
    //test_proto_framer();
    //test_stream_endecode();
    //test_ufloat();
-    //test_time();
-    test_readbuf();
+    //test_readbuf();
+    test_alarm();
+    //test_stop_waiting();
 }

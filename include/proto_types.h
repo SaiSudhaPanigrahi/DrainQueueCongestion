@@ -69,6 +69,7 @@ enum ProtoFrameType:uint8_t{
 struct ProtoPacketHeader{
     uint64_t con_id;
     PacketNumber packet_number;
+    ProtoPacketNumberLength packet_number_length;
 };
 //may be the stop waiting send along with stream frame?
 //public header 0x00ll0000+seq,

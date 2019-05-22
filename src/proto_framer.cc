@@ -141,10 +141,11 @@ size_t GetStreamOffsetSize(StreamOffset offset){
   return 8;
 }
 bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer){
-    ProtoPacketNumberLength len=GetMinPktNumLen(header.packet_number);
+    header.packet_number_length=GetMinPktNumLen(header.packet_number);
     uint8_t public_flags=0;
-    uint32_t seq_len=len;
-    public_flags|=(PktNumLen2Flag(len)<<kPublicHeaderSequenceNumberShift);
+    uint32_t seq_len=header.packet_number_length;
+    public_flags|=(PktNumLen2Flag(header.packet_number_length)
+                   <<kPublicHeaderSequenceNumberShift);
     if(writer->WriteBytes(&public_flags,1)){
         return writer->WriteBytesToUInt64(seq_len,header.packet_number);
     }
@@ -153,8 +154,8 @@ bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer){
 bool ProcessPacketHeader(basic::DataReader* reader,ProtoPacketHeader& header){
     uint8_t public_flags=0;
     if(reader->ReadBytes(&public_flags,1)){
-        ProtoPacketNumberLength len=ReadPacketNumberLength(public_flags >> kPublicHeaderSequenceNumberShift);
-        uint32_t seq_len=len;
+        header.packet_number_length=ReadPacketNumberLength(public_flags >> kPublicHeaderSequenceNumberShift);
+        uint32_t seq_len=header.packet_number_length;
         return reader->ReadBytesToUInt64(seq_len,&header.packet_number);
     }
     return false;
@@ -717,6 +718,39 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
   // Done processing the ACK frame.
   return visitor_->OnAckFrameEnd(first_received);
 
+  return true;
+}
+bool ProtoFramer::ProcessStopWaitingFrame(basic::DataReader* reader,
+                                          const ProtoPacketHeader& header,
+                                          PacketNumber* least_unacked){
+  uint64_t least_unacked_delta;
+  if (!reader->ReadBytesToUInt64(header.packet_number_length,
+                                 &least_unacked_delta)) {
+    set_detailed_error("Unable to read least unacked delta.");
+    return false;
+  }
+  if (header.packet_number<= least_unacked_delta) {
+    set_detailed_error("Invalid unacked delta.");
+    return false;
+  }
+   *least_unacked=header.packet_number - least_unacked_delta;
+   return true;
+}
+bool ProtoFramer::AppendStopWaitingFrame(const ProtoPacketHeader& header,
+                              const PacketNumber& least_unacked,
+                              basic::DataWriter* writer){
+  DCHECK(header.packet_number >= least_unacked);
+  const uint64_t least_unacked_delta =
+      header.packet_number - least_unacked;
+  if (least_unacked_delta == 0) {
+    return writer->WriteBytesToUInt64(header.packet_number_length,
+                                      least_unacked_delta);
+  }
+  if (!AppendPacketNumber(header.packet_number_length,
+                          PacketNumber(least_unacked_delta), writer)) {
+    DLOG(FATAL)<< " seq failed: " << header.packet_number_length;
+    return false;
+  }
   return true;
 }
 }//namespace dqc;

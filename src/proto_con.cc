@@ -117,7 +117,8 @@ int ProtoCon::Send(){
 void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     ProtoStream *stream=GetStream(id);
     if(stream){
-    DLOG(INFO)<<"retrans "<<off<<" "<<len;
+    DLOG(INFO)<<"retrans "<<off<<" "<<len<<" stop_waiting "
+    <<sent_manager_.GetLeastUnacked();
     struct PacketStream info(id,off,len,fin);
     char src[1500];
     memset(src,0,sizeof(src));

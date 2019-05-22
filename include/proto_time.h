@@ -170,5 +170,22 @@ inline ProtoTime operator-(ProtoTime lhs, TimeDelta rhs) {
 inline TimeDelta operator-(ProtoTime lhs, ProtoTime rhs) {
   return TimeDelta(lhs.time_ - rhs.time_);
 }
+class ProtoClock{
+public:
+    virtual ~ProtoClock(){}
+    virtual ProtoTime Now() const=0;
+    virtual ProtoTime ApproximateNow()const=0;
+};
+class SystemClock: public ProtoClock{
+public:
+    SystemClock(){}
+    ~SystemClock(){}
+    ProtoTime Now() const override;
+    ProtoTime ApproximateNow() const override;
+};
+void SetClockForTesting(ProtoClock *clock);
+int64_t TimeMillis();
+int64_t TimeMicro();
+void TimeSleep(int64_t milliseconds);
 }
 #endif

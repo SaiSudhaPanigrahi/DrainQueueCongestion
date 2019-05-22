@@ -31,6 +31,12 @@ public:
 };
 class ProtoFramer{
 public:
+  bool ProcessStopWaitingFrame(basic::DataReader* reader,
+                               const ProtoPacketHeader& header,
+                               PacketNumber* least_unacked);
+  bool AppendStopWaitingFrame(const ProtoPacketHeader& header,
+                              const PacketNumber& least_unacked,
+                              basic::DataWriter* writer);
   bool AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer);
   bool AppendStreamFrame(const PacketStream& frame,
                          bool no_stream_frame_length,
