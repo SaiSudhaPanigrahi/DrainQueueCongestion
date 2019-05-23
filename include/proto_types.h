@@ -14,7 +14,7 @@
 #include <errno.h>
 #endif
 //copy from razor project;
-typedef struct sockaddr_in  su_addr;
+#include "cf_platform.h"
 namespace dqc{
 typedef uint64_t StreamOffset;
 typedef uint64_t ByteCount;

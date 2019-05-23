@@ -109,7 +109,7 @@ int ProtoCon::Send(){
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
     DCHECK(packet_writer_);
-    packet_writer_->WritePacket(src,writer.length(),peer_);
+    packet_writer_->SendTo(src,writer.length(),peer_);
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
     int available=writer.length();
     return available;
@@ -139,11 +139,11 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     DCHECK(packet_writer_);
     printf("%x\n",type);
     DLOG(INFO)<<"packet_writer_ "<<writer.length();
-    packet_writer_->WritePacket(src,writer.length(),peer_);
+    packet_writer_->SendTo(src,writer.length(),peer_);
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
     }
 }
-class FakeReceiver:public PacketWriterInterface,ProtoFrameVisitor{
+class FakeReceiver:public Socket,ProtoFrameVisitor{
 public:
     FakeReceiver(){
         frame_decoder_.set_visitor(this);
@@ -170,7 +170,7 @@ public:
     virtual bool OnAckFrameEnd(PacketNumber start) override{
         return true;
     }
-    virtual int WritePacket(const char*buf,size_t size,su_addr &dst) override{
+    virtual int SendTo(const char*buf,size_t size,SocketAddress &dst) override{
         std::unique_ptr<char> data(new char[size]);
         memcpy(data.get(),buf,size);
         basic::DataReader r(data.get(),size);

@@ -7,7 +7,7 @@
 #include "send_packet_manager.h"
 #include "proto_framer.h"
 #include "proto_stream_data_producer.h"
-#include "packet_writer.h"
+#include "socket.h"
 #include <deque>
 #include <map>
 namespace dqc{
@@ -20,7 +20,7 @@ public:
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     ProtoStream *GetOrCreateStream(uint32_t id);
     void Close(uint32_t id);
-    void set_packet_writer(PacketWriterInterface *writer){
+    void set_packet_writer(Socket *writer){
         packet_writer_=writer;
     }
     void Test();
@@ -51,9 +51,9 @@ private:
     uint32_t stream_id_{0};
     PacketNumber seq_{1};
     SendPacketManager sent_manager_;
-    su_addr peer_;
+    SocketAddress peer_;
     ProtoFramer frame_encoder_;
-    PacketWriterInterface *packet_writer_{nullptr};
+    Socket *packet_writer_{nullptr};
 };
 }//namespace dqc;
 #endif

@@ -12,11 +12,13 @@
 #include "fun_test.h"
 #include "received_packet_manager.h"
 #include "rtt_stats.h"
-#include "packet_writer.h"
+#include "socket.h"
 #include "proto_con.h"
 #include "proto_stream_data_producer.h"
 #include "proto_packets.h"
 #include "proto_stream_sequencer.h"
+#include "socket_address.h"
+#include "cf_platform.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -168,10 +170,10 @@ public:
         return true;
     }
 };
-class FakeReceiver:public PacketWriterInterface{
+class FakeReceiver:public Socket{
 public:
     //first to implement stream encoder and decoder;
-    int WritePacket(const char*buf,size_t size,su_addr &dst) override{
+    int SendTo(const char*buf,size_t size,SocketAddress &dst) override{
 
         return 0;
     }
@@ -346,6 +348,75 @@ void test_alarm(){
         engine.HeartBeat();
     }
 }
+void test_socket_address(){
+    std::string str("139.168.1.23");
+    SocketAddress add(str,1234);
+    std::string addr_str=add.ToString();
+    std::cout<<addr_str<<std::endl;
+}
+void* socket_client(void *arg){
+    char *ip="127.0.0.1";
+    uint16_t client_port=4444;
+    uint16_t server_port=4322;
+    char *msg="hello server";
+    SocketAddress serv_addr(ip,server_port);
+    UdpSocket socket;
+    if(socket.Bind(ip,client_port)!=0){
+        DLOG(INFO)<<"client bind failed";
+        return nullptr;
+    }
+    socket.SendTo(msg,strlen(msg),serv_addr);
+    int64_t now=TimeMillis();
+    int64_t stop=now+2000;
+    char buf[1000];
+    while(true){
+        int ret;
+        SocketAddress peer;
+        ret=socket.RecvFrom(buf,1000,peer);
+        if(ret>0){
+            DLOG(INFO)<<"from server "<<peer.ToString();
+        }
+        if(TimeMillis()>stop){
+            break;
+        }
+    }
+}
+void *socket_server(void*arg){
+    char *ip="127.0.0.1";
+    uint16_t server_port=4322;
+    UdpSocket socket;
+    if(socket.Bind(ip,server_port)!=0){
+        DLOG(INFO)<<"server bind failed";
+        return nullptr;
+    }
+    int64_t now=TimeMillis();
+    int64_t stop=now+4000;
+    char buf[1000];
+    while(true){
+        int ret;
+        SocketAddress peer;
+        memset(buf,0,1000);
+        ret=socket.RecvFrom(buf,1000,peer);
+        if(ret>0){
+            std::string msg(buf,strlen(buf));
+            socket.SendTo(buf,strlen(buf),peer);
+            DLOG(INFO)<<"from client "<<peer.ToString()<<" "<<msg;
+        }
+        if(TimeMillis()>stop){
+            break;
+        }
+    }
+}
+void thread_test(){
+    su_platform_init();
+    su_thread th1=su_create_thread("server",socket_server,nullptr);
+    TimeSleep(100);
+    su_thread th2=su_create_thread("server",socket_client,nullptr);
+    TimeSleep(7000);
+    su_destroy_thread(th1);
+    su_destroy_thread(th2);
+    su_platform_uninit();
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
@@ -355,6 +426,8 @@ void test_test(){
    //test_stream_endecode();
    //test_ufloat();
     //test_readbuf();
-    test_alarm();
+    //test_alarm();
     //test_stop_waiting();
+    //test_socket_address();
+    thread_test();
 }
