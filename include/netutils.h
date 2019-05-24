@@ -1,6 +1,5 @@
 #ifndef GOBJECT_EXAMPLE_NETUTILS_H_
 #define GOBJECT_EXAMPLE_NETUTILS_H_
-#define WIN_32
 #if defined (WIN_32)
 #include <winsock2.h>
 #include<Ws2tcpip.h>

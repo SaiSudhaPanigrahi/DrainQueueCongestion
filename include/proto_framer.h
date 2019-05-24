@@ -28,6 +28,7 @@ public:
   // Called after the last ack range in an AckFrame has been parsed.
   // |start| is the starting value of the last ack range.
   virtual bool OnAckFrameEnd(PacketNumber start) = 0;
+  virtual bool OnStopWaitingFrame(const PacketNumber least_unacked){return false;}
 };
 class ProtoFramer{
 public:

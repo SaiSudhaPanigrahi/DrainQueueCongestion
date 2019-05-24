@@ -11,10 +11,14 @@ class ProtoStream:public ProtoStreamSequencer::StreamInterface{
 public:
     ProtoStream(ProtoConVisitor *visitor,uint32_t id);
     ~ProtoStream(){}
-    void WriteDataToBuffer(std::string &piece);
+    bool WriteDataToBuffer(std::string &piece);
     void OnAck(StreamOffset offset,ByteCount len);
-    uint64_t BufferedBytes() const;
-    ByteCount Inflight();
+    ByteCount get_send_buffer_len () const{
+        return BufferedBytes()+Inflight();
+    }
+    ByteCount BufferedBytes() const;
+    ByteCount Inflight() const;
+    void set_max_send_buf_len(int max_send_buf_len=0);
     bool HasBufferedData() const;
     void OnCanWrite();
     bool WriteStreamData(StreamOffset offset,ByteCount len,basic::DataWriter *writer);
@@ -26,9 +30,12 @@ public:
 private:
     void WriteBufferedData();
     void OnConsumedData(ByteCount len);
+    uint32_t stream_id_{0};
+    int max_send_buf_len_;
+    int water_send_buf_len_;
+    bool mark_send_buf_full_{false};
     ProtoConVisitor *visitor_{nullptr};
     ProtoStreamSequencer sequencer_;
-    uint32_t stream_id_{0};
     StreamSendBuffer send_buf_;
     std::map<StreamOffset,ByteCount> sent_info_;
 };

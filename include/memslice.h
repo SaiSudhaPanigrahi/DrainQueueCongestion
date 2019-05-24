@@ -110,7 +110,7 @@ public:
     bool WriteStreamData(StreamOffset offset,ByteCount len,basic::DataWriter *writer);
     void Consumed(ByteCount len);
     bool Acked(StreamOffset offset,ByteCount len);
-    ByteCount Inflight() {
+    ByteCount Inflight() const{
         return bytes_inflight_;
     }
     uint64_t StreamBytesWritten() const{

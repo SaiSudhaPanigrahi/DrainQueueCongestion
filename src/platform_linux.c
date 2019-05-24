@@ -21,8 +21,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#ifdef __linux__
 #include <linux/if.h>
+#else
 #include <net/if.h>
+#endif
 #include <fcntl.h>
 #include <dirent.h>
 #include <netdb.h>

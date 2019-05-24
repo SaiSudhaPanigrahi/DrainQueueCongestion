@@ -13,6 +13,8 @@ enum ProtoErrorCode{
   PROTO_INVALID_STREAM_DATA = 46,
     // The packet contained no payload.
   PROTO_MISSING_PAYLOAD = 48,
+    // STOP_WAITING frame data is malformed.
+  PROTO_INVALID_STOP_WAITING_DATA = 60,
 };
 const char* ProtoErrorCodeToString(ProtoErrorCode error);
 }

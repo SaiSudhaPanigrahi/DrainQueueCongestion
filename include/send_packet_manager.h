@@ -18,6 +18,10 @@ typedef linked_hash_map<PacketNumber,TransmissionInfo,PacketNumberHash> PendingR
     void OnAckStart(PacketNumber largest,ProtoTime time);
     void OnAckRange(PacketNumber start,PacketNumber end);
     void OnAckEnd(ProtoTime time);
+    // in order to handle ack,stop_waiting frame lost;
+    bool should_send_stop_waiting(){
+        return unacked_packets_.should_send_stop_waiting();
+    }
     void Test();
     void Test2();
 private:

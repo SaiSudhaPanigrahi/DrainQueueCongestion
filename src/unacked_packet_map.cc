@@ -45,6 +45,7 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
     if(packets_acked.empty()){
         return;
     }
+    generate_stop_waiting_=false;
     auto acked_it=packets_acked.begin();
     PacketNumber first_seq=acked_it->seq;
     DCHECK(first_seq>=least_unacked_);
@@ -54,6 +55,8 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
         info=GetTransmissionInfo(i);
         if(info&&info->inflight){
             packets_lost.push_back(i);
+        }else{
+            generate_stop_waiting_=true;
         }
     }
     for(acked_it;acked_it!=packets_acked.end();acked_it++){
@@ -61,12 +64,14 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
         if(next!=packets_acked.end()){
             PacketNumber left=acked_it->seq;
             PacketNumber right=next->seq;
-            DLOG(WARNING)<<left<<" "<<right;
+            //DLOG(WARNING)<<left<<" "<<right;
             DCHECK(left<right);
             for(i=left+1;i<right;i++){
                 info=GetTransmissionInfo(i);
                 if(info&&info->inflight){
                     packets_lost.push_back(i);
+                }else{
+                    generate_stop_waiting_=true;
                 }
             }
         }

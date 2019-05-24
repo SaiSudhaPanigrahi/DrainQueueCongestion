@@ -541,6 +541,25 @@ bool ProtoFramer::ProcessFrameData(basic::DataReader* reader, const ProtoPacketH
                          << static_cast<int>(frame_type);
       return RaiseError(PROTO_INVALID_FRAME_DATA);
     }
+
+
+    switch(frame_type){
+        case PROTO_FRAME_STOP_WAITING:{
+            PacketNumber least_unacked=0;
+            if(!ProcessStopWaitingFrame(reader,header,&least_unacked)){
+                set_detailed_error("stop  waitting error.");
+                return RaiseError(PROTO_INVALID_STOP_WAITING_DATA);
+            }
+            if(!visitor_->OnStopWaitingFrame(least_unacked)){
+                return true;
+            }
+            break;
+        }
+        default:{
+            DLOG(INFO)<<"wtf";
+            return RaiseError(PROTO_INVALID_FRAME_DATA);
+        }
+    }
   }
   return true;
 }

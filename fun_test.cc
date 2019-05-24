@@ -13,6 +13,7 @@
 #include "received_packet_manager.h"
 #include "rtt_stats.h"
 #include "socket.h"
+#include "proto_stream.h"
 #include "proto_con.h"
 #include "proto_stream_data_producer.h"
 #include "proto_packets.h"
@@ -153,6 +154,7 @@ public:
         return true;
     }
     virtual void OnError(ProtoFramer* framer) override{
+        DLOG(INFO)<<"frame error";
     }
     virtual bool OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time) override{
@@ -167,6 +169,10 @@ public:
             return true;
                                 }
     virtual bool OnAckFrameEnd(PacketNumber start) override{
+        return true;
+    }
+    bool OnStopWaitingFrame(const PacketNumber least_unacked){
+        DLOG(INFO)<<"stop_waiting "<<least_unacked;
         return true;
     }
 };
@@ -187,8 +193,8 @@ void test_proto_framer(){
     dqc::DebugAck ack_visitor;
     dqc::ReceivdPacketManager receiver;
     dqc::ProtoTime ts(dqc::ProtoTime::Zero());
-    for(int i=1;i<=2;i++){
-        if(1==i||7==i){
+    for(int i=1;i<=10;i++){
+        if(2==i||4==i|7==i){
             continue;
         }
         PacketNumber seq=static_cast<PacketNumber>(i);
@@ -213,16 +219,22 @@ void test_rtt(){
     DLOG(INFO)<<srtt.ToMilliseconds();
 }
 void test_stream_endecode(){
-    std::string data("hello word");
+    std::string data("hello word, why");
     FakeDataProducer producer;
     producer.SetData(data.data(),data.length());
     std::string data1("hello word1");
+    PacketStream stream(0,0,data.length(),false);
     PacketStream stream1(0,data.length(),data1.length(),false);
     ProtoFramer encoder;
-    PacketStream stream(0,0,data.length(),false);
     char wbuf[1500];
     basic::DataWriter w(wbuf,1500);
     encoder.set_data_producer(&producer);
+    ProtoPacketHeader header1;
+    header1.packet_number=10;
+    PacketNumber unacked1=4;
+    AppendPacketHeader(header1,&w);
+    w.WriteUInt8(PROTO_FRAME_STOP_WAITING);
+    encoder.AppendStopWaitingFrame(header1,unacked1,&w);
     //add type stream frame
     // true ,no data length
     uint8_t type=encoder.GetStreamFrameTypeByte(stream,false);
@@ -230,16 +242,21 @@ void test_stream_endecode(){
     uint32_t print_type=type;
     printf("type %x\n",print_type);
     encoder.AppendStreamFrame(stream,false,&w);
+
     type=encoder.GetStreamFrameTypeByte(stream1,false);
     w.WriteUInt8(type);
+    print_type=type;
+    printf("type %x\n",print_type);
     producer.SetData(data1.data(),data1.length());
     encoder.AppendStreamFrame(stream1,false,&w);
+
     basic::DataReader r(wbuf,w.length());
+    ProtoPacketHeader header2;
+    ProcessPacketHeader(&r,header2);
     ProtoFramer decoder;
     DebugStreamFrame frame_visitor;
     decoder.set_visitor(&frame_visitor);
-    ProtoPacketHeader header;
-    decoder.ProcessFrameData(&r,header);
+    decoder.ProcessFrameData(&r,header2);
 }
 void test_readbuf(){
     /*IntervalSet<int> readble;
@@ -299,11 +316,16 @@ void test_stop_waiting(){
     char buf[20];
     basic::DataWriter w(buf,20);
     AppendPacketHeader(header1,&w);
+    w.WriteUInt8(PROTO_FRAME_STOP_WAITING);
     ProtoFramer framer1;
     framer1.AppendStopWaitingFrame(header1,unacked1,&w);
     basic::DataReader r(buf,w.length());
     ProtoPacketHeader header2;
     ProcessPacketHeader(&r,header2);
+    uint8_t temp_type=0;
+    r.ReadUInt8(&temp_type);
+    int stop_waiting_type=temp_type;
+    DLOG(INFO)<<"stop type "<<stop_waiting_type;
     PacketNumber unacked2=0;
     framer1.ProcessStopWaitingFrame(&r,header2,&unacked2);
     DLOG(INFO)<<header2.packet_number<<" "<<unacked2;
@@ -380,6 +402,7 @@ void* socket_client(void *arg){
             break;
         }
     }
+    return nullptr;
 }
 void *socket_server(void*arg){
     char *ip="127.0.0.1";
@@ -406,6 +429,7 @@ void *socket_server(void*arg){
             break;
         }
     }
+    return nullptr;
 }
 void thread_test(){
     su_platform_init();
@@ -417,17 +441,37 @@ void thread_test(){
     su_destroy_thread(th2);
     su_platform_uninit();
 }
+void stream_test(){
+    ProtoStream stream(nullptr,0);
+    stream.set_max_send_buf_len(1500*10);
+
+   // DLOG(INFO)<<"size "<<piece.size();
+    int i=0;
+    for(i=0;i<12;i++){
+        char buf[1500];
+        std::string piece(buf,1500);
+        bool success=stream.WriteDataToBuffer(piece);
+        if(!success){
+            DLOG(INFO)<<"buf full "<<i<<" "<<stream.Inflight()
+            <<" "<<stream.BufferedBytes();
+        }else{
+            DLOG(INFO)<<"buf "<<i<<" "<<stream.Inflight()
+            <<" "<<stream.BufferedBytes();
+        }
+    }
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
     //interval_test();
     //byte_order_test();
    //test_proto_framer();
+   stream_test();
    //test_stream_endecode();
    //test_ufloat();
     //test_readbuf();
     //test_alarm();
     //test_stop_waiting();
     //test_socket_address();
-    thread_test();
+    //thread_test();
 }

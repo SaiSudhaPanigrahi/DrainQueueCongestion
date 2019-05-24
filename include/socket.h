@@ -6,7 +6,7 @@ namespace dqc{
 class Socket{
 public:
     virtual ~Socket(){}
-    virtual int Bind(const char *ip,uint16_t port){}
+    virtual int Bind(const char *ip,uint16_t port){ return 0;}
     virtual int SendTo(const char*buf,size_t size,SocketAddress &dst){
         return 0;
     }

@@ -5,6 +5,11 @@
 namespace dqc{
 class UnackedPacketMap{
 public:
+    bool should_send_stop_waiting() {
+        bool ret=generate_stop_waiting_;
+        generate_stop_waiting_=false;
+        return ret;
+    }
     void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight);
     TransmissionInfo *GetTransmissionInfo(PacketNumber seq);
     PacketNumber GetLeastUnacked(){ return least_unacked_;}
@@ -17,6 +22,7 @@ private:
     bool none_sent_{true};
     PacketNumber least_unacked_{0};
     ByteCount bytes_inflight_{0};
+    bool generate_stop_waiting_{false};
 };
 }//namespace dqc;
 #endif

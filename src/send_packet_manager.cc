@@ -2,6 +2,8 @@
 #include "logging.h"
 #include <algorithm>
 namespace dqc{
+//only retransmitable frame can be marked as inflight;
+//hence, only stream has such quality.
 SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
 :acked_observer_(acked_observer){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
@@ -114,26 +116,26 @@ void SendPacketManager::Test(){
     OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
     OnSentPacket(&ack,0,CON_RE_NO,ProtoTime::Zero());
     }
-//lost 2 3 4 6 7
+//lost 2 4, only lost ack frame
+//reference from test_proto_framer
     OnAckStart(10,ProtoTime::Zero());
     OnAckRange(8,11);
-    OnAckRange(5,6);
+    OnAckRange(5,7);
+    OnAckRange(3,4);
     OnAckRange(1,2);
     OnAckEnd(ProtoTime::Zero());
-    for(i=1;i<=5;i++){
+    /*for(i=1;i<=5;i++){
     SerializedPacket stream=generator.CreateStream();
     OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
+    }*/
+    if(HasPendingForRetrans()){
+        DLOG(INFO)<<"has retrans "<<GetLeastUnacked();
     }
-    // l 11
-    OnAckStart(13,ProtoTime::Zero());
-    OnAckRange(12,14);
-    OnAckRange(1,11);
-    OnAckEnd(ProtoTime::Zero());
-    OnAckStart(15,ProtoTime::Zero());
-    OnAckRange(15,16);
-    OnAckRange(1,14);
-    OnAckEnd(ProtoTime::Zero());
-    DLOG(INFO)<<"size "<<last_ack_frame_.packets.size();
+    if(should_send_stop_waiting()){
+        DLOG(INFO)<<"should generate stop waiting "<<GetLeastUnacked();
+
+    }
+
 }
 void SendPacketManager::Test2(){
  if(HasPendingForRetrans()){
@@ -171,9 +173,7 @@ void SendPacketManager::InvokeLossDetection(ProtoTime time){
 
 }
 void SendPacketManager::MarkForRetrans(PacketNumber seq){
-    #if !defined (NDEBUG)
     DLOG(WARNING)<<"l "<<seq;
-    #endif
     TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(seq);
     if(info&&info->inflight){
         TransmissionInfo copy;
