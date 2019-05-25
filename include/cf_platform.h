@@ -50,7 +50,7 @@ typedef void(*watch_func_type)();
 int			su_platform_init();
 int			su_platform_uninit();
 
-su_thread	su_create_thread(char* name, su_thread_fun func, void* data);
+su_thread	su_create_thread(const char* name, su_thread_fun func, void* data);
 void		su_destroy_thread(su_thread thread);
 
 su_mutex	su_create_mutex();

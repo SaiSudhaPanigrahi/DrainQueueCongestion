@@ -17,7 +17,7 @@ ReadBuffer::~ReadBuffer(){
 }
 char * ReadBuffer::ReadWithoutCopy(size_t size){
     char *addr=buf_+r_pos_;
-    size_t off=std::min(size,ReadbleBytes());
+    //size_t off=std::min(size,ReadbleBytes());
     //r_pos_+=off;
     return addr;
 }

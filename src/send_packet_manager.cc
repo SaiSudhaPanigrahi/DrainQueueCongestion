@@ -32,7 +32,7 @@ void SendPacketManager::Retransmitted(PacketNumber number){
         DLOG(WARNING)<<number<<" not exist";
     }
 }
-void SendPacketManager::OnAckStart(PacketNumber largest,ProtoTime time){
+void SendPacketManager::OnAckStart(PacketNumber largest,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
     /*if(unacked_packets_.IsUnacked(largest)){
 
     }*/
@@ -53,14 +53,14 @@ void SendPacketManager::OnAckRange(PacketNumber start,PacketNumber end){
         packets_acked_.push_back(AckedPacket(acked,0,0));
     }
 }
-void SendPacketManager::OnAckEnd(ProtoTime time){
+void SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
 
     std::reverse(packets_acked_.begin(),packets_acked_.end());
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
         PacketNumber seq=it->seq;
         TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(seq);
         if(!info){
-            DLOG(WARNING)<<"acked unsent packet";
+            DLOG(WARNING)<<"acked unsent packet "<<seq;
         }else{
             if(info->inflight){
                 if(acked_observer_){
@@ -76,7 +76,7 @@ void SendPacketManager::OnAckEnd(ProtoTime time){
             last_ack_frame_.packets.Add(seq);
         }
     }
-    InvokeLossDetection(time);
+    InvokeLossDetection(ack_receive_time);
 }
 class PacketGenerator{
 public:
@@ -118,7 +118,7 @@ void SendPacketManager::Test(){
     }
 //lost 2 4, only lost ack frame
 //reference from test_proto_framer
-    OnAckStart(10,ProtoTime::Zero());
+    OnAckStart(10,TimeDelta::Zero(),ProtoTime::Zero());
     OnAckRange(8,11);
     OnAckRange(5,7);
     OnAckRange(3,4);

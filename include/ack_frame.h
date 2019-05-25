@@ -22,7 +22,7 @@ public:
     bool Empty() const{
         return packet_deque_.empty();
     }
-    void RemoveUpTo(PacketNumber p);
+    bool RemoveUpTo(PacketNumber higher);
     PacketNumber Min() const;
     PacketNumber Max() const;
     void Print();
@@ -59,6 +59,7 @@ struct AckFrame{
     TimeDelta ack_delay_time;
 };
 inline PacketNumber LargestAcked(const AckFrame& frame) {
+  DLOG(INFO)<<frame.largest_acked;
   DCHECK((!frame.packets.Empty()) &&frame.packets.Max() > frame.largest_acked);
   return frame.largest_acked;
 }

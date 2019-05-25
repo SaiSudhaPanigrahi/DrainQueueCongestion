@@ -45,5 +45,30 @@ struct PendingRetransmission{
 PacketNumber  number;
 ProtoFrames retransble_frames;
 };
+class ProtoReceivedPacket{
+public:
+    ProtoReceivedPacket(char *buf,int len,ProtoTime receipe)
+    :ProtoReceivedPacket(buf,len,receipe,false){}
+    ProtoReceivedPacket(char *buf,int len,ProtoTime receipe,bool own_buffer)
+    :packet_(buf)
+    ,length_(len)
+    ,receipe_time_(receipe)
+    ,own_buffer_(own_buffer){}
+    ~ProtoReceivedPacket(){
+        if(own_buffer_&&packet_){
+            delete [] static_cast<char*>(packet_);
+        }
+    }
+    ProtoReceivedPacket(const ProtoReceivedPacket &o)=delete;
+    ProtoReceivedPacket &operator=(const ProtoReceivedPacket &o)=delete;
+    char *packet() const{ return packet_;}
+    int length() const {return length_;}
+    ProtoTime receipe_time() const{ return receipe_time_;}
+private:
+    char *packet_{nullptr};
+    int length_{0};
+    ProtoTime receipe_time_;
+    bool own_buffer_{false};
+};
 }//namespace dqc;
 #endif

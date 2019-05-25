@@ -1,4 +1,4 @@
-#ifndef PROsTO_CON_H_
+#ifndef PROTO_CON_H_
 #define PROTO_CON_H_
 #include "proto_comm.h"
 #include "proto_con_visitor.h"
@@ -16,6 +16,8 @@ ProtoFrameVisitor,ProtoStreamDataProducer{
 public:
     ProtoCon();
     ~ProtoCon();
+    void ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
+                          const ProtoReceivedPacket& packet);
     virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     ProtoStream *GetOrCreateStream(uint32_t id);
@@ -23,7 +25,8 @@ public:
     void set_packet_writer(Socket *writer){
         packet_writer_=writer;
     }
-    void Test();
+    void set_peer(SocketAddress &peer){peer_=peer;}
+    void Process(uint32_t stream_id);
     PacketNumber AllocSeq(){
         return seq_++;
     }
@@ -50,9 +53,12 @@ private:
     std::deque<PacketStream> waiting_info_;
     uint32_t stream_id_{0};
     PacketNumber seq_{1};
+    ProtoTime time_of_last_received_packet_;
     SendPacketManager sent_manager_;
     SocketAddress peer_;
+    bool first_packet_from_peer_{true};
     ProtoFramer frame_encoder_;
+    ProtoFramer frame_decoder_;
     Socket *packet_writer_{nullptr};
 };
 }//namespace dqc;

@@ -9,6 +9,7 @@ void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,P
     }
     // packet sent in none continue mode
     while(least_unacked_+unacked_packets_.size()<packet->number){
+        DLOG(INFO)<<"seen unsent ";
         unacked_packets_.push_back(TransmissionInfo());
     }
     PacketLength bytes_sent=packet->len;
@@ -23,6 +24,7 @@ void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,P
 TransmissionInfo *UnackedPacketMap::GetTransmissionInfo(PacketNumber seq){
     TransmissionInfo *info=nullptr;
     if(none_sent_||seq<least_unacked_||(least_unacked_+unacked_packets_.size())<=seq){
+        DLOG(INFO)<<"null info unack "<<least_unacked_<<" "<<seq;
         return info;
     }
     info=&unacked_packets_[seq-least_unacked_];

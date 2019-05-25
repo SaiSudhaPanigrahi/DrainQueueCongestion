@@ -10,20 +10,20 @@
 #include "proto_framer.h"
 #include "proto_time.h"
 #include <vector>
+#include "socket_address.h"
 using namespace dqc;
 int main(){
+    su_platform_init();
     /*ProtoCon con;
     con.Test();
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();*/
-
     /*
     SendPacketManager manager(nullptr);
     manager.Test();
     manager.Test2();*/
-
-
     test_test();
+    su_platform_uninit();
 }
 
 

@@ -15,9 +15,9 @@ typedef linked_hash_map<PacketNumber,TransmissionInfo,PacketNumberHash> PendingR
     bool HasPendingForRetrans();
     PendingRetransmission NextPendingRetrans();
     void Retransmitted(PacketNumber number);
-    void OnAckStart(PacketNumber largest,ProtoTime time);
+    void OnAckStart(PacketNumber largest,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
-    void OnAckEnd(ProtoTime time);
+    void OnAckEnd(ProtoTime ack_receive_time);
     // in order to handle ack,stop_waiting frame lost;
     bool should_send_stop_waiting(){
         return unacked_packets_.should_send_stop_waiting();

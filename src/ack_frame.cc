@@ -80,31 +80,26 @@ bool PacketQueue::Contains(PacketNumber p){
     }
     return false;
 }
-void PacketQueue::RemoveUpTo(PacketNumber p){
+bool PacketQueue::RemoveUpTo(PacketNumber higher){
     if(packet_deque_.empty()){
-        return;
+        return false;
     }
-    int len=packet_deque_.size();
-    int i=0;
+    const PacketNumber old_min = Min();
     while(!packet_deque_.empty()){
-        auto it=packet_deque_.begin();
-        Interval<PacketNumber> temp=(*it);
-        if(p<temp.Min()){
-            return;
-        }
-        if(temp.Contains(p)){
-            it->SetMin(p);
-            return;
-        }
-        if(p>=temp.Max()){
-            packet_deque_.erase(it);
-        }
-        i++;
-        if(i>len){
-            DLOG(FATAL)<<"bug";
+        Interval<PacketNumber> front=packet_deque_.front();
+        if(front.max()<higher){
+            packet_deque_.pop_front();
+        }else if(front.min()<higher&&front.max()>=higher){
+            packet_deque_.front().SetMin(higher);
+            if(higher==front.max()){
+                packet_deque_.pop_front();
+            }
+            break;
+        }else{
             break;
         }
     }
+    return Empty()||old_min!=Min();
 }
 PacketNumber PacketQueue::Min() const{
     return packet_deque_.front().Min();

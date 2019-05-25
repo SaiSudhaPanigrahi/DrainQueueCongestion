@@ -20,6 +20,7 @@
 #include "proto_stream_sequencer.h"
 #include "socket_address.h"
 #include "cf_platform.h"
+#include "send_receive.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -200,8 +201,8 @@ void test_proto_framer(){
         PacketNumber seq=static_cast<PacketNumber>(i);
         receiver.RecordPacketReceived(seq,ts);
     }
-    //receiver.RecordPacketReceived(3,ts);
-    const AckFrame &ack_frame=receiver.GetUpdateAckFrame();
+    receiver.DontWaitForPacketsBefore(3);
+    const AckFrame &ack_frame=receiver.GetUpdateAckFrame(ts);
     char wbuf[1500];
     DataWriter w(wbuf,1500,basic::NETWORK_ORDER);
     framer.AppendAckFrameAndTypeByte(ack_frame,&w);
@@ -377,10 +378,10 @@ void test_socket_address(){
     std::cout<<addr_str<<std::endl;
 }
 void* socket_client(void *arg){
-    char *ip="127.0.0.1";
+    const char *ip="127.0.0.1";
     uint16_t client_port=4444;
     uint16_t server_port=4322;
-    char *msg="hello server";
+    const char *msg="hello server";
     SocketAddress serv_addr(ip,server_port);
     UdpSocket socket;
     if(socket.Bind(ip,client_port)!=0){
@@ -431,15 +432,15 @@ void *socket_server(void*arg){
     }
     return nullptr;
 }
+const char *server="server";
+const char *client="client";
 void thread_test(){
-    su_platform_init();
-    su_thread th1=su_create_thread("server",socket_server,nullptr);
+    su_thread th1=su_create_thread(server,socket_server,nullptr);
     TimeSleep(100);
-    su_thread th2=su_create_thread("server",socket_client,nullptr);
+    su_thread th2=su_create_thread(client,socket_client,nullptr);
     TimeSleep(7000);
     su_destroy_thread(th1);
     su_destroy_thread(th2);
-    su_platform_uninit();
 }
 void stream_test(){
     ProtoStream stream(nullptr,0);
@@ -466,7 +467,7 @@ void test_test(){
     //interval_test();
     //byte_order_test();
    //test_proto_framer();
-   stream_test();
+   //stream_test();
    //test_stream_endecode();
    //test_ufloat();
     //test_readbuf();
@@ -474,4 +475,7 @@ void test_test(){
     //test_stop_waiting();
     //test_socket_address();
     //thread_test();
+    send_receiver_test();
+    AbstractAlloc *alloc=AbstractAlloc::Instance();
+    alloc->CheckMemLeak();
 }

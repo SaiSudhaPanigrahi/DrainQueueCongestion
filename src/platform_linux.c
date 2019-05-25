@@ -40,7 +40,7 @@ int su_platform_uninit()
 	return 0;
 }
 
-su_thread su_create_thread(char *name, su_thread_fun func, void *data)
+su_thread su_create_thread(const char *name, su_thread_fun func, void *data)
 {
 	pthread_t thread;
 	if (pthread_create(&thread, NULL, func, data) == 0)

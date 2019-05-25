@@ -3,9 +3,13 @@
 #include "proto_utils.h"
 #include "byte_codec.h"
 namespace dqc{
-ProtoCon::ProtoCon():sent_manager_(this)
+ProtoCon::ProtoCon()
+:time_of_last_received_packet_(ProtoTime::Zero())
+,sent_manager_(this)
 {
     frame_encoder_.set_data_producer(this);
+    //to decode ack frame;
+    frame_decoder_.set_visitor(this);
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
@@ -15,6 +19,24 @@ ProtoCon::~ProtoCon(){
         streams_.erase(it);
         delete stream;
     }
+}
+void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
+                          const ProtoReceivedPacket& packet){
+    if(!first_packet_from_peer_){
+        if(peer!=peer_){
+            DLOG(INFO)<<"wrong peer";
+            return ;
+        }
+    }
+    if(first_packet_from_peer_){
+        peer_=peer;
+        first_packet_from_peer_=false;
+    }
+    time_of_last_received_packet_=packet.receipe_time();
+    basic::DataReader r(packet.packet(),packet.length());
+    ProtoPacketHeader header;
+    ProcessPacketHeader(&r,header);
+    frame_decoder_.ProcessFrameData(&r,header);
 }
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
 
@@ -42,15 +64,17 @@ bool ProtoCon::OnStreamFrame(PacketStream &frame){
     return true;
 }
 void ProtoCon::OnError(ProtoFramer* framer){
-
+    DLOG(INFO)<<"frame error";
 }
 bool ProtoCon::OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time){
-  DLOG(INFO)<<largest_acked;
+  DLOG(INFO)<<largest_acked<<" "<<std::to_string(ack_delay_time.ToMilliseconds());
+  sent_manager_.OnAckStart(largest_acked,ack_delay_time,time_of_last_received_packet_);
   return true;
 }
 bool ProtoCon::OnAckRange(PacketNumber start, PacketNumber end){
     DLOG(INFO)<<start<<" "<<end;
+    sent_manager_.OnAckRange(start,end);
     return true;
 }
 bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
@@ -59,6 +83,7 @@ bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
 }
 bool ProtoCon::OnAckFrameEnd(PacketNumber start){
     DLOG(INFO)<<start;
+    sent_manager_.OnAckEnd(time_of_last_received_packet_);
     return true;
 }
 bool ProtoCon::WriteStreamData(uint32_t id,
@@ -109,23 +134,27 @@ int ProtoCon::Send(){
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
     DCHECK(packet_writer_);
-    packet_writer_->SendTo(src,writer.length(),peer_);
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
     int available=writer.length();
+    packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
 }
 void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     ProtoStream *stream=GetStream(id);
     if(stream){
-    DLOG(INFO)<<"retrans "<<off<<" "<<len<<" stop_waiting "
-    <<sent_manager_.GetLeastUnacked();
+    DLOG(INFO)<<"retrans "<<off<<" "<<len;
     struct PacketStream info(id,off,len,fin);
     char src[1500];
     memset(src,0,sizeof(src));
     ProtoPacketHeader header;
-    header.packet_number=AllocSeq();
+    PacketNumber seq=AllocSeq();
+    header.packet_number=seq;
     basic::DataWriter writer(src,sizeof(src));
     AppendPacketHeader(header,&writer);
+    PacketNumber unacked=sent_manager_.GetLeastUnacked();
+    DLOG(INFO)<<"send stop waiting "<<seq<<" "<<unacked;
+    writer.WriteUInt8(PROTO_FRAME_STOP_WAITING);
+    frame_encoder_.AppendStopWaitingFrame(header,unacked,&writer);
     uint8_t type=frame_encoder_.GetStreamFrameTypeByte(info,true);
     writer.WriteUInt8(type);
     frame_encoder_.AppendStreamFrame(info,true,&writer);
@@ -139,76 +168,33 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     DCHECK(packet_writer_);
     printf("%x\n",type);
     DLOG(INFO)<<"packet_writer_ "<<writer.length();
-    packet_writer_->SendTo(src,writer.length(),peer_);
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
+    packet_writer_->SendTo(src,writer.length(),peer_);
     }
 }
-class FakeReceiver:public Socket,ProtoFrameVisitor{
-public:
-    FakeReceiver(){
-        frame_decoder_.set_visitor(this);
+void ProtoCon::Process(uint32_t stream_id){
+    ProtoStream *stream=GetOrCreateStream(stream_id);
+    //AbstractAlloc *alloc=AbstractAlloc::Instance();
+    //char *data=alloc->New(1500,MY_FROM_HERE);
+    //int i=0;
+    //std::string piece(data,1500);
+    //stream->WriteDataToBuffer(piece);
+    //stream->WriteDataToBuffer(piece);
+    //FakeReceiver packet_writer;
+    //set_packet_writer(&packet_writer);
+    if(!packet_writer_){
+        DLOG(INFO)<<"set writer first";
+        return;
     }
-    virtual bool OnStreamFrame(PacketStream &frame) override{
-        //std::string str(frame.data_buffer,frame.len);
-        DLOG(INFO)<<"recv "<<frame.offset<<" "<<frame.len;
-        return true;
-    }
-    virtual void OnError(ProtoFramer* framer) override{
-    }
-    virtual bool OnAckFrameStart(PacketNumber largest_acked,
-                                 TimeDelta ack_delay_time) override{
-        return true;
-                                 }
-    virtual bool OnAckRange(PacketNumber start,
-                            PacketNumber end) override{
-                                return true;
-                            }
-    virtual bool OnAckTimestamp(PacketNumber packet_number,
-                                ProtoTime timestamp) override{
-                                    return true;
-                                }
-    virtual bool OnAckFrameEnd(PacketNumber start) override{
-        return true;
-    }
-    virtual int SendTo(const char*buf,size_t size,SocketAddress &dst) override{
-        std::unique_ptr<char> data(new char[size]);
-        memcpy(data.get(),buf,size);
-        basic::DataReader r(data.get(),size);
-        ProtoPacketHeader header;
-        ProcessPacketHeader(&r,header);
-        DLOG(INFO)<<"seq "<<header.packet_number;
-        frame_decoder_.ProcessFrameData(&r,header);
-        return 0;
-    }
-private:
-    ProtoFramer frame_decoder_;
-};
-void ProtoCon::Test(){
-    uint32_t id=0;
-    ProtoStream *stream=GetOrCreateStream(id);
-    AbstractAlloc *alloc=AbstractAlloc::Instance();
-    char *data=alloc->New(1500,MY_FROM_HERE);
-    int i=0;
-    for (i=0;i<1500;i++){
-        data[i]=RandomLetter::Instance()->GetLetter();
-    }
-    std::string piece(data,1500);
-    stream->WriteDataToBuffer(piece);
-    FakeReceiver packet_writer;
-    set_packet_writer(&packet_writer);
-    while(stream->HasBufferedData()){
+    if(stream->HasBufferedData()){
         stream->OnCanWrite();
     }
-
-    int total_len=0;
-    while(!waiting_info_.empty()){
-        int len=0;
-        len=Send();
-        total_len+=len;
+    if(!waiting_info_.empty()){
+        Send();
     }
-    sent_manager_.OnAckStart(2,ProtoTime::Zero());
-    sent_manager_.OnAckRange(2,3);
-    sent_manager_.OnAckEnd(ProtoTime::Zero());
+    //sent_manager_.OnAckStart(2,TimeDelta::Zero(),ProtoTime::Zero());
+    //sent_manager_.OnAckRange(2,3);
+    //sent_manager_.OnAckEnd(ProtoTime::Zero());
     if(sent_manager_.HasPendingForRetrans()){
         PendingRetransmission pend=sent_manager_.NextPendingRetrans();
         for(auto frame_it=pend.retransble_frames.begin();
@@ -217,10 +203,10 @@ void ProtoCon::Test(){
                        frame_it->stream_frame.len,frame_it->stream_frame.fin);
         }
     }
-    sent_manager_.OnAckStart(3,ProtoTime::Zero());
-    sent_manager_.OnAckRange(1,4);
-    sent_manager_.OnAckEnd(ProtoTime::Zero());
-    DLOG(INFO)<<"next "<<sent_manager_.GetLeastUnacked();
-    alloc->Delete(data);
+    //sent_manager_.OnAckStart(4,TimeDelta::Zero(),ProtoTime::Zero());
+    //sent_manager_.OnAckRange(1,5);
+    //sent_manager_.OnAckEnd(ProtoTime::Zero());
+    //DLOG(INFO)<<"next "<<sent_manager_.GetLeastUnacked();
+    //alloc->Delete(data);
 }
 }//namespace dqc;

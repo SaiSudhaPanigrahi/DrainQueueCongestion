@@ -29,7 +29,7 @@ int su_platform_uninit()
 	return 0;
 }
 
-su_thread su_create_thread(char* name, su_thread_fun func, void* data)
+su_thread su_create_thread(const char* name, su_thread_fun func, void* data)
 {
 	return (su_thread)_beginthreadex(NULL, 0, (unsigned int(_stdcall*)(void*))func, data,
 		0, NULL);

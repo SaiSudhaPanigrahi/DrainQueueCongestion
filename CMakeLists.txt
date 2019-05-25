@@ -30,6 +30,7 @@ src/rtt_stats.cc
 src/flag_impl.cc        
 src/proto_framer.cc            
 src/send_packet_manager.cc
+src/send_receive.cc
 src/ip_address.cc       
 src/proto_stream.cc            
 src/socket_address.cc
