@@ -24,6 +24,9 @@
 using namespace dqc;
 using namespace std;
 using namespace basic;
+static const char *local_ip="127.0.0.1";
+static const uint16_t send_port=1234;
+static const uint16_t recv_port=4321;
 void proto_types_test()
 {
         uint64_t seq=0;
@@ -195,7 +198,7 @@ void test_proto_framer(){
     dqc::ReceivdPacketManager receiver;
     dqc::ProtoTime ts(dqc::ProtoTime::Zero());
     for(int i=1;i<=10;i++){
-        if(2==i||4==i|7==i){
+        if(2==i||4==i||7==i){
             continue;
         }
         PacketNumber seq=static_cast<PacketNumber>(i);
@@ -378,13 +381,10 @@ void test_socket_address(){
     std::cout<<addr_str<<std::endl;
 }
 void* socket_client(void *arg){
-    const char *ip="127.0.0.1";
-    uint16_t client_port=4444;
-    uint16_t server_port=4322;
     const char *msg="hello server";
-    SocketAddress serv_addr(ip,server_port);
+    SocketAddress serv_addr(local_ip,recv_port);
     UdpSocket socket;
-    if(socket.Bind(ip,client_port)!=0){
+    if(socket.Bind(local_ip,recv_port)!=0){
         DLOG(INFO)<<"client bind failed";
         return nullptr;
     }
@@ -406,10 +406,8 @@ void* socket_client(void *arg){
     return nullptr;
 }
 void *socket_server(void*arg){
-    char *ip="127.0.0.1";
-    uint16_t server_port=4322;
     UdpSocket socket;
-    if(socket.Bind(ip,server_port)!=0){
+    if(socket.Bind(local_ip,recv_port)!=0){
         DLOG(INFO)<<"server bind failed";
         return nullptr;
     }
@@ -461,6 +459,29 @@ void stream_test(){
         }
     }
 }
+void test_sender_receiver(){
+    dqc::SystemClock clock;
+    Sender sender(&clock);
+    sender.Bind(local_ip,send_port);
+    Receiver receiver(&clock);
+    receiver.Bind(local_ip,recv_port);
+    SocketAddress serv_addr=receiver.get_local_addr();
+    sender.set_peer(serv_addr);
+    sender.DataGenerator(10);
+    TimeDelta run_time(TimeDelta::FromMilliseconds(10000));
+    ProtoTime now=clock.Now();
+    ProtoTime stop=now+run_time;
+    while(true){
+        ProtoTime now=clock.Now();
+        sender.Process();
+        receiver.Process();
+        if(now>stop){
+            break;
+        }
+    }
+    AbstractAlloc *alloc=AbstractAlloc::Instance();
+    alloc->CheckMemLeak();
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
@@ -475,7 +496,6 @@ void test_test(){
     //test_stop_waiting();
     //test_socket_address();
     //thread_test();
-    send_receiver_test();
-    AbstractAlloc *alloc=AbstractAlloc::Instance();
-    alloc->CheckMemLeak();
+    //simu_send_receiver_test();
+    test_sender_receiver();
 }

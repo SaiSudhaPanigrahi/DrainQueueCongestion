@@ -9,13 +9,13 @@ public:
     virtual ~FakeAckFrameReceive(){}
     virtual void OnPeerData(SocketAddress &peer,char *data,int len,ProtoTime &recipt_time)=0;
 };
-class Sender:public FakeAckFrameReceive{
+class SimulateSender:public FakeAckFrameReceive{
 public:
-    Sender();
-    ~Sender();
-    void Process();
+    SimulateSender();
+    ~SimulateSender();
     void set_address(SocketAddress addr){local_=addr;}
     void set_packet_writer(Socket *sock);
+    void Process();
     void DataGenerator(int times);
     void OnPeerData(SocketAddress &peer,char *data,
                     int len,ProtoTime &recipt_time) override;
@@ -26,11 +26,10 @@ private:
     SocketAddress local_;
     uint32_t stream_id_{0};
 };
-class Receiver :public ProtoFrameVisitor, public Socket{
+class SimulateReceiver :public ProtoFrameVisitor, public Socket{
 public:
-    Receiver();
-    ~Receiver();
-    void Process();
+    SimulateReceiver();
+    ~SimulateReceiver();
     void set_address(SocketAddress addr){local_=addr;}
     void set_ack_sink(FakeAckFrameReceive *sink){feed_ack_=sink;}
     bool OnStreamFrame(PacketStream &frame) override;
@@ -61,6 +60,55 @@ private:
     int count_{1};
     PacketNumber seq_{1};
 };
-void send_receiver_test();
+class Sender{
+public:
+    Sender(ProtoClock *clock):clock_(clock){}
+    ~Sender();
+    void Bind(const char *ip,uint16_t port);
+    SocketAddress &get_local_addr(){ return local_;};
+    void set_peer(SocketAddress &peer);
+    void Process();
+    void DataGenerator(int times);
+private:
+    ProtoClock *clock_{nullptr};
+    ProtoCon connection_;
+    ProtoStream *stream_{nullptr};
+    Socket *fd_{nullptr};
+    SocketAddress local_;
+    //SocketAddress peer_;
+    uint32_t stream_id_{0};
+};
+class Receiver:public ProtoFrameVisitor{
+public:
+    Receiver(ProtoClock *clock);
+    ~Receiver();
+    void Bind(const char *ip,uint16_t port);
+    SocketAddress &get_local_addr(){ return local_;};
+    void Process();
+    bool OnStreamFrame(PacketStream &frame) override;
+    void OnError(ProtoFramer* framer) override;
+    bool OnAckFrameStart(PacketNumber largest_acked,
+                         TimeDelta ack_delay_time) override;
+    bool OnAckRange(PacketNumber start,
+                    PacketNumber end) override;
+    bool OnAckTimestamp(PacketNumber packet_number,
+                        ProtoTime timestamp) override;
+    bool OnAckFrameEnd(PacketNumber start) override;
+    bool OnStopWaitingFrame(const PacketNumber least_unacked) override;
+private:
+    void SendAckFrame(ProtoTime now);
+    PacketNumber AllocSeq(){
+        return seq_++;
+    }
+    ProtoClock *clock_{nullptr};
+    ReceivdPacketManager received_packet_manager_;
+    ProtoFramer frame_decoder_;
+    ProtoFramer framer_encoder_;
+    Socket *fd_{nullptr};
+    SocketAddress local_;
+    SocketAddress peer_;
+    PacketNumber seq_{1};
+};
+void simu_send_receiver_test();
 }
 #endif

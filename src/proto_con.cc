@@ -162,39 +162,21 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     SerializedPacket serialized;
     serialized.number=header.packet_number;
     serialized.buf=nullptr;//buf addr is not quite useful;
-    //TODO add header info;
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
-    DCHECK(packet_writer_);
-    printf("%x\n",type);
-    DLOG(INFO)<<"packet_writer_ "<<writer.length();
+//    printf("%x\n",type);
     sent_manager_.OnSentPacket(&serialized,0,CON_RE_YES,ProtoTime::Zero());
     packet_writer_->SendTo(src,writer.length(),peer_);
     }
 }
 void ProtoCon::Process(uint32_t stream_id){
     ProtoStream *stream=GetOrCreateStream(stream_id);
-    //AbstractAlloc *alloc=AbstractAlloc::Instance();
-    //char *data=alloc->New(1500,MY_FROM_HERE);
-    //int i=0;
-    //std::string piece(data,1500);
-    //stream->WriteDataToBuffer(piece);
-    //stream->WriteDataToBuffer(piece);
-    //FakeReceiver packet_writer;
-    //set_packet_writer(&packet_writer);
     if(!packet_writer_){
         DLOG(INFO)<<"set writer first";
         return;
     }
-    if(stream->HasBufferedData()){
-        stream->OnCanWrite();
-    }
-    if(!waiting_info_.empty()){
-        Send();
-    }
-    //sent_manager_.OnAckStart(2,TimeDelta::Zero(),ProtoTime::Zero());
-    //sent_manager_.OnAckRange(2,3);
-    //sent_manager_.OnAckEnd(ProtoTime::Zero());
+    //only send one packet out
+    bool packet_send=false;
     if(sent_manager_.HasPendingForRetrans()){
         PendingRetransmission pend=sent_manager_.NextPendingRetrans();
         for(auto frame_it=pend.retransble_frames.begin();
@@ -202,11 +184,15 @@ void ProtoCon::Process(uint32_t stream_id){
             Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
                        frame_it->stream_frame.len,frame_it->stream_frame.fin);
         }
+        packet_send=true;
     }
-    //sent_manager_.OnAckStart(4,TimeDelta::Zero(),ProtoTime::Zero());
-    //sent_manager_.OnAckRange(1,5);
-    //sent_manager_.OnAckEnd(ProtoTime::Zero());
-    //DLOG(INFO)<<"next "<<sent_manager_.GetLeastUnacked();
-    //alloc->Delete(data);
+    if(!packet_send){
+        if(stream->HasBufferedData()){
+            stream->OnCanWrite();
+        }
+        if(!waiting_info_.empty()){
+            Send();
+        }
+    }
 }
 }//namespace dqc;

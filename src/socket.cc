@@ -19,16 +19,16 @@ int UdpSocket::SendTo(const char*buf,size_t size,SocketAddress &dst){
     dst.ToSockAddr(&peer);
     return su_udp_send(fd_,&peer,(void*)buf,uint32_t(size));
 }
-int UdpSocket::RecvFrom(char*buf,size_t size,SocketAddress &src){
+int UdpSocket::RecvFrom(char*buf,size_t size,SocketAddress &peer){
     int ret=0;
-    su_addr peer;
-    ret=su_udp_recv(fd_,&peer,(void*)buf,(uint32_t)size,0);
+    su_addr dst;
+    ret=su_udp_recv(fd_,&dst,(void*)buf,(uint32_t)size,0);
     if(recv>=0){
         char ip[40];
         uint16_t port;
-        su_addr_to_iport(&peer,ip,40,&port);
+        su_addr_to_iport(&dst,ip,40,&port);
         std::string host(ip,strlen(ip));
-        src=SocketAddress(host,port);
+        peer=SocketAddress(host,port);
     }
     return ret;
 }

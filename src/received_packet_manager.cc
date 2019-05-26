@@ -31,6 +31,7 @@ void ReceivdPacketManager::DontWaitForPacketsBefore(PacketNumber least_unacked){
     }else{
         if(least_unacked>peer_least_packet_awaiting_ack_){
             peer_least_packet_awaiting_ack_=least_unacked;
+            update_stop_waiting=true;
         }
     }
     if(update_stop_waiting){

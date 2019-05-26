@@ -59,7 +59,6 @@ struct AckFrame{
     TimeDelta ack_delay_time;
 };
 inline PacketNumber LargestAcked(const AckFrame& frame) {
-  DLOG(INFO)<<frame.largest_acked;
   DCHECK((!frame.packets.Empty()) &&frame.packets.Max() > frame.largest_acked);
   return frame.largest_acked;
 }

@@ -10,7 +10,7 @@ public:
     virtual int SendTo(const char*buf,size_t size,SocketAddress &dst){
         return 0;
     }
-    virtual int RecvFrom(char*buf,size_t size,SocketAddress &src){
+    virtual int RecvFrom(char*buf,size_t size,SocketAddress &peer){
         return 0;
     }
 };
