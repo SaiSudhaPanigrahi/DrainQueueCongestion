@@ -6,4 +6,4 @@ TODO
 - [x] Ack  
 - [x] Stop waiting  
 - [x] Send packet through socket  
-- [] congestion control   
+- [ ] congestion control   
