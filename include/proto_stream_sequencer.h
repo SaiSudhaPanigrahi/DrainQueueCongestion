@@ -1,5 +1,4 @@
-#ifndef PROTO_STREAM_SEQUENCER_H_
-#define PROTO_STREAM_SEQUENCER_H_
+#pragma once
 #include <string>
 #include <deque>
 #include <vector>
@@ -93,4 +92,3 @@ private:
     std::vector<size_t> consuming_;
 };
 }
-#endif

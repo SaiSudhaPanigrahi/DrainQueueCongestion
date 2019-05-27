@@ -1,5 +1,4 @@
-#ifndef ALARM_H_
-#define ALARM_H_
+#pragma once
 #include <memory>
 #include "proto_time.h"
 namespace dqc{
@@ -56,4 +55,3 @@ virtual ~AlarmFactory(){}
 virtual std::shared_ptr<Alarm> CreateAlarm(std::unique_ptr<Alarm::Delegate> delegate)=0;
 };
 }
-#endif

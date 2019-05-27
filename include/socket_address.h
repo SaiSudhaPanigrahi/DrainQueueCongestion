@@ -1,5 +1,4 @@
-#ifndef SOCKET_ADDRESS_H_
-#define SOCKET_ADDRESS_H_
+#pragma once
 #include <string>
 #include "ip_address.h"
 struct sockaddr_in;
@@ -178,4 +177,3 @@ bool SocketAddressFromSockAddrStorage(const sockaddr_storage& saddr,
                                       SocketAddress* out);
 SocketAddress EmptySocketAddressWithFamily(int family);
 }
-#endif

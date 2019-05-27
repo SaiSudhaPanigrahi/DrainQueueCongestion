@@ -1,5 +1,4 @@
-#ifndef PROTTO_STREAM_DATA_PRODUCER_H_
-#define PROTTO_STREAM_DATA_PRODUCER_H_
+#pragma once
 #include "proto_types.h"
 #include "byte_codec.h"
 namespace dqc{
@@ -12,4 +11,3 @@ public:
                                  basic::DataWriter *writer)=0;
 };
 }
-#endif

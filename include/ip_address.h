@@ -1,5 +1,4 @@
-#ifndef IP_ADDRESS_H_
-#define IP_ADDRESS_H_
+#pragma once
 #if defined(WIN_32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -175,4 +174,3 @@ IPAddress GetAnyIP(int family);
 // counted.
 int CountIPMaskBits(IPAddress mask);
 }
-#endif

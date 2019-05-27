@@ -16,7 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(${CMAKE_SOURCE_DIR}/)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/logging)
-
+include_directories(${CMAKE_SOURCE_DIR}/congestion)
 set(dqc_LIB 
 src/ack_frame.cc
 src/process_alarm_factory.cc   
@@ -30,12 +30,12 @@ src/rtt_stats.cc
 src/flag_impl.cc        
 src/proto_framer.cc            
 src/send_packet_manager.cc
-src/send_receive.cc
 src/ip_address.cc       
 src/proto_stream.cc            
 src/socket_address.cc
 src/memslice.cc         
-src/proto_stream_sequencer.cc  
+src/proto_stream_sequencer.cc 
+src/send_receive.cc 
 src/socket.cc
 src/netutils.cc         
 src/proto_time.cc              
@@ -45,6 +45,9 @@ src/proto_types.cc
 src/platform_windows.c  
 src/proto_utils.cc
 fun_test.cc
+congestion/proto_bandwidth_sampler.cc 
+congestion/proto_send_algorithm_interface.cc
+congestion/proto_bbr_sender.cc  
 )
 
 add_library(dqc STATIC ${dqc_LIB})

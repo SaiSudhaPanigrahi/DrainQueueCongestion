@@ -236,9 +236,9 @@ void Receiver::Process(){
         ProcessPacketHeader(&r,header);
         PacketNumber seq=header.packet_number;
         bool drop=false;
-        /*if(2==seq||5==seq||9==seq){
+        if(2==seq||5==seq||9==seq){
             drop=true;
-        }*/
+        }
         if(!drop){
             received_packet_manager_.RecordPacketReceived(seq,now);
             frame_decoder_.ProcessFrameData(&r,header);

@@ -1,5 +1,4 @@
-#ifndef PACKET_WRITER_H_
-#define PACKET_WRITER_H_
+#pragma once
 #include "proto_types.h"
 #include "socket_address.h"
 namespace dqc{
@@ -27,4 +26,3 @@ private:
     su_socket fd_;
 };
 }
-#endif

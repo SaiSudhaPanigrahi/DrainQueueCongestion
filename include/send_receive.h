@@ -1,5 +1,4 @@
-#ifndef SEND_RECEIVE_H_
-#define SEND_RECEIVE_H_
+#pragma once
 #include "proto_con.h"
 #include "received_packet_manager.h"
 #include "socket.h"
@@ -111,4 +110,3 @@ private:
 };
 void simu_send_receiver_test();
 }
-#endif

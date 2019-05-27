@@ -1,12 +1,7 @@
-#ifndef PROTO_COMM_H_
-#define PROTO_COMM_H_
+#pragma once
 #include "proto_types.h"
 #include "basic_constants.h"
 namespace dqc{
-enum ContainsRetransData:uint8_t{
-    CON_RE_YES,
-    CON_RE_NO,
-};
 enum SentPacketState:uint8_t{
     SPS_OUT,
     SPS_ACKED,
@@ -25,4 +20,3 @@ public:
    virtual ~StreamAckedObserver(){}
 };
 }//namespace dqc;
-#endif

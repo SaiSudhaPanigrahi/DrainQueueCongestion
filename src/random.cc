@@ -46,6 +46,7 @@
 #include <ctime>
 
 #include "random.h"
+namespace dqc{
 //zsy, code copied from https://github.com/MitchellSternke/Mario
 //=====================================================================
 // Implementations of the original functions:
@@ -218,3 +219,4 @@ void Random::seedTime()
 {
 	seed( std::time(NULL) );
 }
+}//namespace dqc

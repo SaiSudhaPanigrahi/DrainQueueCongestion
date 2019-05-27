@@ -1,5 +1,4 @@
-#ifndef GOBJECT_EXAMPLE_NETUTILS_H_
-#define GOBJECT_EXAMPLE_NETUTILS_H_
+#pragma once
 #if defined (WIN_32)
 #include <winsock2.h>
 #include<Ws2tcpip.h>
@@ -19,5 +18,4 @@ int rtc_inet_pton(int af, const char* src, void *dst);
 #ifdef __cplusplus
 }
 #endif
-#endif /* GOBJECT_EXAMPLE_NETUTILS_H_ */
 

@@ -1,5 +1,4 @@
-#ifndef RTT_STATS_H_
-#define RTT_STATS_H_
+#pragma once
 #include "basic_macro.h"
 #include <stdint.h>
 #include "proto_time.h"
@@ -63,4 +62,3 @@ class RttStats
     DISALLOW_COPY_AND_ASSIGN(RttStats);
 };
 }
-#endif

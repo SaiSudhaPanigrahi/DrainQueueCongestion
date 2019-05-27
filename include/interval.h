@@ -1,5 +1,4 @@
-#ifndef INTERVAL_H_
-#define INTERVAL_H_
+#pragma once
 #include "proto_types.h"
 #include <iostream>
 #include <utility>
@@ -217,4 +216,3 @@ bool IntervalSet<T>::IsDisjoint(const value_type&interval) const{
   --it;
   return it->max() <= interval.min();
 }
-#endif

@@ -1,5 +1,4 @@
-#ifndef SEND_PACKET_MANAGER_H_
-#define SEND_PACKET_MANAGER_H_
+#pragma once
 #include "proto_packets.h"
 #include "unacked_packet_map.h"
 #include "linked_hash_map.h"
@@ -31,11 +30,10 @@ private:
     UnackedPacketMap unacked_packets_;
     PendingRetransmissionMap pendings_;
     PacketNumber largest_acked_{0};
-    LostPackerVector packets_lost_;
+    LostPacketVector packets_lost_;
     AckedPacketVector packets_acked_;
     AckFrame last_ack_frame_;
     PacketQueue::const_reverse_iterator ack_packet_itor_;
 
 };
 }//namespace dqc;
-#endif

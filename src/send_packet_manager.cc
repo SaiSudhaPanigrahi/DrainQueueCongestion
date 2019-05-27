@@ -57,7 +57,7 @@ void SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
 
     std::reverse(packets_acked_.begin(),packets_acked_.end());
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
-        PacketNumber seq=it->seq;
+        PacketNumber seq=it->packet_number;
         TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(seq);
         if(!info){
             DLOG(WARNING)<<"acked unsent packet "<<seq;
@@ -77,6 +77,11 @@ void SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
         }
     }
     InvokeLossDetection(ack_receive_time);
+    LostPacketVector temp1;
+    packets_lost_.swap(temp1);
+    AckedPacketVector temp2;
+    packets_acked_.swap(temp2);
+    unacked_packets_.RemoveObsolete();
 }
 class PacketGenerator{
 public:
@@ -160,17 +165,11 @@ void SendPacketManager::InvokeLossDetection(ProtoTime time){
     unacked_packets_.InvokeLossDetection(packets_acked_,packets_lost_);
     for(auto it=packets_lost_.begin();
     it!=packets_lost_.end();it++){
-        MarkForRetrans(*it);
+        MarkForRetrans(it->packet_number);
     }
-    LostPackerVector temp1;
-    packets_lost_.swap(temp1);
-    AckedPacketVector temp2;
-    packets_acked_.swap(temp2);
     // in repeat acked case;
     PacketNumber least_unacked=unacked_packets_.GetLeastUnacked();
     last_ack_frame_.packets.RemoveUpTo(least_unacked);
-    unacked_packets_.RemoveObsolete();
-
 }
 void SendPacketManager::MarkForRetrans(PacketNumber seq){
     DLOG(WARNING)<<"l "<<seq;
@@ -181,7 +180,7 @@ void SendPacketManager::MarkForRetrans(PacketNumber seq){
         copy.inflight=info->inflight;
         copy.send_time=info->send_time;
         copy.retransble_frames.swap(info->retransble_frames);
-        unacked_packets_.RemoveFromInflight(seq);
+        unacked_packets_.RemoveLossFromInflight(seq);
         pendings_[seq]=copy;
     }
 }

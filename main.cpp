@@ -7,11 +7,9 @@
 #include <string.h>
 #include <stdint.h>
 #include "fun_test.h"
-#include "proto_framer.h"
-#include "proto_time.h"
 #include <vector>
-#include "socket_address.h"
-using namespace dqc;
+#include "proto_bandwidth.h"
+#include "proto_bbr_sender.h"
 int main(){
     su_platform_init();
     //SendPacketManager manager(nullptr);
@@ -19,6 +17,9 @@ int main(){
     //manager.Test2();
     test_test();
     su_platform_uninit();
+    //ProtoBandwidth bw(ProtoBandwidth::FromBitsPerSecond(1000));
+    //TimeDelta wait=bw.TransferTime(1000);
+    //std::cout<<std::to_string(wait.ToMilliseconds());
 }
 
 

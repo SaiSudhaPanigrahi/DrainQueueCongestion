@@ -1,5 +1,4 @@
-#ifndef PROTO_ERROR_CODES_H_
-#define PROTO_ERROR_CODES_H_
+#pragma once
 namespace dqc{
 // These values must remain stable as they are uploaded to UMA histograms.
 // To add a new error code, use the current value of QUIC_LAST_ERROR and
@@ -18,4 +17,4 @@ enum ProtoErrorCode{
 };
 const char* ProtoErrorCodeToString(ProtoErrorCode error);
 }
-#endif
+

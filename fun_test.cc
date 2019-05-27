@@ -21,6 +21,7 @@
 #include "socket_address.h"
 #include "cf_platform.h"
 #include "send_receive.h"
+#include "packet_number_indexed_queue.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -482,6 +483,34 @@ void test_sender_receiver(){
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();
 }
+class ConnectionState{
+public:
+    ConnectionState(){
+        std::cout<<"default builder"<<std::endl;
+    }
+    ConnectionState(int seq):seq_{seq}{
+    }
+    int get_seq() const{return seq_;}
+private:
+    int seq_{0};
+};
+void packet_indexed_queue_test(){
+    PacketNumberIndexedQueue<ConnectionState> seqs_;
+    seqs_.Emplace(1,1);
+    seqs_.Emplace(3,3);
+    seqs_.Emplace(5,5);
+    DLOG(INFO)<<seqs_.number_of_present_entries();
+    PacketNumber first=seqs_.first_packet();
+    PacketNumber last=seqs_.last_packet();
+    PacketNumber seq=4;
+    PacketNumber it=first;
+    for(it;it<=seq;it++){
+        seqs_.Remove(it,[](const ConnectionState &entry){
+            std::cout<<entry.get_seq()<<std::endl;
+                     });
+    }
+    DLOG(INFO)<<seqs_.number_of_present_entries();
+}
 void test_test(){
     //ack_frame_test();
     //proto_types_test();
@@ -497,5 +526,6 @@ void test_test(){
     //test_socket_address();
     //thread_test();
     //simu_send_receiver_test();
-    test_sender_receiver();
+    //test_sender_receiver();
+    packet_indexed_queue_test();
 }

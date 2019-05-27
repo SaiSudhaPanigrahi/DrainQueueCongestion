@@ -15,7 +15,7 @@ void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,P
     PacketLength bytes_sent=packet->len;
     TransmissionInfo info(send_ts,bytes_sent);
     if(set_flight){
-        bytes_inflight_+=bytes_sent;
+        bytes_in_flight_+=bytes_sent;
         info.inflight=true;
     }
     unacked_packets_.push_back(info);
@@ -43,35 +43,35 @@ bool UnackedPacketMap::IsUnacked(PacketNumber seq){
     }
     return false;
 }
-void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,LostPackerVector &packets_lost){
+void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,LostPacketVector &packets_lost){
     if(packets_acked.empty()){
         return;
     }
     generate_stop_waiting_=false;
     auto acked_it=packets_acked.begin();
-    PacketNumber first_seq=acked_it->seq;
+    PacketNumber first_seq=acked_it->packet_number;
     DCHECK(first_seq>=least_unacked_);
     TransmissionInfo *info;
     PacketNumber i=least_unacked_;
     for(;i<first_seq;i++){
         info=GetTransmissionInfo(i);
         if(info&&info->inflight){
-            packets_lost.push_back(i);
+            packets_lost.emplace_back(i,info->bytes_sent);
         }else{
             generate_stop_waiting_=true;
         }
     }
-    for(acked_it;acked_it!=packets_acked.end();acked_it++){
+    for(;acked_it!=packets_acked.end();acked_it++){
         auto next=acked_it+1;
         if(next!=packets_acked.end()){
-            PacketNumber left=acked_it->seq;
-            PacketNumber right=next->seq;
+            PacketNumber left=acked_it->packet_number;
+            PacketNumber right=next->packet_number;
             //DLOG(WARNING)<<left<<" "<<right;
             DCHECK(left<right);
             for(i=left+1;i<right;i++){
                 info=GetTransmissionInfo(i);
                 if(info&&info->inflight){
-                    packets_lost.push_back(i);
+                    packets_lost.emplace_back(i,info->bytes_sent);
                 }else{
                     generate_stop_waiting_=true;
                 }
@@ -83,10 +83,13 @@ void UnackedPacketMap::RemoveFromInflight(PacketNumber seq){
     TransmissionInfo *info=GetTransmissionInfo(seq);
     if(info&&info->inflight){
         ByteCount bytes_sent=info->bytes_sent;
-        bytes_sent=std::min(bytes_sent,bytes_inflight_);
-        bytes_inflight_-=bytes_sent;
+        bytes_sent=std::min(bytes_sent,bytes_in_flight_);
+        bytes_in_flight_-=bytes_sent;
         info->inflight=false;
     }
+}
+void UnackedPacketMap::RemoveLossFromInflight(PacketNumber seq){
+    RemoveFromInflight(seq);
 }
 void UnackedPacketMap::RemoveObsolete(){
     while(!unacked_packets_.empty()){

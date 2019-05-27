@@ -1,6 +1,5 @@
-#ifndef RANDOM_H_
-#define RANDOM_H_
-
+#pragma once
+namespace dqc{
 /**
  * Provides a source of randomness using the mersenne twister algorithm.
  */
@@ -73,6 +72,4 @@ private:
 	double genrand_real3(void);
 	double genrand_res53(void);
 };
-
-#endif // RANDOM_H_
-
+}

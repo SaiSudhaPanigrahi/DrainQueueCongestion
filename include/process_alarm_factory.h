@@ -1,5 +1,4 @@
-#ifndef PROCESS_ALARNM_FACTORY_H_
-#define PROCESS_ALARNM_FACTORY_H_
+#pragma once
 #include "alarm.h"
 #include <map>
 namespace dqc{
@@ -54,4 +53,3 @@ private:
     MainEngine *engine_{nullptr};
 };
 }
-#endif

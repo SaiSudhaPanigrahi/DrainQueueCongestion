@@ -1,5 +1,4 @@
-#ifndef BASIC_CONSTANTS_H_
-#define BASIC_CONSTANTS_H_
+#pragma once
 #include <stdint.h>
 namespace basic{
 // We define an unsigned 16-bit floating point value, inspired by IEEE floats
@@ -19,4 +18,3 @@ const uint64_t kUFloat16MaxValue =  // 0x3FFC0000000
     ((UINT64_C(1) << kUFloat16MantissaEffectiveBits) - 1)
     << kUFloat16MaxExponent;
 }
-#endif

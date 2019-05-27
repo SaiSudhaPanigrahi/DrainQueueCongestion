@@ -1,5 +1,4 @@
-#ifndef PROTO_PACKET_H_
-#define PROTO_PACKET_H_
+#pragma once
 #include "proto_comm.h"
 #include "proto_time.h"
 #include <vector>
@@ -71,4 +70,3 @@ private:
     bool own_buffer_{false};
 };
 }//namespace dqc;
-#endif

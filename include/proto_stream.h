@@ -1,5 +1,4 @@
-#ifndef PROTO_STREAM_H_
-#define PROTO_STREAM_H_
+#pragma once
 #include "memslice.h"
 #include "proto_con_visitor.h"
 #include "proto_stream_data_producer.h"
@@ -31,8 +30,8 @@ private:
     void WriteBufferedData();
     void OnConsumedData(ByteCount len);
     uint32_t stream_id_{0};
-    int max_send_buf_len_;
-    int water_send_buf_len_;
+    ByteCount max_send_buf_len_;
+    ByteCount water_send_buf_len_;
     bool mark_send_buf_full_{false};
     ProtoConVisitor *visitor_{nullptr};
     ProtoStreamSequencer sequencer_;
@@ -40,4 +39,3 @@ private:
     std::map<StreamOffset,ByteCount> sent_info_;
 };
 }
-#endif

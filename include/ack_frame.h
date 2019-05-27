@@ -1,5 +1,4 @@
-#ifndef ACK_FRAME_H_
-#define ACK_FRAME_H_
+#pragma once
 #include <deque>
 #include <vector>
 #include "proto_types.h"
@@ -63,5 +62,4 @@ inline PacketNumber LargestAcked(const AckFrame& frame) {
   return frame.largest_acked;
 }
 }//namespace dqc;
-#endif
 

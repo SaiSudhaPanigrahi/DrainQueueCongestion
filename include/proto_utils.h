@@ -1,5 +1,4 @@
-#ifndef  PROTO_UTILS_H
-#define  PROTO_UTILS_H
+#pragma once
 #include <string>
 #include <sstream>
 #include "proto_types.h"
@@ -89,4 +88,3 @@ inline std::string QuicStrCat(const Args&... args) {
   return QuicStrCatImpl(std::forward<const Args&>(args)...);
 }
 }//namespace dqc;
-#endif

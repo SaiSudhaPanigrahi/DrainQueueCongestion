@@ -1,5 +1,4 @@
-#ifndef PROTO_FRAMER_H_
-#define PROTO_FRAMER_H_
+#pragma once
 #include "proto_types.h"
 #include "byte_codec.h"
 #include "proto_time.h"
@@ -104,4 +103,3 @@ bool AppendStreamOffset(size_t offset_length,
 bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer);
 bool ProcessPacketHeader(basic::DataReader* reader,ProtoPacketHeader& header);
 }//namespace dqc;
-#endif

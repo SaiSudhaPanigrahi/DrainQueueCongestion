@@ -1,5 +1,4 @@
-#ifndef LINKED_HASH_MAP_H_
-#define LINKED_HASH_MAP_H_
+#pragma once
 #include <unordered_map>
 #include <list>
 #include "basic_macro.h"
@@ -270,4 +269,3 @@ class linked_hash_map
     // or copy assignment operator would result in an inconsistent state.
     DISALLOW_COPY_AND_ASSIGN(linked_hash_map);
 };
-#endif

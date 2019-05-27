@@ -1,5 +1,4 @@
-#ifndef UNACKED_PACKET_MAP_H_
-#define UNACKED_PACKET_MAP_H_
+#pragma once
 #include "proto_packets.h"
 #include <deque>
 namespace dqc{
@@ -10,19 +9,21 @@ public:
         generate_stop_waiting_=false;
         return ret;
     }
+      // Returns the sum of bytes from all packets in flight.
+    ByteCount bytes_in_flight() const { return bytes_in_flight_; }
     void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight);
     TransmissionInfo *GetTransmissionInfo(PacketNumber seq);
-    PacketNumber GetLeastUnacked(){ return least_unacked_;}
+    PacketNumber GetLeastUnacked() const{ return least_unacked_;}
     bool IsUnacked(PacketNumber seq);
-    void InvokeLossDetection(AckedPacketVector &packets_acked,LostPackerVector &packets_lost);
+    void InvokeLossDetection(AckedPacketVector &packets_acked,LostPacketVector &packets_lost);
     void RemoveFromInflight(PacketNumber seq);
+    void RemoveLossFromInflight(PacketNumber seq);
     void RemoveObsolete();
 private:
     std::deque<TransmissionInfo> unacked_packets_;
     bool none_sent_{true};
     PacketNumber least_unacked_{0};
-    ByteCount bytes_inflight_{0};
+    ByteCount bytes_in_flight_{0};
     bool generate_stop_waiting_{false};
 };
 }//namespace dqc;
-#endif

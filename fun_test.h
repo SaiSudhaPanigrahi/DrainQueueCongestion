@@ -1,5 +1,4 @@
-#ifndef FUN_TEST_H_
-#define FUN_TEST_H_
+#pragma once
 #include "proto_types.h"
 #include "process_alarm_factory.h"
 namespace dqc{
@@ -23,4 +22,3 @@ public:
 };
 }
 void test_test();
-#endif

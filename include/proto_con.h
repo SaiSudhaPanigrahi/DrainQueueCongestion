@@ -1,5 +1,4 @@
-#ifndef PROTO_CON_H_
-#define PROTO_CON_H_
+#pragma once
 #include "proto_comm.h"
 #include "proto_con_visitor.h"
 #include "proto_stream.h"
@@ -62,4 +61,3 @@ private:
     Socket *packet_writer_{nullptr};
 };
 }//namespace dqc;
-#endif

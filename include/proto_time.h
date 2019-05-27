@@ -1,5 +1,4 @@
-#ifndef PROTO_TIME_H_
-#define PROTO_TIME_H_
+#pragma once
 #include <stdint.h>
 #include <cstddef>
 #include <limits>
@@ -188,4 +187,3 @@ int64_t TimeMillis();
 int64_t TimeMicro();
 void TimeSleep(int64_t milliseconds);
 }
-#endif

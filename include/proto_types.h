@@ -1,8 +1,8 @@
-#ifndef PROTO_TYPES_H_
-#define PROTO_TYPES_H_
+#pragma once
 #include <stdint.h>
 #include <cstddef>
 #include <vector>
+#include <limits>
 #ifdef WIN_32
 #include <windows.h>
 #else
@@ -17,18 +17,34 @@
 #include "cf_platform.h"
 namespace dqc{
 typedef uint64_t StreamOffset;
+typedef StreamOffset QuicStreamOffset;
 typedef uint64_t ByteCount;
+typedef ByteCount QuicByteCount;
+typedef uint64_t PacketCount;
+typedef PacketCount QuicPacketCount;
 typedef uint16_t PacketLength;
+typedef PacketLength QuicPacketLength;
 typedef uint64_t PacketNumber;
+typedef PacketNumber QuicPacketNumber;
 typedef uint64_t TimeType;
 struct AckedPacket;
-typedef std::vector<PacketNumber> LostPackerVector;
+const PacketNumber UnInitializedPacketNumber=std::numeric_limits<uint64_t>::max();
+// Information about a newly lost packet.
+struct LostPacket {
+  LostPacket(PacketNumber packet_number, PacketLength bytes_lost)
+      : packet_number(packet_number), bytes_lost(bytes_lost) {}
+
+  PacketNumber packet_number;
+  // Number of bytes sent in the packet that was lost.
+  PacketLength bytes_lost;
+};
+typedef std::vector<LostPacket> LostPacketVector;
 typedef std::vector<AckedPacket> AckedPacketVector;
 struct AckedPacket{
 AckedPacket(PacketNumber seq,PacketLength len,uint64_t ts)
-:seq(seq),len(len),receive_ts(ts){}
-PacketNumber seq;
-PacketLength len;
+:packet_number(seq),bytes_acked(len),receive_ts(ts){}
+PacketNumber packet_number;
+PacketLength bytes_acked;
 uint64_t receive_ts;
 };
 #if defined WIN_32
@@ -71,13 +87,21 @@ struct ProtoPacketHeader{
     PacketNumber packet_number;
     ProtoPacketNumberLength packet_number_length;
 };
+enum ContainsRetransData:uint8_t{
+    CON_RE_YES,
+    CON_RE_NO,
+};
 //may be the stop waiting send along with stream frame?
 //public header 0x00ll0000+seq,
 // make these frame protocol similar to quic.
 //https://blog.csdn.net/tq08g2z/article/details/77311763
-//type+payload
+
+// Defines for all types of congestion control algorithms that can be used in
+// QUIC. Note that this is separate from the congestion feedback type -
+// some congestion control algorithms may use the same feedback type
+// (Reno and Cubic are the classic example for that).
+enum CongestionControlType { kCubicBytes, kRenoBytes, kBBR, kPCC, kGoogCC };
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
 ProtoPacketNumberLength GetMinPktNumLen(uint64_t seq);
 }//namespace dqc;
-#endif

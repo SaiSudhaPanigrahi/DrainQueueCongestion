@@ -1,5 +1,4 @@
-#ifndef MEM_SLICE_H_
-#define MEM_SLICE_H_
+#pragma once
 #include <map>
 #include <memory>
 #include <utility>
@@ -133,4 +132,3 @@ private:
     uint64_t bytes_inflight_{0};
 };
 }//namespace dqc;
-#endif
