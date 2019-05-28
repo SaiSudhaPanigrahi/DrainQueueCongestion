@@ -30,10 +30,10 @@ static const uint16_t send_port=1234;
 static const uint16_t recv_port=4321;
 void proto_types_test()
 {
-        uint64_t seq=0;
+        PacketNumber seq;
     //seq=1<<32; will got 0xFFFFFFFF100000000;
     //just be careful for such error;
-    seq=UINT32_C(1)<<31;
+    seq=PacketNumber(UINT32_C(1)<<31);
     uint8_t len=dqc::GetMinPktNumLen(seq);
     DLOG(INFO)<<seq<<" "<<len;
 }
@@ -41,14 +41,14 @@ void ack_frame_test(){
     PacketQueue packets;
     int i=1;
     for (i=1;i<10;i++){
+        PacketNumber seq(i);
         if(i==3){continue;}
         if(i==6){continue;}
-        packets.Add(i);
+        packets.Add(seq);
     }
     packets.Print();
-    packets.RemoveUpTo(6);
-    //packets.Add(5);
-   // packets.AddRange(1,3);
+
+    packets.RemoveUpTo(PacketNumber(6));
     packets.Print();
 }
 void interval_test(){
@@ -56,9 +56,9 @@ void interval_test(){
     if(interval.Empty()){
         printf("hello\n");
     }
-    interval.SetMin(1);
-    interval.SetMax(3);
-    PacketNumber length=interval.Length();
+    interval.SetMin(PacketNumber(1));
+    interval.SetMax(PacketNumber(3));
+    uint64_t length=interval.Length();
     DLOG(INFO)<<length;
 }
 void byte_order_test(){
@@ -202,10 +202,10 @@ void test_proto_framer(){
         if(2==i||4==i||7==i){
             continue;
         }
-        PacketNumber seq=static_cast<PacketNumber>(i);
+        PacketNumber seq(i);
         receiver.RecordPacketReceived(seq,ts);
     }
-    receiver.DontWaitForPacketsBefore(3);
+    receiver.DontWaitForPacketsBefore(PacketNumber(3));
     const AckFrame &ack_frame=receiver.GetUpdateAckFrame(ts);
     char wbuf[1500];
     DataWriter w(wbuf,1500,basic::NETWORK_ORDER);
@@ -235,8 +235,8 @@ void test_stream_endecode(){
     basic::DataWriter w(wbuf,1500);
     encoder.set_data_producer(&producer);
     ProtoPacketHeader header1;
-    header1.packet_number=10;
-    PacketNumber unacked1=4;
+    header1.packet_number=PacketNumber(10);
+    PacketNumber unacked1(4);
     AppendPacketHeader(header1,&w);
     w.WriteUInt8(PROTO_FRAME_STOP_WAITING);
     encoder.AppendStopWaitingFrame(header1,unacked1,&w);
@@ -316,8 +316,8 @@ void test_readbuf(){
 }
 void test_stop_waiting(){
     ProtoPacketHeader header1;
-    header1.packet_number=10;
-    PacketNumber unacked1=4;
+    header1.packet_number=PacketNumber(10);
+    PacketNumber unacked1(4);
     char buf[20];
     basic::DataWriter w(buf,20);
     AppendPacketHeader(header1,&w);
@@ -331,7 +331,7 @@ void test_stop_waiting(){
     r.ReadUInt8(&temp_type);
     int stop_waiting_type=temp_type;
     DLOG(INFO)<<"stop type "<<stop_waiting_type;
-    PacketNumber unacked2=0;
+    PacketNumber unacked2(0);
     framer1.ProcessStopWaitingFrame(&r,header2,&unacked2);
     DLOG(INFO)<<header2.packet_number<<" "<<unacked2;
 }
@@ -496,13 +496,13 @@ private:
 };
 void packet_indexed_queue_test(){
     PacketNumberIndexedQueue<ConnectionState> seqs_;
-    seqs_.Emplace(1,1);
-    seqs_.Emplace(3,3);
-    seqs_.Emplace(5,5);
+    seqs_.Emplace(QuicPacketNumber(1),1);
+    seqs_.Emplace(QuicPacketNumber(3),3);
+    seqs_.Emplace(QuicPacketNumber(5),5);
     DLOG(INFO)<<seqs_.number_of_present_entries();
     PacketNumber first=seqs_.first_packet();
     PacketNumber last=seqs_.last_packet();
-    PacketNumber seq=4;
+    PacketNumber seq(4);
     PacketNumber it=first;
     for(it;it<=seq;it++){
         seqs_.Remove(it,[](const ConnectionState &entry){
@@ -526,6 +526,6 @@ void test_test(){
     //test_socket_address();
     //thread_test();
     //simu_send_receiver_test();
-    //test_sender_receiver();
-    packet_indexed_queue_test();
+    test_sender_receiver();
+    //packet_indexed_queue_test();
 }

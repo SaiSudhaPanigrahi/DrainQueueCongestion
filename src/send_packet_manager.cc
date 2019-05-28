@@ -103,11 +103,11 @@ public:
         return packet;
     }
 private:
-    uint32_t AllocSeq(){
+    PacketNumber AllocSeq(){
         return seq_++;
     }
     uint32_t id_{0};
-    uint32_t seq_{1};
+    PacketNumber seq_{1};
     uint32_t ack_len_{20};
     uint32_t stream_len_{1000};
     uint64_t offset_{0};
@@ -118,16 +118,16 @@ void SendPacketManager::Test(){
     for(i=1;i<=10;i+=2){
     SerializedPacket stream=generator.CreateStream();
     SerializedPacket ack=generator.CreateAck();
-    OnSentPacket(&stream,0,CON_RE_YES,ProtoTime::Zero());
-    OnSentPacket(&ack,0,CON_RE_NO,ProtoTime::Zero());
+    OnSentPacket(&stream,PacketNumber(0),CON_RE_YES,ProtoTime::Zero());
+    OnSentPacket(&ack,PacketNumber(0),CON_RE_NO,ProtoTime::Zero());
     }
 //lost 2 4, only lost ack frame
 //reference from test_proto_framer
-    OnAckStart(10,TimeDelta::Zero(),ProtoTime::Zero());
-    OnAckRange(8,11);
-    OnAckRange(5,7);
-    OnAckRange(3,4);
-    OnAckRange(1,2);
+    OnAckStart(PacketNumber(10),TimeDelta::Zero(),ProtoTime::Zero());
+    OnAckRange(PacketNumber(8),PacketNumber(11));
+    OnAckRange(PacketNumber(5),PacketNumber(7));
+    OnAckRange(PacketNumber(3),PacketNumber(4));
+    OnAckRange(PacketNumber(1),PacketNumber(2));
     OnAckEnd(ProtoTime::Zero());
     /*for(i=1;i<=5;i++){
     SerializedPacket stream=generator.CreateStream();

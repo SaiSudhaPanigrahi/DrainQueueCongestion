@@ -15,6 +15,7 @@
 #endif
 //copy from razor project;
 #include "cf_platform.h"
+#include "packet_number.h"
 namespace dqc{
 typedef uint64_t StreamOffset;
 typedef StreamOffset QuicStreamOffset;
@@ -24,11 +25,9 @@ typedef uint64_t PacketCount;
 typedef PacketCount QuicPacketCount;
 typedef uint16_t PacketLength;
 typedef PacketLength QuicPacketLength;
-typedef uint64_t PacketNumber;
-typedef PacketNumber QuicPacketNumber;
+typedef QuicPacketNumber PacketNumber ;
 typedef uint64_t TimeType;
 struct AckedPacket;
-const PacketNumber UnInitializedPacketNumber=std::numeric_limits<uint64_t>::max();
 // Information about a newly lost packet.
 struct LostPacket {
   LostPacket(PacketNumber packet_number, PacketLength bytes_lost)
@@ -55,13 +54,6 @@ struct iovec{
 #else
 #include <sys/uio.h>
 #endif
-class PacketNumberHash{
-public:
-    //here const is a must,or else hash functuon is not
-    uint64_t operator()(const PacketNumber &number) const{
-        return number;
-    }
-};
 enum ProtoPacketNumberLength:uint8_t{
     PACKET_NUMBER_1BYTE=1,
     PACKET_NUMBER_2BYTE=2,
@@ -103,5 +95,5 @@ enum ContainsRetransData:uint8_t{
 enum CongestionControlType { kCubicBytes, kRenoBytes, kBBR, kPCC, kGoogCC };
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
-ProtoPacketNumberLength GetMinPktNumLen(uint64_t seq);
+ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq);
 }//namespace dqc;

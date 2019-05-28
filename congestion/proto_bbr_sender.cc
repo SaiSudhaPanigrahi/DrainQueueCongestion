@@ -406,7 +406,7 @@ void BbrSender::DiscardLostPackets(const LostPacketVector& lost_packets) {
 }
 
 bool BbrSender::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet) {
-  if (current_round_trip_end_!=UnInitializedPacketNumber||
+  if (!current_round_trip_end_.IsInitialized()||
       last_acked_packet > current_round_trip_end_) {
     round_trip_count_++;
     current_round_trip_end_ = last_sent_packet_;
@@ -722,7 +722,7 @@ void BbrSender::CalculatePacingRate() {
     return;
   }
   // Slow the pacing rate in STARTUP once loss has ever been detected.
-  const bool has_ever_detected_loss = (end_recovery_at_!=UnInitializedPacketNumber);
+  const bool has_ever_detected_loss = end_recovery_at_.IsInitialized();
   if (slower_startup_ && has_ever_detected_loss &&
       has_non_app_limited_sample_) {
     pacing_rate_ = kStartupAfterLossGain * BandwidthEstimate();

@@ -35,14 +35,14 @@ ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte){
     return PACKET_FLAG_4BYTE;
 }
 #include <stdio.h>
-ProtoPacketNumberLength GetMinPktNumLen(uint64_t seq){
-    if(seq<(UINT32_C(1)<<(PACKET_NUMBER_1BYTE*8))){
+ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq){
+    if(seq.ToUint64()<(UINT32_C(1)<<(PACKET_NUMBER_1BYTE*8))){
         return PACKET_NUMBER_1BYTE;
-    }else if(seq<(UINT32_C(1)<<(PACKET_NUMBER_2BYTE*8))){
+    }else if(seq.ToUint64()<(UINT32_C(1)<<(PACKET_NUMBER_2BYTE*8))){
         return PACKET_NUMBER_2BYTE;
-    }else if(seq<(UINT32_C(1)<<(PACKET_NUMBER_3BYTE*8))){
+    }else if(seq.ToUint64()<(UINT32_C(1)<<(PACKET_NUMBER_3BYTE*8))){
         return PACKET_NUMBER_3BYTE;
-    }else if(seq<(UINT64_C(1)<<(PACKET_NUMBER_4BYTE*8))){
+    }else if(seq.ToUint64()<(UINT64_C(1)<<(PACKET_NUMBER_4BYTE*8))){
         return PACKET_NUMBER_4BYTE;
     }
         return PACKET_NUMBER_4BYTE;

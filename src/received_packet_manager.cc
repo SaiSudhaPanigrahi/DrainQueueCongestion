@@ -25,7 +25,7 @@ const AckFrame &ReceivdPacketManager::GetUpdateAckFrame(ProtoTime &now){
 }
 void ReceivdPacketManager::DontWaitForPacketsBefore(PacketNumber least_unacked){
     bool update_stop_waiting=false;
-    if(0==peer_least_packet_awaiting_ack_){
+    if(0==peer_least_packet_awaiting_ack_.ToUint64()){
         peer_least_packet_awaiting_ack_=least_unacked;
         update_stop_waiting=true;
     }else{

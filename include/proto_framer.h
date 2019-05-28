@@ -48,9 +48,9 @@ public:
     ~AckFrameInfo(){}
 
     // The maximum ack block length.
-    PacketNumber max_block_length;
+    PacketCount max_block_length;
     // Length of first ack block.
-    PacketNumber first_block_length;
+    PacketCount first_block_length;
     // Number of ACK blocks needed for the ACK frame.
     size_t num_ack_blocks;
   };
@@ -62,7 +62,7 @@ public:
   // successfully appended.
   static bool AppendAckBlock(uint8_t gap,
                              ProtoPacketNumberLength length_length,
-                             PacketNumber length,
+                             uint64_t length,
                              basic::DataWriter* writer);
   bool AppendTimestampsToAckFrame (const AckFrame& frame,basic::DataWriter* writer);
     uint8_t GetStreamFrameTypeByte(const PacketStream& frame,
@@ -90,7 +90,7 @@ private:
     ProtoStreamDataProducer *data_producer_{nullptr};
     const char *detailed_error_{nullptr};
 };
-size_t GetMinAckFrameSize(PacketNumber largest_observed_length);
+size_t GetMinAckFrameSize(ProtoPacketNumberLength largest_observed_length);
 size_t GetAckFrameTimeStampSize(const AckFrame& ack);
 size_t GetStreamIdSize(uint32_t stream_id);
 size_t GetStreamOffsetSize(StreamOffset offset);

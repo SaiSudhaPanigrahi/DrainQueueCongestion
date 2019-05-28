@@ -10,24 +10,24 @@ class PacketNumberIndexedQueue {
 
   // Retrieve the entry associated with the packet number.  Returns the pointer
   // to the entry in case of success, or nullptr if the entry does not exist.
-  T* GetEntry(PacketNumber packet_number);
-  const T* GetEntry(PacketNumber packet_number) const;
+  T* GetEntry(QuicPacketNumber packet_number);
+  const T* GetEntry(QuicPacketNumber packet_number) const;
 
   // Inserts data associated |packet_number| into (or past) the end of the
   // queue, filling up the missing intermediate entries as necessary.  Returns
   // true if the element has been inserted successfully, false if it was already
   // in the queue or inserted out of order.
   template <typename... Args>
-  bool Emplace(PacketNumber packet_number, Args&&... args);
+  bool Emplace(QuicPacketNumber packet_number, Args&&... args);
 
   // Removes data associated with |packet_number| and frees the slots in the
   // queue as necessary.
-  bool Remove(PacketNumber packet_number);
+  bool Remove(QuicPacketNumber packet_number);
 
   // Same as above, but if an entry is present in the queue, also call f(entry)
   // before removing it.
   template <typename Function>
-  bool Remove(PacketNumber packet_number, Function f);
+  bool Remove(QuicPacketNumber packet_number, Function f);
 
   bool IsEmpty() const { return number_of_present_entries_ == 0; }
 
@@ -41,14 +41,14 @@ class PacketNumberIndexedQueue {
   size_t entry_slots_used() const { return entries_.size(); }
 
   // Packet number of the first entry in the queue.
-  PacketNumber first_packet() const { return first_packet_; }
+  QuicPacketNumber first_packet() const { return first_packet_; }
 
   // Packet number of the last entry ever inserted in the queue.  Note that the
   // entry in question may have already been removed.  Zero if the queue is
   // empty.
-  PacketNumber last_packet() const {
+  QuicPacketNumber last_packet() const {
     if (IsEmpty()) {
-      return PacketNumber();
+      return QuicPacketNumber();
     }
     return first_packet_ + entries_.size() - 1;
   }
@@ -68,19 +68,19 @@ class PacketNumberIndexedQueue {
   // Cleans up unused slots in the front after removing an element.
   void Cleanup();
 
-  const EntryWrapper* GetEntryWrapper(PacketNumber offset) const;
-  EntryWrapper* GetEntryWrapper(PacketNumber offset) {
+  const EntryWrapper* GetEntryWrapper(QuicPacketNumber offset) const;
+  EntryWrapper* GetEntryWrapper(QuicPacketNumber offset) {
     const auto* const_this = this;
     return const_cast<EntryWrapper*>(const_this->GetEntryWrapper(offset));
   }
 
   std::deque<EntryWrapper> entries_;
   size_t number_of_present_entries_;
-  PacketNumber first_packet_{0};
+  QuicPacketNumber first_packet_;
 };
 
 template <typename T>
-T* PacketNumberIndexedQueue<T>::GetEntry(PacketNumber packet_number) {
+T* PacketNumberIndexedQueue<T>::GetEntry(QuicPacketNumber packet_number) {
   EntryWrapper* entry = GetEntryWrapper(packet_number);
   if (entry == nullptr) {
     return nullptr;
@@ -90,7 +90,7 @@ T* PacketNumberIndexedQueue<T>::GetEntry(PacketNumber packet_number) {
 
 template <typename T>
 const T* PacketNumberIndexedQueue<T>::GetEntry(
-    PacketNumber packet_number) const {
+    QuicPacketNumber packet_number) const {
   const EntryWrapper* entry = GetEntryWrapper(packet_number);
   if (entry == nullptr) {
     return nullptr;
@@ -100,16 +100,16 @@ const T* PacketNumberIndexedQueue<T>::GetEntry(
 
 template <typename T>
 template <typename... Args>
-bool PacketNumberIndexedQueue<T>::Emplace(PacketNumber packet_number,
+bool PacketNumberIndexedQueue<T>::Emplace(QuicPacketNumber packet_number,
                                           Args&&... args) {
-  if (packet_number==UnInitializedPacketNumber) {
+  if (!packet_number.IsInitialized()) {
     DLOG(FATAL)<< "Try to insert an uninitialized packet number";
     return false;
   }
 
   if (IsEmpty()) {
     DCHECK(entries_.empty());
-    DCHECK(!first_packet_);
+    DCHECK(!first_packet_.IsInitialized());
 
     entries_.emplace_back(std::forward<Args>(args)...);
     number_of_present_entries_ = 1;
@@ -135,13 +135,13 @@ bool PacketNumberIndexedQueue<T>::Emplace(PacketNumber packet_number,
 }
 
 template <typename T>
-bool PacketNumberIndexedQueue<T>::Remove(PacketNumber packet_number) {
+bool PacketNumberIndexedQueue<T>::Remove(QuicPacketNumber packet_number) {
   return Remove(packet_number, [](const T&) {});
 }
 
 template <typename T>
 template <typename Function>
-bool PacketNumberIndexedQueue<T>::Remove(PacketNumber packet_number,
+bool PacketNumberIndexedQueue<T>::Remove(QuicPacketNumber packet_number,
                                          Function f) {
   EntryWrapper* entry = GetEntryWrapper(packet_number);
   if (entry == nullptr) {
@@ -164,14 +164,14 @@ void PacketNumberIndexedQueue<T>::Cleanup() {
     first_packet_++;
   }
   if (entries_.empty()) {
-    first_packet_=0;
+    first_packet_.Clear();
   }
 }
 
 template <typename T>
 auto PacketNumberIndexedQueue<T>::GetEntryWrapper(
-    PacketNumber packet_number) const -> const EntryWrapper* {
-  if (!packet_number|| IsEmpty() ||
+    QuicPacketNumber packet_number) const -> const EntryWrapper* {
+  if (!packet_number.IsInitialized() || IsEmpty() ||
       packet_number < first_packet_) {
     return nullptr;
   }
@@ -188,4 +188,5 @@ auto PacketNumberIndexedQueue<T>::GetEntryWrapper(
 
   return entry;
 }
+
 }

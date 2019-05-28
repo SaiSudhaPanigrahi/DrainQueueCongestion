@@ -82,7 +82,7 @@ static void SetBits(uint8_t* flags, uint8_t val, uint8_t num_bits, uint8_t offse
 void SetBit(uint8_t* flags, bool val, uint8_t offset) {
   SetBits(flags, val ? 1 : 0, 1, offset);
 }
-size_t GetMinAckFrameSize(PacketNumber largest_observed_length){
+size_t GetMinAckFrameSize(ProtoPacketNumberLength largest_observed_length){
   size_t min_size = kFrameTypeSize + largest_observed_length +
                     kDeltaTimeLargestObservedSize;
   return min_size + kNumTimestampsSize;
@@ -147,18 +147,21 @@ bool AppendPacketHeader(ProtoPacketHeader& header,basic::DataWriter *writer){
     public_flags|=(PktNumLen2Flag(header.packet_number_length)
                    <<kPublicHeaderSequenceNumberShift);
     if(writer->WriteBytes(&public_flags,1)){
-        return writer->WriteBytesToUInt64(seq_len,header.packet_number);
+        return writer->WriteBytesToUInt64(seq_len,header.packet_number.ToUint64());
     }
     return false;
 }
 bool ProcessPacketHeader(basic::DataReader* reader,ProtoPacketHeader& header){
     uint8_t public_flags=0;
+    bool ret=false;
     if(reader->ReadBytes(&public_flags,1)){
         header.packet_number_length=ReadPacketNumberLength(public_flags >> kPublicHeaderSequenceNumberShift);
         uint32_t seq_len=header.packet_number_length;
-        return reader->ReadBytesToUInt64(seq_len,&header.packet_number);
+        uint64_t seq=0;
+        ret= reader->ReadBytesToUInt64(seq_len,&seq);
+        header.packet_number=PacketNumber(seq);
     }
-    return false;
+    return ret;
 }
 bool AppendStreamId(size_t stream_id_length,
                     uint32_t stream_id,
@@ -228,7 +231,7 @@ ProtoFramer::AckFrameInfo ProtoFramer::GetAckFrameInfo(const AckFrame& frame){
          new_ack_info.num_ack_blocks < std::numeric_limits<uint8_t>::max();
        previous_start = itr->Min(), ++itr) {
     const auto& interval = *itr;
-    const PacketNumber total_gap = previous_start - interval.Max();
+    const PacketCount total_gap = previous_start - interval.Max();
     new_ack_info.num_ack_blocks +=
         (total_gap + std::numeric_limits<uint8_t>::max() - 1) /
         std::numeric_limits<uint8_t>::max();
@@ -287,14 +290,14 @@ bool ProtoFramer::AppendPacketNumber(ProtoPacketNumberLength packet_number_lengt
     DLOG(FATAL)<< "Invalid packet_number_length: " << length;
     return false;
   }
-  return writer->WriteBytesToUInt64(packet_number_length, packet_number);
+  return writer->WriteBytesToUInt64(packet_number_length, packet_number.ToUint64());
 }
 bool ProtoFramer::AppendAckBlock(uint8_t gap,
                              ProtoPacketNumberLength length_length,
-                             PacketNumber length,
+                             uint64_t length,
                              basic::DataWriter* writer){
   return writer->WriteUInt8(gap) &&
-         AppendPacketNumber(length_length, length, writer);
+         AppendPacketNumber(length_length, PacketNumber(length), writer);
 }
 bool ProtoFramer::AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWriter *writer){
   const AckFrameInfo new_ack_info = GetAckFrameInfo(frame);
@@ -302,7 +305,7 @@ bool ProtoFramer::AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWri
   ProtoPacketNumberLength largest_acked_length =
       GetMinPktNumLen(largest_acked);
   ProtoPacketNumberLength ack_block_length = GetMinPktNumLen(
-    new_ack_info.max_block_length);
+    PacketNumber(new_ack_info.max_block_length));
   // Calculate available bytes for timestamps and ack blocks.
   int32_t available_timestamp_and_ack_block_bytes =
       writer->capacity() - writer->length() - ack_block_length -
@@ -356,7 +359,7 @@ bool ProtoFramer::AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWri
     }
   }
   // First ack block length.
-  if (!AppendPacketNumber(ack_block_length, new_ack_info.first_block_length,
+  if (!AppendPacketNumber(ack_block_length, PacketNumber(new_ack_info.first_block_length),
                           writer)) {
     return false;
   }
@@ -379,7 +382,7 @@ bool ProtoFramer::AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWri
          itr != frame.packets.rend() && num_ack_blocks_written < num_ack_blocks;
          previous_start = itr->min(), ++itr) {
       const auto& interval = *itr;
-      const PacketNumber total_gap = previous_start - interval.max();
+      const PacketCount total_gap = previous_start - interval.max();
       const size_t num_encoded_gaps =
           (total_gap + std::numeric_limits<uint8_t>::max() - 1) /
           std::numeric_limits<uint8_t>::max();
@@ -450,7 +453,7 @@ bool ProtoFramer::AppendTimestampsToAckFrame (const AckFrame& frame,basic::DataW
   }
   auto it = frame.received_packet_times.begin();
   PacketNumber packet_number = it->first;
-  PacketNumber delta_from_largest_observed =
+  uint8_t delta_from_largest_observed =
       LargestAcked(frame) - packet_number;
   DCHECK_GE(std::numeric_limits<uint8_t>::max(), delta_from_largest_observed);
   if (delta_from_largest_observed > std::numeric_limits<uint8_t>::max()) {
@@ -545,7 +548,7 @@ bool ProtoFramer::ProcessFrameData(basic::DataReader* reader, const ProtoPacketH
 
     switch(frame_type){
         case PROTO_FRAME_STOP_WAITING:{
-            PacketNumber least_unacked=0;
+            PacketNumber least_unacked;
             if(!ProcessStopWaitingFrame(reader,header,&least_unacked)){
                 set_detailed_error("stop  waitting error.");
                 return RaiseError(PROTO_INVALID_STOP_WAITING_DATA);
@@ -632,7 +635,7 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
   const ProtoPacketNumberLength largest_acked_length = ReadAckPacketNumberLength(
       ExtractBits(frame_type, kQuicSequenceNumberLengthNumBits,
                   kLargestAckedOffset));
-  PacketNumber largest_acked;
+  uint64_t largest_acked;
   if (!reader->ReadBytesToUInt64(largest_acked_length, &largest_acked)) {
     set_detailed_error("Unable to read largest acked.");
     return false;
@@ -644,7 +647,7 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
   }
 
   if (!visitor_->OnAckFrameStart(
-          largest_acked,
+          PacketNumber(largest_acked),
           ack_delay_time_us == basic::kUFloat16MaxValue
               ? TimeDelta::Infinite()
               : TimeDelta::FromMicroseconds(ack_delay_time_us))) {
@@ -685,8 +688,8 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
     return false;
   }
 
-  PacketNumber first_received = largest_acked + 1 - first_block_length;
-  if (!visitor_->OnAckRange(first_received, largest_acked + 1)) {
+  uint64_t first_received = largest_acked + 1 - first_block_length;
+  if (!visitor_->OnAckRange(PacketNumber(first_received), PacketNumber(largest_acked + 1))) {
     // The visitor suppresses further processing of the packet. Although
     // this is not a parsing error, returns false as this is in middle
     // of processing an ack frame,
@@ -716,8 +719,8 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
 
       first_received -= (gap + current_block_length);
       if (current_block_length > 0) {
-        if (!visitor_->OnAckRange(first_received,
-                                  first_received + current_block_length)) {
+        if (!visitor_->OnAckRange(PacketNumber(first_received),
+                                  PacketNumber(first_received + current_block_length))) {
           // The visitor suppresses further processing of the packet. Although
           // this is not a parsing error, returns false as this is in middle
           // of processing an ack frame,
@@ -735,7 +738,7 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
   }
 
   // Done processing the ACK frame.
-  return visitor_->OnAckFrameEnd(first_received);
+  return visitor_->OnAckFrameEnd(PacketNumber(first_received));
 
   return true;
 }
@@ -748,11 +751,11 @@ bool ProtoFramer::ProcessStopWaitingFrame(basic::DataReader* reader,
     set_detailed_error("Unable to read least unacked delta.");
     return false;
   }
-  if (header.packet_number<= least_unacked_delta) {
+  if (header.packet_number.ToUint64()<= least_unacked_delta) {
     set_detailed_error("Invalid unacked delta.");
     return false;
   }
-   *least_unacked=header.packet_number - least_unacked_delta;
+   *least_unacked=header.packet_number- least_unacked_delta;
    return true;
 }
 bool ProtoFramer::AppendStopWaitingFrame(const ProtoPacketHeader& header,
@@ -760,7 +763,7 @@ bool ProtoFramer::AppendStopWaitingFrame(const ProtoPacketHeader& header,
                               basic::DataWriter* writer){
   DCHECK(header.packet_number >= least_unacked);
   const uint64_t least_unacked_delta =
-      header.packet_number - least_unacked;
+      header.packet_number.ToUint64() - least_unacked.ToUint64();
   if (least_unacked_delta == 0) {
     return writer->WriteBytesToUInt64(header.packet_number_length,
                                       least_unacked_delta);

@@ -109,7 +109,7 @@ bool SimulateReceiver::OnAckFrameEnd(PacketNumber start){
     return false;
 }
 bool SimulateReceiver::OnStopWaitingFrame(const PacketNumber least_unacked){
-    DLOG(INFO)<<"stop waiting "<<least_unacked;
+    DLOG(INFO)<<"stop waiting "<<least_unacked.ToUint64();
     received_packet_manager_.DontWaitForPacketsBefore(least_unacked);
     return true;
 }
@@ -123,7 +123,7 @@ int SimulateReceiver::SendTo(const char*buf,size_t size,SocketAddress &dst){
     PacketNumber seq=header.packet_number;
     //DLOG(INFO)<<"sendrecv seq "<<seq;
     bool drop=false;
-    if(2==seq||5==seq||9==seq){
+    if(2==seq.ToUint64()||5==seq.ToUint64()||9==seq.ToUint64()){
         drop=true;
     }
     ProtoTime receive_time=ProtoTime::Zero();
@@ -236,7 +236,7 @@ void Receiver::Process(){
         ProcessPacketHeader(&r,header);
         PacketNumber seq=header.packet_number;
         bool drop=false;
-        if(2==seq||5==seq||9==seq){
+        if(2==seq.ToUint64()||5==seq.ToUint64()||9==seq.ToUint64()){
             drop=true;
         }
         if(!drop){
@@ -269,7 +269,7 @@ bool Receiver::OnAckFrameEnd(PacketNumber start){
     return true;
 }
 bool Receiver::OnStopWaitingFrame(const PacketNumber least_unacked){
-    DLOG(INFO)<<"stop waiting "<<least_unacked;
+    DLOG(INFO)<<"stop waiting "<<least_unacked.ToUint64();
     received_packet_manager_.DontWaitForPacketsBefore(least_unacked);
     return true;
 }
