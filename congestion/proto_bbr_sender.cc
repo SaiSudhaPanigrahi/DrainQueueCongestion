@@ -1,8 +1,12 @@
 #include "proto_bbr_sender.h"
 #include "unacked_packet_map.h"
 #include "flag_impl.h"
+#include "flag_util_impl.h"
 #include "rtt_stats.h"
+#include "random.h"
+#include "proto_constants.h"
 #include <ostream>
+
 namespace dqc{
 namespace {
 // Constants based on TCP defaults.
@@ -148,7 +152,7 @@ void BbrSender::OnPacketSent(ProtoTime sent_time,
                              QuicByteCount bytes_in_flight,
                              QuicPacketNumber packet_number,
                              QuicByteCount bytes,
-                             ContainsRetransData is_retransmittable) {
+                             HasRetransmittableData is_retransmittable) {
   /*if (stats_ && InSlowStart()) {
     ++stats_->slowstart_packets_sent;
     stats_->slowstart_bytes_sent += bytes;
@@ -240,7 +244,7 @@ bool BbrSender::IsPipeSufficientlyFull() const {
 void BbrSender::AdjustNetworkParameters(QuicBandwidth bandwidth,
                                         TimeDelta rtt,
                                         bool allow_cwnd_to_decrease) {
-  /*if (!bandwidth.IsZero()) {
+  if (!bandwidth.IsZero()) {
     max_bandwidth_.Update(bandwidth, round_trip_count_);
   }
   if (!rtt.IsZero() && (min_rtt_ > rtt || min_rtt_.IsZero())) {
@@ -274,7 +278,7 @@ void BbrSender::AdjustNetworkParameters(QuicBandwidth bandwidth,
       return;
     }
     congestion_window_ = new_cwnd;
-  }*/
+  }
 }
 
 void BbrSender::OnCongestionEvent(bool /*rtt_updated*/,
@@ -381,7 +385,7 @@ void BbrSender::EnterProbeBandwidthMode(ProtoTime now) {
   // Pick a random offset for the gain cycle out of {0, 2..7} range. 1 is
   // excluded because in that case increased gain and decreased gain would not
   // follow each other.
-  //cycle_current_offset_ = random_->RandUint64() % (kGainCycleLength - 1);
+  cycle_current_offset_ = random_->nextInt() % (kGainCycleLength - 1);
   if (cycle_current_offset_ >= 1) {
     cycle_current_offset_ += 1;
   }
@@ -886,9 +890,9 @@ std::ostream& operator<<(std::ostream& os, const BbrSender::DebugState& state) {
        << state.rounds_without_bandwidth_gain << std::endl;
   }
 
-  //os << "Minimum RTT: " << state.min_rtt << std::endl;
-  //os << "Minimum RTT timestamp: " << state.min_rtt_timestamp.ToDebuggingValue()
-  //   << std::endl;
+  os << "Minimum RTT: " << state.min_rtt << std::endl;
+  os << "Minimum RTT timestamp: " << state.min_rtt_timestamp.ToDebuggingValue()
+     << std::endl;
 
   os << "Last sample is app-limited: "
      << (state.last_sample_is_app_limited ? "yes" : "no");

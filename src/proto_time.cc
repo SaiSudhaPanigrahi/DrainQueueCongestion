@@ -9,8 +9,10 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #endif
+//__STDC_FORMAT_MACROS PRId64
+#include <inttypes.h>
 #include "proto_time.h"
-
+#include "string_utils.h"
 static inline void itimeofday(long *sec, long *usec){
 	#if defined (WIN_32)
 	static long mode = 0, addsec = 0;
@@ -81,6 +83,22 @@ int64_t TimeMicro(){
     }else{
         return base_clock64()*1000;
     }
+}
+std::string TimeDelta::ToDebuggingValue() const{
+  const int64_t one_ms = 1000;
+  const int64_t one_s = 1000 * one_ms;
+
+  int64_t absolute_value = std::abs(time_offset_);
+
+  // For debugging purposes, always display the value with the highest precision
+  // available.
+  if (absolute_value > one_s && absolute_value % one_s == 0) {
+    return ProtoStringPrintf("%" PRId64 "s", time_offset_ / one_s);
+  }
+  if (absolute_value > one_ms && absolute_value % one_ms == 0) {
+    return ProtoStringPrintf("%" PRId64 "ms", time_offset_ / one_ms);
+  }
+  return ProtoStringPrintf("%" PRId64 "us", time_offset_);
 }
 ProtoTime SystemClock::Now() const{
     ProtoTime base=ProtoTime::Zero();

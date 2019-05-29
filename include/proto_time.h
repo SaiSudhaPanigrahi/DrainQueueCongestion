@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <limits>
 #include <cmath>
+#include <string>
+#include <ostream>
 namespace dqc{
 class ProtoTime;
 class TimeDelta{
@@ -36,10 +38,10 @@ public:
     inline bool IsInfinite() const {
       return time_offset_ == kInfiniteTimeUs;
     }
+    std::string ToDebuggingValue() const;
 private:
     friend inline bool operator==(TimeDelta lhs, TimeDelta rhs);
     friend inline bool operator!=(TimeDelta lhs, TimeDelta rhs);
-    friend inline bool operator<(TimeDelta lhs, TimeDelta rhs);
     friend inline bool operator<(TimeDelta lhs, TimeDelta rhs);
     friend inline bool operator>(TimeDelta lhs, TimeDelta rhs);    friend inline bool operator>=(TimeDelta lhs, TimeDelta rhs);
     friend inline TimeDelta operator>>(TimeDelta lhs, size_t rhs);
@@ -137,7 +139,11 @@ inline bool operator<=(ProtoTime lhs, ProtoTime rhs) {
 inline bool operator>=(ProtoTime lhs, ProtoTime rhs) {
   return !(lhs < rhs);
 }
-
+// Override stream output operator for gtest or CHECK macros.
+inline std::ostream& operator<<(std::ostream& output, const ProtoTime t) {
+  output << t.ToDebuggingValue();
+  return output;
+}
 // Non-member arithmetic operators for TimeDelta.
 inline TimeDelta operator+(TimeDelta lhs, TimeDelta rhs) {
   return TimeDelta(lhs.time_offset_ + rhs.time_offset_);
@@ -158,7 +164,12 @@ inline TimeDelta operator*(int lhs, TimeDelta rhs) {
 inline TimeDelta operator*(double lhs, TimeDelta rhs) {
   return rhs * lhs;
 }
-
+// Override stream output operator for gtest.
+inline std::ostream& operator<<(std::ostream& output,
+                                const TimeDelta delta) {
+  output << delta.ToDebuggingValue();
+  return output;
+}
 // Non-member arithmetic operators for ProtoTime and TimeDelta.
 inline ProtoTime operator+(ProtoTime lhs, TimeDelta rhs) {
   return ProtoTime(lhs.time_ + rhs.time_offset_);

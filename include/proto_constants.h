@@ -10,6 +10,13 @@ const uint64_t kNumSecondsPerWeek = kNumSecondsPerHour * 24 * 7;
 const uint64_t kNumMillisPerSecond = 1000;
 const uint64_t kNumMicrosPerMilli = 1000;
 const uint64_t kNumMicrosPerSecond = kNumMicrosPerMilli * kNumMillisPerSecond;
+
+// Do not allow initial congestion window to be greater than 200 packets.
+const QuicPacketCount kMaxInitialCongestionWindow = 200;
+
+// Do not allow initial congestion window to be smaller than 10 packets.
+const QuicPacketCount kMinInitialCongestionWindow = 10;
+
 // Maximum number of tracked packets.
 const QuicPacketCount kMaxTrackedPackets = 10000;
 

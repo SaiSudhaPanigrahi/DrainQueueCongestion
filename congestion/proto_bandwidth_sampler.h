@@ -76,7 +76,7 @@ class BandwidthSamplerInterface {
       QuicPacketNumber packet_number,
       QuicByteCount bytes,
       QuicByteCount bytes_in_flight,
-      ContainsRetransData has_retransmittable_data) = 0;
+      HasRetransmittableData has_retransmittable_data) = 0;
 
   // Notifies the sampler that the |packet_number| is acknowledged. Returns a
   // bandwidth sample. If no bandwidth sample is available,
@@ -197,7 +197,7 @@ class BandwidthSampler : public BandwidthSamplerInterface {
                     QuicPacketNumber packet_number,
                     QuicByteCount bytes,
                     QuicByteCount bytes_in_flight,
-                    ContainsRetransData has_retransmittable_data) override;
+                    HasRetransmittableData has_retransmittable_data) override;
   BandwidthSample OnPacketAcknowledged(ProtoTime ack_time,
                                        QuicPacketNumber packet_number) override;
   SendTimeState OnPacketLost(QuicPacketNumber packet_number) override;

@@ -79,9 +79,9 @@ struct ProtoPacketHeader{
     PacketNumber packet_number;
     ProtoPacketNumberLength packet_number_length;
 };
-enum ContainsRetransData:uint8_t{
-    CON_RE_YES,
-    CON_RE_NO,
+enum  HasRetransmittableData:uint8_t{
+  NO_RETRANSMITTABLE_DATA,
+  HAS_RETRANSMITTABLE_DATA,
 };
 //may be the stop waiting send along with stream frame?
 //public header 0x00ll0000+seq,

@@ -18,10 +18,10 @@ void BandwidthSampler::OnPacketSent(
     QuicPacketNumber packet_number,
     QuicByteCount bytes,
     QuicByteCount bytes_in_flight,
-    ContainsRetransData has_retransmittable_data) {
+    HasRetransmittableData has_retransmittable_data) {
   last_sent_packet_ = packet_number;
 
-  if (has_retransmittable_data != CON_RE_YES) {
+  if (has_retransmittable_data != HAS_RETRANSMITTABLE_DATA) {
     return;
   }
 

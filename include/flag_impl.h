@@ -32,6 +32,8 @@ inline std::string GetFlagImpl(const std::string& flag) {
 #define RELOADABLE_FLAG(flag) FLAG_quic_reloadable_flag_##flag
 #define RESTART_FLAG(flag) FLAG_quic_restart_flag_##flag
 
+#define GetQuicFlag(flag) GetFlagImpl(flag)
+
 #define GetQuicReloadableFlagImpl(flag) GetFlagImpl(RELOADABLE_FLAG(flag))
 #define SetQuicReloadableFlagImpl(flag, value) \
   SetQuicFlag(RELOADABLE_FLAG(flag), value)

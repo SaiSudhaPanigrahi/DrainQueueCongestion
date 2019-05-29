@@ -28,7 +28,8 @@ src/netutils.cc
 src/packet_number.cc   
 src/platform_linux.c  
 src/platform_windows.c        
-src/process_alarm_factory.cc  
+src/process_alarm_factory.cc
+src/proto_bandwidth.cc 
 src/proto_con.cc              
 src/proto_error_codes.cc      
 src/proto_framer.cc           
@@ -44,6 +45,7 @@ src/send_packet_manager.cc
 src/send_receive.cc
 src/socket_address.cc
 src/socket.cc
+src/string_utils.cc
 src/unacked_packet_map.cc
 fun_test.cc
 congestion/proto_bandwidth_sampler.cc 

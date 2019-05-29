@@ -42,7 +42,7 @@ public:
                             QuicByteCount bytes_in_flight,
                             QuicPacketNumber packet_number,
                             QuicByteCount bytes,
-                            ContainsRetransData is_retransmittable) = 0;
+                            HasRetransmittableData is_retransmittable) = 0;
 
   // Called when the retransmission timeout fires.  Neither OnPacketAbandoned
   // nor OnPacketLost will be called for these packets.

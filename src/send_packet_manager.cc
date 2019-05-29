@@ -7,8 +7,8 @@ namespace dqc{
 SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
 :acked_observer_(acked_observer){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
-                      ContainsRetransData retrans,ProtoTime send_ts){
-    bool set_inflight=(retrans==CON_RE_YES);
+                      HasRetransmittableData retrans,ProtoTime send_ts){
+    bool set_inflight=(retrans==HAS_RETRANSMITTABLE_DATA);
     unacked_packets_.AddSentPacket(packet,old,send_ts,set_inflight);
     return true;
 }
@@ -118,8 +118,8 @@ void SendPacketManager::Test(){
     for(i=1;i<=10;i+=2){
     SerializedPacket stream=generator.CreateStream();
     SerializedPacket ack=generator.CreateAck();
-    OnSentPacket(&stream,PacketNumber(0),CON_RE_YES,ProtoTime::Zero());
-    OnSentPacket(&ack,PacketNumber(0),CON_RE_NO,ProtoTime::Zero());
+    OnSentPacket(&stream,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
+    OnSentPacket(&ack,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
     }
 //lost 2 4, only lost ack frame
 //reference from test_proto_framer

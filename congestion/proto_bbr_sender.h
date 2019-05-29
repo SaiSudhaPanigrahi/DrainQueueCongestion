@@ -99,7 +99,7 @@ class BbrSender : public SendAlgorithmInterface {
                     QuicByteCount bytes_in_flight,
                     QuicPacketNumber packet_number,
                     QuicByteCount bytes,
-                    ContainsRetransData is_retransmittable) override;
+                    HasRetransmittableData is_retransmittable) override;
   void OnRetransmissionTimeout(bool packets_retransmitted) override {}
   void OnConnectionMigration() override {}
   bool CanSend(QuicByteCount bytes_in_flight) override;

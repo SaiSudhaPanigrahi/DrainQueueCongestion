@@ -76,9 +76,7 @@ public:
     return TimeDelta::FromMicroseconds(bytes * 8 * kNumMicrosPerSecond /
                                              bits_per_second_);
   }
-  std::string ToDebuggingValue() const {
-      return std::to_string(bits_per_second_)+std::string("bps");
-  }
+  std::string ToDebuggingValue() const;
  private:
   explicit constexpr QuicBandwidth(int64_t bits_per_second)
       : bits_per_second_(bits_per_second >= 0 ? bits_per_second : 0) {}

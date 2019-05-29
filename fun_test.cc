@@ -503,6 +503,7 @@ void packet_indexed_queue_test(){
     PacketNumber first=seqs_.first_packet();
     PacketNumber last=seqs_.last_packet();
     PacketNumber seq(4);
+    seq=std::min(seq,last);
     PacketNumber it=first;
     for(it;it<=seq;it++){
         seqs_.Remove(it,[](const ConnectionState &entry){

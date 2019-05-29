@@ -134,7 +134,7 @@ int ProtoCon::Send(){
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
     DCHECK(packet_writer_);
-    sent_manager_.OnSentPacket(&serialized,PacketNumber(0),CON_RE_YES,ProtoTime::Zero());
+    sent_manager_.OnSentPacket(&serialized,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
     int available=writer.length();
     packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
@@ -165,7 +165,7 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
 //    printf("%x\n",type);
-    sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),CON_RE_YES,ProtoTime::Zero());
+    sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
     packet_writer_->SendTo(src,writer.length(),peer_);
     }
 }

@@ -4,6 +4,7 @@
 #include "ack_frame.h"
 #include "logging.h"
 #include "proto_comm.h"
+#include "string_utils.h"
 #define QUIC_PREDICT_FALSE_IMPL(x) x
 #define QUIC_PREDICT_FALSE(x) QUIC_PREDICT_FALSE_IMPL(x)
 namespace dqc{

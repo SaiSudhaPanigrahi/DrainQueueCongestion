@@ -2,6 +2,18 @@ PROTO_FLAG(uint64_t,FLAG_max_send_buf_size,256u)
 PROTO_FLAG(uint32_t,FLAG_packet_payload,1400u)
 // Congestion window gain for QUIC BBR during PROBE_BW phase.
 PROTO_FLAG(double, FLAG_quic_bbr_cwnd_gain, 2.0f)
+
+// Simplify QUIC\'s adaptive time loss detection to measure the necessary
+// reordering window for every spurious retransmit.
+PROTO_FLAG(bool, FLAG_quic_reloadable_flag_quic_fix_adaptive_time_loss, false)
+
+// If true, adjust congestion window when doing bandwidth resumption in BBR.
+PROTO_FLAG(bool,
+          FLAG_quic_reloadable_flag_quic_fix_bbr_cwnd_in_bandwidth_resumption,
+          true)
+
+// When true, defaults to BBR congestion control instead of Cubic.
+PROTO_FLAG(bool, FLAG_quic_reloadable_flag_quic_default_to_bbr, false)
 // If true, in BbrSender, always get a bandwidth sample when a packet is acked,
 // even if packet.bytes_acked is zero.
 PROTO_FLAG(bool,
@@ -41,4 +53,20 @@ PROTO_FLAG(bool, FLAG_quic_reloadable_flag_quic_bbr_flexible_app_limited, false)
 PROTO_FLAG(
     bool,
     FLAG_quic_reloadable_flag_quic_bbr_no_bytes_acked_in_startup_recovery,
+    false)
+
+// Number of packets that the pacing sender allows in bursts during pacing.
+PROTO_FLAG(int32_t, FLAG_quic_lumpy_pacing_size, 1)
+
+// Congestion window fraction that the pacing sender allows in bursts during
+// pacing.
+PROTO_FLAG(double, FLAG_quic_lumpy_pacing_cwnd_fraction, 0.25f)
+// If true, disable lumpy pacing for low bandwidth flows.
+PROTO_FLAG(bool,
+          FLAG_quic_reloadable_flag_quic_no_lumpy_pacing_at_low_bw,
+          false)
+// If true, stop resetting ideal_next_packet_send_time_ in pacing sender.
+PROTO_FLAG(
+    bool,
+    FLAG_quic_reloadable_flag_quic_donot_reset_ideal_next_packet_send_time,
     false)
