@@ -21,7 +21,9 @@
 #include "socket_address.h"
 #include "cf_platform.h"
 #include "send_receive.h"
+#include "proto_constants.h"
 #include "packet_number_indexed_queue.h"
+#include "proto_pacing_sender.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -72,7 +74,7 @@ void byte_order_test(){
     w.WriteUInt16(b);
     w.WriteUInt32(c);
     w.WriteUInt64(d);
-    char *hello="hello world";
+    const char *hello="hello world";
     std::string piece(hello);
     DLOG(INFO)<<"piece "<<piece.length();
     w.WriteUInt16(piece.length());
@@ -101,7 +103,6 @@ void test_ufloat(){
     basic::DataReader r(buf,1500,basic::NETWORK_ORDER);
     uint64_t decoded;
     r.ReadUFloat16(&decoded);
-    printf("%llx\n",decoded);
 }
 namespace dqc{
 class DebugAck: public ProtoFrameVisitor{
@@ -466,8 +467,11 @@ void test_sender_receiver(){
     sender.Bind(local_ip,send_port);
     Receiver receiver(&clock);
     receiver.Bind(local_ip,recv_port);
+    //to test rto;
+    //receiver.set_nerver_feedack(true);
     SocketAddress serv_addr=receiver.get_local_addr();
     sender.set_peer(serv_addr);
+    //sender.set_test_rto_flag(true);
     sender.DataGenerator(10);
     TimeDelta run_time(TimeDelta::FromMilliseconds(10000));
     ProtoTime now=clock.Now();
@@ -505,12 +509,58 @@ void packet_indexed_queue_test(){
     PacketNumber seq(4);
     seq=std::min(seq,last);
     PacketNumber it=first;
-    for(it;it<=seq;it++){
+    for(;it<=seq;it++){
         seqs_.Remove(it,[](const ConnectionState &entry){
             std::cout<<entry.get_seq()<<std::endl;
                      });
     }
     DLOG(INFO)<<seqs_.number_of_present_entries();
+}
+void pacing_test(){
+    PacingSender pacer;
+    SystemClock clock;
+    RttStats rtt_stats;
+    UnackedPacketMap unack;
+    Random random;
+    random.seed(0x12234);
+    SendAlgorithmInterface *algo=SendAlgorithmInterface::Create(&clock,&rtt_stats,
+                                                                &unack,kBBR,&random,
+                                                                kMinInitialCongestionWindow);
+    pacer.set_sender(algo);
+    PacketLength MTU=1400;
+    TimeDelta delta(TimeDelta::FromMilliseconds(10));
+    ProtoTime now=ProtoTime::Zero()+delta;
+    ByteCount inflight=0;
+    TimeDelta next=pacer.TimeUntilSend(now,inflight);
+    PacketNumber seq(1);
+    if(next==TimeDelta::Zero()){
+        DLOG(INFO)<<"send";
+        inflight+=MTU;
+        pacer.OnPacketSent(now,inflight,seq,MTU,HAS_RETRANSMITTABLE_DATA);
+    }
+    now=now+next;
+    int i=1;
+    for(;i<12;i++){
+        next=pacer.TimeUntilSend(now,inflight);
+        seq++;
+        if(next==TimeDelta::Zero()){
+            inflight+=MTU;
+            pacer.OnPacketSent(now,inflight,seq,MTU,HAS_RETRANSMITTABLE_DATA);
+        }
+        if(next!=TimeDelta::Zero()){
+            break;
+        }
+        now=now+next;
+    }
+    DLOG(INFO)<<next;
+    TimeDelta forever=TimeDelta::Infinite();
+    DLOG(INFO)<<"forever "<<forever;
+    delete algo;
+}
+void test_trivial(){
+    SendPacketManager manager(nullptr);
+    TimeDelta delta=manager.GetRetransmissionDelay();
+    DLOG(INFO)<<delta;
 }
 void test_test(){
     //ack_frame_test();
@@ -529,4 +579,6 @@ void test_test(){
     //simu_send_receiver_test();
     test_sender_receiver();
     //packet_indexed_queue_test();
+    //pacing_test();
+    //test_trivial();
 }

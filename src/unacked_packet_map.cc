@@ -3,9 +3,8 @@
 namespace dqc{
 void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight)
 {
-    if(none_sent_){
+    if(!least_unacked_.IsInitialized()){
         least_unacked_=packet->number;
-        none_sent_=false;
     }
     // packet sent in none continue mode
     while(least_unacked_+unacked_packets_.size()<packet->number){
@@ -23,7 +22,7 @@ void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,P
 }
 TransmissionInfo *UnackedPacketMap::GetTransmissionInfo(PacketNumber seq){
     TransmissionInfo *info=nullptr;
-    if(none_sent_||seq<least_unacked_||(least_unacked_+unacked_packets_.size())<=seq){
+    if(!least_unacked_.IsInitialized()||seq<least_unacked_||(least_unacked_+unacked_packets_.size())<=seq){
         DLOG(INFO)<<"null info unack "<<least_unacked_<<" "<<seq;
         return info;
     }
@@ -31,7 +30,7 @@ TransmissionInfo *UnackedPacketMap::GetTransmissionInfo(PacketNumber seq){
     return info;
 }
 bool UnackedPacketMap::IsUnacked(PacketNumber seq){
-    if(none_sent_){
+    if(!least_unacked_.IsInitialized()){
         return false;
     }
     if(seq<least_unacked_||(least_unacked_+unacked_packets_.size())<=seq){
@@ -43,9 +42,24 @@ bool UnackedPacketMap::IsUnacked(PacketNumber seq){
     }
     return false;
 }
+ProtoTime UnackedPacketMap::GetLastPacketSentTime() const{
+    auto it=unacked_packets_.rbegin();
+    ProtoTime sent_time(ProtoTime::Zero());
+    while(it!=unacked_packets_.rend()){
+        if(it->inflight){
+            sent_time=it->sent_time;
+            break;
+        }
+        it++;
+    }
+    return sent_time;
+}
 void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,LostPacketVector &packets_lost){
     if(packets_acked.empty()){
         return;
+    }
+    if(!packets_acked.empty()){
+        largest_newly_acked_=packets_acked.back().packet_number;
     }
     generate_stop_waiting_=false;
     auto acked_it=packets_acked.begin();
@@ -86,6 +100,7 @@ void UnackedPacketMap::RemoveFromInflight(PacketNumber seq){
         bytes_sent=std::min(bytes_sent,bytes_in_flight_);
         bytes_in_flight_-=bytes_sent;
         info->inflight=false;
+        info->state=SPS_ACKED;
     }
 }
 void UnackedPacketMap::RemoveLossFromInflight(PacketNumber seq){

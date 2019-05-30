@@ -83,6 +83,19 @@ enum  HasRetransmittableData:uint8_t{
   NO_RETRANSMITTABLE_DATA,
   HAS_RETRANSMITTABLE_DATA,
 };
+// Used to return the result of processing a received ACK frame.
+enum AckResult {
+  PACKETS_NEWLY_ACKED,
+  NO_PACKETS_NEWLY_ACKED,
+  UNSENT_PACKETS_ACKED,     // Peer acks unsent packets.
+  UNACKABLE_PACKETS_ACKED,  // Peer acks packets that are not expected to be
+                            // acked. For example, encryption is reestablished,
+                            // and all sent encrypted packets cannot be
+                            // decrypted by the peer. Version gets negotiated,
+                            // and all sent packets in the different version
+                            // cannot be processed by the peer.
+  PACKETS_ACKED_IN_WRONG_PACKET_NUMBER_SPACE,
+};
 //may be the stop waiting send along with stream frame?
 //public header 0x00ll0000+seq,
 // make these frame protocol similar to quic.

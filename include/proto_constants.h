@@ -46,4 +46,10 @@ const QuicByteCount kMaxGsoPacketSize = 65535 - 40 - 8;
 // Used in QUIC for congestion window computations in bytes.
 const QuicByteCount kDefaultTCPMSS = 1460;
 const QuicByteCount kMaxSegmentSize = kDefaultTCPMSS;
+
+
+// TCP RFC calls for 1 second RTO however Linux differs from this default and
+// define the minimum RTO to 200ms, we will use the same until we have data to
+// support a higher or lower value.
+static const int64_t kMinRetransmissionTimeMs = 200;
 }

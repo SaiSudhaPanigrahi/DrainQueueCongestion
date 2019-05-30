@@ -4,7 +4,6 @@
 #include "flag_util_impl.h"
 namespace dqc{
 namespace {
-
 // Configured maximum size of the burst coming out of quiescence.  The burst
 // is never larger than the current CWND in packets.
 static const uint32_t kInitialUnpacedBurst = 10;

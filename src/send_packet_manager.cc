@@ -1,11 +1,23 @@
 #include "send_packet_manager.h"
+#include "proto_constants.h"
 #include "logging.h"
 #include <algorithm>
 namespace dqc{
+namespace{
+static const int64_t kDefaultRetransmissionTimeMs = 500;
+static const int64_t kMaxRetransmissionTimeMs = 60000;
+// Maximum number of exponential backoffs used for RTO timeouts.
+static const size_t kMaxRetransmissions = 10;
+// Maximum number of packets retransmitted upon an RTO.
+static const size_t kMaxRetransmissionsOnTimeout = 2;
+// The path degrading delay is the sum of this number of consecutive RTO delays.
+const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
+}
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
 SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
-:acked_observer_(acked_observer){}
+:acked_observer_(acked_observer)
+,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
                       HasRetransmittableData retrans,ProtoTime send_ts){
     bool set_inflight=(retrans==HAS_RETRANSMITTABLE_DATA);
@@ -32,10 +44,28 @@ void SendPacketManager::Retransmitted(PacketNumber number){
         DLOG(WARNING)<<number<<" not exist";
     }
 }
-void SendPacketManager::OnAckStart(PacketNumber largest,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
-    /*if(unacked_packets_.IsUnacked(largest)){
-
-    }*/
+void SendPacketManager::OnRetransmissionTimeOut(){
+    DLOG(INFO)<<"rto";
+    RetransmitRtoPackets();
+}
+//it seems network is awful, may be resend one packet,
+void SendPacketManager::RetransmitRtoPackets(){
+    PacketNumber seq=unacked_packets_.GetLeastUnacked();
+    if(!seq.IsInitialized()){
+        return;
+    }
+    for(auto it=unacked_packets_.begin();it!=unacked_packets_.end();it++){
+        if(it->inflight){
+            PostToPending(seq,*it);
+            break;
+        }
+        seq++;
+    }
+    ++consecutive_rto_count_;
+}
+void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
+    DCHECK(packets_acked_.empty());
+    rtt_updated_=MaybeUpdateRTT(largest_acked,ack_delay_time,ack_receive_time);
     ack_packet_itor_=last_ack_frame_.packets.rbegin();
 }
 void SendPacketManager::OnAckRange(PacketNumber start,PacketNumber end){
@@ -53,8 +83,9 @@ void SendPacketManager::OnAckRange(PacketNumber start,PacketNumber end){
         packets_acked_.push_back(AckedPacket(acked,0,0));
     }
 }
-void SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
+AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
 
+    ByteCount prior_bytes_in_flight = unacked_packets_.bytes_in_flight();
     std::reverse(packets_acked_.begin(),packets_acked_.end());
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
         PacketNumber seq=it->packet_number;
@@ -76,12 +107,9 @@ void SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
             last_ack_frame_.packets.Add(seq);
         }
     }
-    InvokeLossDetection(ack_receive_time);
-    LostPacketVector temp1;
-    packets_lost_.swap(temp1);
-    AckedPacketVector temp2;
-    packets_acked_.swap(temp2);
-    unacked_packets_.RemoveObsolete();
+    const bool acked_new_packet = !packets_acked_.empty();
+    PostProcessNewlyAckedPackets(ack_receive_time,rtt_updated_,prior_bytes_in_flight);
+    return acked_new_packet? PACKETS_NEWLY_ACKED : NO_PACKETS_NEWLY_ACKED;
 }
 class PacketGenerator{
 public:
@@ -112,6 +140,20 @@ private:
     uint32_t stream_len_{1000};
     uint64_t offset_{0};
 };
+void SendPacketManager::MaybeInvokeCongestionEvent(bool rtt_updated,
+                                                   ByteCount prior_in_flight,
+                                                   ProtoTime event_time){
+  if (!rtt_updated && packets_acked_.empty() && packets_lost_.empty()) {
+    return;
+  }
+  /*if (using_pacing_) {
+    pacing_sender_.OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
+                                     packets_acked_, packets_lost_);
+  } else {
+    send_algorithm_->OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
+                                       packets_acked_, packets_lost_);
+  }*/
+}
 void SendPacketManager::Test(){
     PacketGenerator generator;
     int i=0;
@@ -161,6 +203,33 @@ void SendPacketManager::Test2(){
         DLOG(INFO)<<"not sent";
     }
 }
+bool SendPacketManager::MaybeUpdateRTT(PacketNumber largest_acked,
+                      TimeDelta ack_delay_time,
+                      ProtoTime ack_receive_time){
+    if(!unacked_packets_.IsUnacked(largest_acked)){
+        return false;
+    }
+    const TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(largest_acked);
+    DCHECK(info);
+    if(info->sent_time==ProtoTime::Zero()){
+        return false;
+    }
+    TimeDelta send_delta=ack_receive_time-info->sent_time;
+    rtt_stats_.UpdateRtt(send_delta,ack_delay_time,ack_receive_time);
+    return true;
+}
+void SendPacketManager::PostProcessNewlyAckedPackets(ProtoTime ack_receive_time,
+                                      bool rtt_updated,
+                                      ByteCount prior_bytes_in_flight){
+    InvokeLossDetection(ack_receive_time);
+    unacked_packets_.RemoveObsolete();
+    MaybeInvokeCongestionEvent(rtt_updated, prior_bytes_in_flight,
+                             ack_receive_time);
+    ClearAckedAndLossVector();
+    if(rtt_updated){
+        consecutive_rto_count_=0;
+    }
+}
 void SendPacketManager::InvokeLossDetection(ProtoTime time){
     unacked_packets_.InvokeLossDetection(packets_acked_,packets_lost_);
     for(auto it=packets_lost_.begin();
@@ -178,10 +247,43 @@ void SendPacketManager::MarkForRetrans(PacketNumber seq){
         TransmissionInfo copy;
         copy.bytes_sent=info->bytes_sent;
         copy.inflight=info->inflight;
-        copy.send_time=info->send_time;
+        copy.sent_time=info->sent_time;
         copy.retransble_frames.swap(info->retransble_frames);
         unacked_packets_.RemoveLossFromInflight(seq);
         pendings_[seq]=copy;
     }
+}
+void SendPacketManager::PostToPending(PacketNumber seq,TransmissionInfo &info){
+    pendings_[seq]=info;
+}
+void SendPacketManager::ClearAckedAndLossVector(){
+    LostPacketVector temp1;
+    packets_lost_.swap(temp1);
+    AckedPacketVector temp2;
+    packets_acked_.swap(temp2);
+}
+const TimeDelta SendPacketManager::GetRetransmissionDelay(size_t consecutive_rto_count) const{
+  TimeDelta retransmission_delay = TimeDelta::Zero();
+  if (rtt_stats_.smoothed_rtt().IsZero()) {
+    // We are in the initial state, use default timeout values.
+    retransmission_delay =
+        TimeDelta::FromMilliseconds(kDefaultRetransmissionTimeMs);
+  } else {
+    retransmission_delay =
+        rtt_stats_.smoothed_rtt() + 4 * rtt_stats_.mean_deviation();
+    if (retransmission_delay < min_rto_timeout_) {
+      retransmission_delay = min_rto_timeout_;
+    }
+  }
+
+  // Calculate exponential back off.
+  retransmission_delay =
+      retransmission_delay *
+      (1 << std::min<size_t>(consecutive_rto_count, kMaxRetransmissions));
+
+  if (retransmission_delay.ToMilliseconds() > kMaxRetransmissionTimeMs) {
+    return TimeDelta::FromMilliseconds(kMaxRetransmissionTimeMs);
+  }
+  return retransmission_delay;
 }
 }//namespace dqc;

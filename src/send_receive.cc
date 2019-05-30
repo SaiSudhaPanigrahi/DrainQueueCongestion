@@ -168,6 +168,11 @@ void simu_send_receiver_test(){
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();
 }
+Sender::Sender(ProtoClock *clock):clock_(clock){
+    const TimeDelta delta=connection_.GetRetransmissionDelay();
+    rto_=clock_->Now()+delta;
+    DLOG(INFO)<<delta;
+}
 Sender::~Sender(){
     if(fd_){
         delete fd_;
@@ -184,7 +189,17 @@ void Sender::set_peer(SocketAddress &peer){
     connection_.set_peer(peer);
 }
 void Sender::Process(){
+    if(!running_){
+        return;
+    }
+    ProtoTime now=clock_->Now();
+    bool rto_time_out=false;
+    if(test_rto_flag_&&now>rto_){
+        connection_.OnRetransmissionTimeOut();
+        rto_time_out=true;
+    }
     connection_.Process(stream_id_);
+
     char buf[1500];
     int recv=0;
     SocketAddress from;
@@ -193,6 +208,9 @@ void Sender::Process(){
         ProtoTime now=clock_->Now();
         ProtoReceivedPacket packet(buf,recv,now);
         connection_.ProcessUdpPacket(local_,from,packet);
+    }
+    if(rto_time_out){
+        running_=false;
     }
 }
 void Sender::DataGenerator(int times){
@@ -214,6 +232,12 @@ Receiver::Receiver(ProtoClock *clock)
     frame_decoder_.set_visitor(this);
 }
 Receiver::~Receiver(){
+    if(!recv_interval_.Empty()){
+        IntervalSet<StreamOffset>::iterator it=recv_interval_.begin();
+        for(;it!=recv_interval_.end();it++){
+            DLOG(INFO)<<it->Min()<<" "<<it->Max();
+        }
+    }
     if(fd_){
         delete fd_;
     }
@@ -228,6 +252,9 @@ void Receiver::Process(){
     int recv=0;
     SocketAddress from;
     recv=fd_->RecvFrom(buf,1500,from);
+    if(nerver_feed_ack_){
+        return;
+    }
     if(recv>0){
         peer_=from;
         ProtoTime now=clock_->Now();
@@ -247,7 +274,16 @@ void Receiver::Process(){
     }
 }
 bool Receiver::OnStreamFrame(PacketStream &frame){
-    DLOG(INFO)<<"recv "<<frame.offset<<" "<<frame.len;
+    //DLOG(INFO)<<"recv "<<frame.offset<<" "<<frame.len;
+    if(recv_interval_.Empty()){
+        recv_interval_.Add(frame.offset,frame.offset+frame.len);
+    }else{
+        if(recv_interval_.IsDisjoint(frame.offset,frame.offset+frame.len)){
+            recv_interval_.Add(frame.offset,frame.offset+frame.len);
+        }else{
+            DLOG(INFO)<<"redundancy "<<frame.offset;
+        }
+    }
     return true;
 }
 void Receiver::OnError(ProtoFramer* framer){

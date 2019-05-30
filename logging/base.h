@@ -143,7 +143,7 @@
  * only declared but not implemented. Place this macro in private
  * section if C++11 is not available.
  */
-#ifndef DISALLOW_COPY_AND_ASSIGN
+/*#ifndef DISALLOW_COPY_AND_ASSIGN
 #  if DMLC_USE_CXX11
 #    define DISALLOW_COPY_AND_ASSIGN(T) \
        T(T const&) = delete; \
@@ -155,7 +155,7 @@
        T(T const&); \
        T& operator=(T const&)
 #  endif
-#endif
+#endif*/
 
 #ifdef __APPLE__
 #  define off64_t off_t

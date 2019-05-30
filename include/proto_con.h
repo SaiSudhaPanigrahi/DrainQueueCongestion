@@ -17,8 +17,6 @@ public:
     ~ProtoCon();
     void ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
                           const ProtoReceivedPacket& packet);
-    virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
-    virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     ProtoStream *GetOrCreateStream(uint32_t id);
     void Close(uint32_t id);
     void set_packet_writer(Socket *writer){
@@ -29,6 +27,12 @@ public:
     PacketNumber AllocSeq(){
         return seq_++;
     }
+    const TimeDelta GetRetransmissionDelay() const{
+        return sent_manager_.GetRetransmissionDelay();
+    }
+    void OnRetransmissionTimeOut();
+    virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
+    virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     //framevisitor
     virtual bool OnStreamFrame(PacketStream &frame) override;
     virtual void OnError(ProtoFramer* framer) override;
@@ -47,6 +51,7 @@ private:
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);
     int Send();
+    bool SendRetransPending();
     void Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin);
     std::map<uint32_t,ProtoStream*> streams_;
     std::deque<PacketStream> waiting_info_;

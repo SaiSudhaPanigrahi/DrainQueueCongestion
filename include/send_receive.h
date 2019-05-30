@@ -2,6 +2,7 @@
 #include "proto_con.h"
 #include "received_packet_manager.h"
 #include "socket.h"
+#include "interval.h"
 namespace dqc{
 class FakeAckFrameReceive{
 public:
@@ -61,19 +62,25 @@ private:
 };
 class Sender{
 public:
-    Sender(ProtoClock *clock):clock_(clock){}
+    Sender(ProtoClock *clock);
     ~Sender();
     void Bind(const char *ip,uint16_t port);
     SocketAddress &get_local_addr(){ return local_;};
     void set_peer(SocketAddress &peer);
+    void set_test_rto_flag(bool flag){
+        test_rto_flag_=flag;
+    }
     void Process();
     void DataGenerator(int times);
 private:
     ProtoClock *clock_{nullptr};
+    ProtoTime rto_{ProtoTime::Zero()};
     ProtoCon connection_;
     ProtoStream *stream_{nullptr};
     Socket *fd_{nullptr};
     SocketAddress local_;
+    bool test_rto_flag_{false};
+    bool running_{true};
     //SocketAddress peer_;
     uint32_t stream_id_{0};
 };
@@ -84,6 +91,9 @@ public:
     void Bind(const char *ip,uint16_t port);
     SocketAddress &get_local_addr(){ return local_;};
     void Process();
+    void set_nerver_feedack(bool feed){
+        nerver_feed_ack_=feed;
+    }
     bool OnStreamFrame(PacketStream &frame) override;
     void OnError(ProtoFramer* framer) override;
     bool OnAckFrameStart(PacketNumber largest_acked,
@@ -107,6 +117,8 @@ private:
     SocketAddress local_;
     SocketAddress peer_;
     PacketNumber seq_{1};
+    bool nerver_feed_ack_{false};
+    IntervalSet<StreamOffset> recv_interval_;
 };
 void simu_send_receiver_test();
 }

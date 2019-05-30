@@ -31,10 +31,10 @@ ProtoFrames retransble_frames;
 };
 struct TransmissionInfo{
 TransmissionInfo()
-:send_time(ProtoTime::Zero()),bytes_sent(0),inflight(false),state(SPS_NERVER_SENT){}
+:sent_time(ProtoTime::Zero()),bytes_sent(0),inflight(false),state(SPS_NERVER_SENT){}
 TransmissionInfo(ProtoTime send_time,PacketLength bytes_sent)
-:send_time(send_time),bytes_sent(bytes_sent),inflight(false),state(SPS_OUT){}
-ProtoTime send_time;
+:sent_time(send_time),bytes_sent(bytes_sent),inflight(false),state(SPS_OUT){}
+ProtoTime sent_time;
 PacketLength bytes_sent;
 bool inflight;
 SentPacketState state;

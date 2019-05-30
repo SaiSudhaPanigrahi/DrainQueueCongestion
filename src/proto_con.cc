@@ -56,6 +56,9 @@ ProtoStream *ProtoCon::GetOrCreateStream(uint32_t id){
     }
     return stream;
 }
+void ProtoCon::OnRetransmissionTimeOut(){
+    sent_manager_.OnRetransmissionTimeOut();
+}
 void ProtoCon::Close(uint32_t id){
 
 }
@@ -139,6 +142,19 @@ int ProtoCon::Send(){
     packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
 }
+bool ProtoCon::SendRetransPending(){
+    bool packet_send=false;
+    if(sent_manager_.HasPendingForRetrans()){
+        PendingRetransmission pend=sent_manager_.NextPendingRetrans();
+        for(auto frame_it=pend.retransble_frames.begin();
+        frame_it!=pend.retransble_frames.end();frame_it++){
+            Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
+                       frame_it->stream_frame.len,frame_it->stream_frame.fin);
+        }
+        packet_send=true;
+    }
+    return packet_send;
+}
 void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     ProtoStream *stream=GetStream(id);
     if(stream){
@@ -175,17 +191,8 @@ void ProtoCon::Process(uint32_t stream_id){
         DLOG(INFO)<<"set writer first";
         return;
     }
-    //only send one packet out
-    bool packet_send=false;
-    if(sent_manager_.HasPendingForRetrans()){
-        PendingRetransmission pend=sent_manager_.NextPendingRetrans();
-        for(auto frame_it=pend.retransble_frames.begin();
-        frame_it!=pend.retransble_frames.end();frame_it++){
-            Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
-                       frame_it->stream_frame.len,frame_it->stream_frame.fin);
-        }
-        packet_send=true;
-    }
+    //only send one packet out at a time
+    bool packet_send=SendRetransPending();
     if(!packet_send){
         if(stream->HasBufferedData()){
             stream->OnCanWrite();

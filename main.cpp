@@ -5,12 +5,9 @@
 #include <stdint.h>
 #include <algorithm>
 #include "logging.h"
-#include "send_packet_manager.h"
 #include "fun_test.h"
 #include "proto_types.h"
 #include "interval.h"
-#include "flag_impl.h"
-#include "flag_util_impl.h"
 using namespace dqc;
 template<int N>
 class MedianFilter{
@@ -57,7 +54,7 @@ int main(){
     //SendPacketManager manager(nullptr);
     //manager.Test();
     //manager.Test2();
-    //test_test();
+    test_test();
     su_platform_uninit();
     //QuicBandwidth bw(QuicBandwidth::FromBitsPerSecond(1000));
     //TimeDelta wait=bw.TransferTime(1000);
