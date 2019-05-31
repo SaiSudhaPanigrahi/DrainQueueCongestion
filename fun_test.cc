@@ -380,8 +380,8 @@ void test_alarm(){
             break;
         }
     }
-    alarmtest.~AlarmTest();
-    engine.~MainEngine();
+    //alarmtest.~AlarmTest();
+    //engine.~MainEngine();
 }
 void test_socket_address(){
     std::string str("139.168.1.23");
@@ -475,11 +475,11 @@ void test_sender_receiver(){
     Receiver receiver(&clock);
     receiver.Bind(local_ip,recv_port);
     //to test rto;
-    receiver.set_nerver_feedack(true);
+    //receiver.set_nerver_feedack(true);
     SocketAddress serv_addr=receiver.get_local_addr();
     sender.set_peer(serv_addr);
-    sender.set_test_rto_flag(true);
-    sender.DataGenerator(10);
+    //sender.set_test_rto_flag(true);
+    sender.DataGenerator(100);
     TimeDelta run_time(TimeDelta::FromMilliseconds(10000));
     ProtoTime now=clock.Now();
     ProtoTime stop=now+run_time;
@@ -541,7 +541,6 @@ void pacing_test(){
     TimeDelta next=pacer.TimeUntilSend(now,inflight);
     PacketNumber seq(1);
     if(next==TimeDelta::Zero()){
-        DLOG(INFO)<<"send";
         inflight+=MTU;
         pacer.OnPacketSent(now,inflight,seq,MTU,HAS_RETRANSMITTABLE_DATA);
     }
@@ -579,12 +578,12 @@ void test_test(){
    //test_stream_endecode();
    //test_ufloat();
     //test_readbuf();
-    test_alarm();
+    //test_alarm();
     //test_stop_waiting();
     //test_socket_address();
     //thread_test();
     //simu_send_receiver_test();
-    //test_sender_receiver();
+    test_sender_receiver();
     //packet_indexed_queue_test();
     //pacing_test();
     //test_trivial();

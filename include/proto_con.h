@@ -33,6 +33,7 @@ public:
         return sent_manager_.GetRetransmissionDelay();
     }
     void OnRetransmissionTimeOut();
+    void OnCanWrite();
     virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     //framevisitor

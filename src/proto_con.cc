@@ -3,6 +3,18 @@
 #include "proto_utils.h"
 #include "byte_codec.h"
 namespace dqc{
+class SendAlarmDelegate:public Alarm::Delegate{
+public:
+    SendAlarmDelegate(ProtoCon *connection)
+    :connection_(connection){}
+    ~SendAlarmDelegate(){}
+    void OnAlarm() override{
+        DLOG(FATAL)<<"alarm";
+        connection_->OnCanWrite();
+    }
+private:
+    ProtoCon *connection_;
+};
 ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
 :clock_(clock)
 ,time_of_last_received_packet_(ProtoTime::Zero())
@@ -13,6 +25,8 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
     //to decode ack frame;
     frame_decoder_.set_visitor(this);
     sent_manager_.SetSendAlgorithm(kBBR);
+    std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
+    send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
@@ -51,6 +65,7 @@ void ProtoCon::Process(uint32_t stream_id){
         return;
     }
     //only send one packet out at a time
+    if(CanWrite(HAS_RETRANSMITTABLE_DATA)){
     bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
     if(!packet_send){
         if(stream->HasBufferedData()){
@@ -60,19 +75,44 @@ void ProtoCon::Process(uint32_t stream_id){
             Send();
         }
     }
+    }
 }
 bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
-    bool ret=false;
     if(NO_RETRANSMITTABLE_DATA==has_retrans){
-        ret=true;
-    }else{
-
+        return true;
     }
-    return ret;
+    if(send_alarm_->IsSet()){
+        return false;
+    }
+
+    ProtoTime now=clock_->Now();
+    TimeDelta delta=sent_manager_.TimeUntilSend(now);
+    if(delta.IsInfinite()){
+        send_alarm_->Cancel();
+        return false;
+    }else{
+        if(!delta.IsZero()){
+            send_alarm_->Update(now+delta,TimeDelta::FromMilliseconds(1));
+            return false;
+        }
+    }
+    return true;
 }
 void ProtoCon::OnRetransmissionTimeOut(){
     sent_manager_.OnRetransmissionTimeOut();
     SendRetransPending(TT_RTO_RETRANS);
+}
+void ProtoCon::OnCanWrite(){
+    ProtoStream *stream=GetOrCreateStream(0);
+    bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
+    if(!packet_send){
+        if(stream->HasBufferedData()){
+            stream->OnCanWrite();
+        }
+        if(!waiting_info_.empty()){
+            Send();
+        }
+    }
 }
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
 

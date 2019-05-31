@@ -230,8 +230,12 @@ void Sender::DataGenerator(int times){
         data[i]=RandomLetter::Instance()->GetLetter();
     }
     std::string piece(data,1500);
+    bool success=false;
     for(i=0;i<times;i++){
-        stream_->WriteDataToBuffer(piece);
+        success=stream_->WriteDataToBuffer(piece);
+        if(!success){
+            break;
+        }
     }
 }
 Receiver::Receiver(ProtoClock *clock)
