@@ -5,13 +5,25 @@
 #include "ack_frame.h"
 #include "proto_pacing_sender.h"
 #include "rtt_stats.h"
+#include "random.h"
 namespace dqc{
 class SendPacketManager{
 public:
-    SendPacketManager(StreamAckedObserver *acked_observer);
+    SendPacketManager(ProtoClock *clock,StreamAckedObserver *acked_observer);
+    ~SendPacketManager();
+  // Sets the send algorithm to the given congestion control type and points the
+  // pacing sender at |send_algorithm_|. Can be called any number of times.
+    void SetSendAlgorithm(CongestionControlType congestion_control_type);
+
+  // Sets the send algorithm to |send_algorithm| and points the pacing sender at
+  // |send_algorithm_|. Takes ownership of |send_algorithm|. Can be called any
+  // number of times.
+  // Setting the send algorithm once the connection is underway is dangerous.
+    void SetSendAlgorithm(SendAlgorithmInterface* send_algorithm);
     bool OnSentPacket(SerializedPacket *packet,PacketNumber old,
-                      HasRetransmittableData retrans,ProtoTime send_ts);
-typedef linked_hash_map<PacketNumber,TransmissionInfo,QuicPacketNumberHash> PendingRetransmissionMap;
+                      HasRetransmittableData has_retrans,ProtoTime send_ts);
+    const TimeDelta TimeUntilSend(ProtoTime now) const;
+    typedef linked_hash_map<PacketNumber,TransmissionInfo,QuicPacketNumberHash> PendingRetransmissionMap;
     PacketNumber GetLeastUnacked(){ return unacked_packets_.GetLeastUnacked();}
     bool HasPendingForRetrans();
     PendingRetransmission NextPendingRetrans();
@@ -51,6 +63,7 @@ private:
     void PostToPending(PacketNumber seq,TransmissionInfo &info);
     void ClearAckedAndLossVector();
     const TimeDelta GetRetransmissionDelay(size_t consecutive_rto_count) const ;
+    ProtoClock *clock_{nullptr};
     StreamAckedObserver *acked_observer_{nullptr};
     UnackedPacketMap unacked_packets_;
     PendingRetransmissionMap pendings_;
@@ -65,6 +78,7 @@ private:
     size_t consecutive_rto_count_{0};
     TimeDelta min_rto_timeout_;
     PacingSender pacing_sender_;
-    SendAlgorithmInterface *send_algorithm_{nullptr};
+    Random rand_;
+    std::unique_ptr<SendAlgorithmInterface> send_algorithm_{nullptr};
 };
 }//namespace dqc;

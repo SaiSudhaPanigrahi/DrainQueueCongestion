@@ -5,6 +5,8 @@ namespace dqc{
 const char *ip="127.0.0.1";
 const uint16_t send_port=1234;
 const uint16_t recv_port=4321;
+static SystemClock local_clock;
+/*
 class FakeReceiver:public Socket,ProtoFrameVisitor{
 public:
     FakeReceiver(){
@@ -47,7 +49,8 @@ private:
     SocketAddress local_;
     FakeAckFrameReceive *feed_ack_{nullptr};
 };
-SimulateSender::SimulateSender(){
+SimulateSender::SimulateSender()
+:connection_(&local_clock){
     sock_=new UdpSocket();
     sock_->Bind(ip,send_port);
     connection_.set_packet_writer(sock_);
@@ -167,8 +170,11 @@ void simu_send_receiver_test(){
     }
     AbstractAlloc *alloc=AbstractAlloc::Instance();
     alloc->CheckMemLeak();
-}
-Sender::Sender(ProtoClock *clock):clock_(clock){
+}*/
+Sender::Sender(ProtoClock *clock)
+:clock_(clock)
+,alarm_factory_(new ProcessAlarmFactory(&time_driver_))
+,connection_(clock,alarm_factory_.get()){
     const TimeDelta delta=connection_.GetRetransmissionDelay();
     rto_=clock_->Now()+delta;
     DLOG(INFO)<<delta;
@@ -193,6 +199,7 @@ void Sender::Process(){
         return;
     }
     ProtoTime now=clock_->Now();
+    time_driver_.HeartBeat(now);
     bool rto_time_out=false;
     if(test_rto_flag_&&now>rto_){
         connection_.OnRetransmissionTimeOut();

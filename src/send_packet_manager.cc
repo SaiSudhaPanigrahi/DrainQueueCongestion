@@ -15,14 +15,49 @@ const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
 }
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
-SendPacketManager::SendPacketManager(StreamAckedObserver *acked_observer)
-:acked_observer_(acked_observer)
-,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){}
+SendPacketManager::SendPacketManager(ProtoClock *clock,StreamAckedObserver *acked_observer)
+:clock_(clock)
+,acked_observer_(acked_observer)
+,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){
+    DCHECK(clock_);
+    uint32_t seed=TimeMillis();
+    rand_.seed(seed);
+}
+SendPacketManager::~SendPacketManager(){
+}
+void SendPacketManager::SetSendAlgorithm(CongestionControlType congestion_control_type){
+    send_algorithm_.reset(SendAlgorithmInterface::Create(clock_,
+                                                   &rtt_stats_,
+                                                   &unacked_packets_,
+                                                   congestion_control_type,&rand_,
+                                                   kMinInitialCongestionWindow));
+
+    pacing_sender_.set_sender(send_algorithm_.get());
+}
+void SendPacketManager::SetSendAlgorithm(SendAlgorithmInterface* send_algorithm){
+    send_algorithm_.reset(send_algorithm);
+    pacing_sender_.set_sender(send_algorithm);
+}
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
-                      HasRetransmittableData retrans,ProtoTime send_ts){
-    bool set_inflight=(retrans==HAS_RETRANSMITTABLE_DATA);
-    unacked_packets_.AddSentPacket(packet,old,send_ts,set_inflight);
+                      HasRetransmittableData has_retrans,ProtoTime send_ts){
+    bool in_flight=(has_retrans==HAS_RETRANSMITTABLE_DATA);
+    PacketNumber packet_number = packet->number;
+    if(using_pacing_){
+        pacing_sender_.OnPacketSent(send_ts,unacked_packets_.bytes_in_flight(),
+                                    packet_number,packet->len,has_retrans);
+    }else{
+        send_algorithm_->OnPacketSent(send_ts,unacked_packets_.bytes_in_flight(),
+                                    packet_number,packet->len,has_retrans);
+    }
+    unacked_packets_.AddSentPacket(packet,old,send_ts,in_flight);
     return true;
+}
+const TimeDelta SendPacketManager::TimeUntilSend(ProtoTime now) const{
+    if(using_pacing_){
+        return pacing_sender_.TimeUntilSend(now,
+                                            unacked_packets_.bytes_in_flight());
+    }
+    return send_algorithm_->CanSend(unacked_packets_.bytes_in_flight())?TimeDelta::Zero():TimeDelta::Infinite();
 }
 bool SendPacketManager::HasPendingForRetrans(){
     return !pendings_.empty();
@@ -54,8 +89,12 @@ void SendPacketManager::RetransmitRtoPackets(){
     if(!seq.IsInitialized()){
         return;
     }
+    if(!pendings_.empty()){
+        return;
+    }
     for(auto it=unacked_packets_.begin();it!=unacked_packets_.end();it++){
-        if(it->inflight){
+        if(it->inflight&&(it->state==SPS_OUT)){
+            it->state=SPS_RETRANSED;
             PostToPending(seq,*it);
             break;
         }
@@ -94,6 +133,7 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
             DLOG(WARNING)<<"acked unsent packet "<<seq;
         }else{
             if(info->inflight){
+                if(SPS_OUT==info->state){info->state=SPS_ACKED;}
                 if(acked_observer_){
                     for(auto frame_it=info->retransble_frames.begin();
                     frame_it!=info->retransble_frames.end();frame_it++){
@@ -146,13 +186,13 @@ void SendPacketManager::MaybeInvokeCongestionEvent(bool rtt_updated,
   if (!rtt_updated && packets_acked_.empty() && packets_lost_.empty()) {
     return;
   }
-  /*if (using_pacing_) {
+  if (using_pacing_) {
     pacing_sender_.OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
                                      packets_acked_, packets_lost_);
   } else {
     send_algorithm_->OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
                                        packets_acked_, packets_lost_);
-  }*/
+  }
 }
 void SendPacketManager::Test(){
     PacketGenerator generator;

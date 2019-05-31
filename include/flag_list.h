@@ -1,4 +1,4 @@
-PROTO_FLAG(uint64_t,FLAG_max_send_buf_size,256u)
+PROTO_FLAG(uint64_t,FLAG_max_send_buf_size,1024u)
 PROTO_FLAG(uint32_t,FLAG_packet_payload,1400u)
 // Congestion window gain for QUIC BBR during PROBE_BW phase.
 PROTO_FLAG(double, FLAG_quic_bbr_cwnd_gain, 2.0f)

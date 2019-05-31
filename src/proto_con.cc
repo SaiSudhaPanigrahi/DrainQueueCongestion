@@ -3,13 +3,16 @@
 #include "proto_utils.h"
 #include "byte_codec.h"
 namespace dqc{
-ProtoCon::ProtoCon()
-:time_of_last_received_packet_(ProtoTime::Zero())
-,sent_manager_(this)
+ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
+:clock_(clock)
+,time_of_last_received_packet_(ProtoTime::Zero())
+,sent_manager_(clock,this)
+,alarm_factory_(alarm_factory)
 {
     frame_encoder_.set_data_producer(this);
     //to decode ack frame;
     frame_decoder_.set_visitor(this);
+    sent_manager_.SetSendAlgorithm(kBBR);
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
@@ -38,6 +41,39 @@ void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
     ProcessPacketHeader(&r,header);
     frame_decoder_.ProcessFrameData(&r,header);
 }
+void ProtoCon::Close(uint32_t id){
+
+}
+void ProtoCon::Process(uint32_t stream_id){
+    ProtoStream *stream=GetOrCreateStream(stream_id);
+    if(!packet_writer_){
+        DLOG(INFO)<<"set writer first";
+        return;
+    }
+    //only send one packet out at a time
+    bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
+    if(!packet_send){
+        if(stream->HasBufferedData()){
+            stream->OnCanWrite();
+        }
+        if(!waiting_info_.empty()){
+            Send();
+        }
+    }
+}
+bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
+    bool ret=false;
+    if(NO_RETRANSMITTABLE_DATA==has_retrans){
+        ret=true;
+    }else{
+
+    }
+    return ret;
+}
+void ProtoCon::OnRetransmissionTimeOut(){
+    sent_manager_.OnRetransmissionTimeOut();
+    SendRetransPending(TT_RTO_RETRANS);
+}
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
 
     waiting_info_.emplace_back(id,offset,len,fin);
@@ -55,12 +91,6 @@ ProtoStream *ProtoCon::GetOrCreateStream(uint32_t id){
         stream=CreateStream();
     }
     return stream;
-}
-void ProtoCon::OnRetransmissionTimeOut(){
-    sent_manager_.OnRetransmissionTimeOut();
-}
-void ProtoCon::Close(uint32_t id){
-
 }
 bool ProtoCon::OnStreamFrame(PacketStream &frame){
     DLOG(INFO)<<"should not be called";
@@ -142,20 +172,20 @@ int ProtoCon::Send(){
     packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
 }
-bool ProtoCon::SendRetransPending(){
+bool ProtoCon::SendRetransPending(TransType tt){
     bool packet_send=false;
     if(sent_manager_.HasPendingForRetrans()){
         PendingRetransmission pend=sent_manager_.NextPendingRetrans();
         for(auto frame_it=pend.retransble_frames.begin();
         frame_it!=pend.retransble_frames.end();frame_it++){
             Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
-                       frame_it->stream_frame.len,frame_it->stream_frame.fin);
+                       frame_it->stream_frame.len,frame_it->stream_frame.fin,tt);
         }
         packet_send=true;
     }
     return packet_send;
 }
-void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
+void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,TransType tt){
     ProtoStream *stream=GetStream(id);
     if(stream){
     DLOG(INFO)<<"retrans "<<off<<" "<<len;
@@ -167,10 +197,12 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
     header.packet_number=seq;
     basic::DataWriter writer(src,sizeof(src));
     AppendPacketHeader(header,&writer);
+    if(TT_LOSS_RETRANS==tt){
     PacketNumber unacked=sent_manager_.GetLeastUnacked();
     DLOG(INFO)<<"send stop waiting "<<seq<<" "<<unacked;
     writer.WriteUInt8(PROTO_FRAME_STOP_WAITING);
     frame_encoder_.AppendStopWaitingFrame(header,unacked,&writer);
+    }
     uint8_t type=frame_encoder_.GetStreamFrameTypeByte(info,true);
     writer.WriteUInt8(type);
     frame_encoder_.AppendStreamFrame(info,true,&writer);
@@ -183,23 +215,6 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin){
 //    printf("%x\n",type);
     sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
     packet_writer_->SendTo(src,writer.length(),peer_);
-    }
-}
-void ProtoCon::Process(uint32_t stream_id){
-    ProtoStream *stream=GetOrCreateStream(stream_id);
-    if(!packet_writer_){
-        DLOG(INFO)<<"set writer first";
-        return;
-    }
-    //only send one packet out at a time
-    bool packet_send=SendRetransPending();
-    if(!packet_send){
-        if(stream->HasBufferedData()){
-            stream->OnCanWrite();
-        }
-        if(!waiting_info_.empty()){
-            Send();
-        }
     }
 }
 }//namespace dqc;

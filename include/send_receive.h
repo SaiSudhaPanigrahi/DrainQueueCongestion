@@ -3,7 +3,9 @@
 #include "received_packet_manager.h"
 #include "socket.h"
 #include "interval.h"
+#include "process_alarm_factory.h"
 namespace dqc{
+/*
 class FakeAckFrameReceive{
 public:
     virtual ~FakeAckFrameReceive(){}
@@ -59,7 +61,7 @@ private:
     TimeDelta one_way_delay_{TimeDelta::FromMilliseconds(100)};
     int count_{1};
     PacketNumber seq_{1};
-};
+};*/
 class Sender{
 public:
     Sender(ProtoClock *clock);
@@ -75,6 +77,8 @@ public:
 private:
     ProtoClock *clock_{nullptr};
     ProtoTime rto_{ProtoTime::Zero()};
+    MainEngine time_driver_;
+    std::shared_ptr<AlarmFactory> alarm_factory_;
     ProtoCon connection_;
     ProtoStream *stream_{nullptr};
     Socket *fd_{nullptr};
@@ -120,5 +124,5 @@ private:
     bool nerver_feed_ack_{false};
     IntervalSet<StreamOffset> recv_interval_;
 };
-void simu_send_receiver_test();
+//void simu_send_receiver_test();
 }

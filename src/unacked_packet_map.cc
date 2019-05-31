@@ -69,8 +69,9 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
     PacketNumber i=least_unacked_;
     for(;i<first_seq;i++){
         info=GetTransmissionInfo(i);
-        if(info&&info->inflight){
+        if(info&&info->inflight&&(info->state==SPS_OUT)){
             packets_lost.emplace_back(i,info->bytes_sent);
+            info->state=SPS_LOST;
         }else{
             generate_stop_waiting_=true;
         }
@@ -100,7 +101,6 @@ void UnackedPacketMap::RemoveFromInflight(PacketNumber seq){
         bytes_sent=std::min(bytes_sent,bytes_in_flight_);
         bytes_in_flight_-=bytes_sent;
         info->inflight=false;
-        info->state=SPS_ACKED;
     }
 }
 void UnackedPacketMap::RemoveLossFromInflight(PacketNumber seq){
@@ -109,7 +109,7 @@ void UnackedPacketMap::RemoveLossFromInflight(PacketNumber seq){
 void UnackedPacketMap::RemoveObsolete(){
     while(!unacked_packets_.empty()){
         auto it=unacked_packets_.begin();
-        if(it->inflight){
+        if(it->inflight&&(it->state==SPS_OUT)){
             break;
         }
         unacked_packets_.pop_front();

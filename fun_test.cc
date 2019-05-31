@@ -367,14 +367,21 @@ void test_alarm(){
     MainEngine engine;
     ProcessAlarmFactory factory(&engine);
     AlarmTest alarmtest;
+    SystemClock clock;
     std::unique_ptr<CounterDelegate> delegate(new CounterDelegate(&alarmtest));
-    alarmtest.alarm_=factory.CreateAlarm(std::move(delegate));
+    alarmtest.alarm_=std::move(factory.CreateAlarm(std::move(delegate)));
     alarmtest.alarm_->Set(alarmtest.TimeOut(10));
-    int64_t now_ms=TimeMillis();
-    int64_t stop_time=now_ms+5000;
-    while(TimeMillis()<stop_time){
-        engine.HeartBeat();
+    ProtoTime now=clock.Now();
+    ProtoTime stop_time=now+TimeDelta::FromMilliseconds(5000);
+    while(1){
+        now=clock.Now();
+        engine.HeartBeat(now);
+        if(now>stop_time){
+            break;
+        }
     }
+    alarmtest.~AlarmTest();
+    engine.~MainEngine();
 }
 void test_socket_address(){
     std::string str("139.168.1.23");
@@ -468,10 +475,10 @@ void test_sender_receiver(){
     Receiver receiver(&clock);
     receiver.Bind(local_ip,recv_port);
     //to test rto;
-    //receiver.set_nerver_feedack(true);
+    receiver.set_nerver_feedack(true);
     SocketAddress serv_addr=receiver.get_local_addr();
     sender.set_peer(serv_addr);
-    //sender.set_test_rto_flag(true);
+    sender.set_test_rto_flag(true);
     sender.DataGenerator(10);
     TimeDelta run_time(TimeDelta::FromMilliseconds(10000));
     ProtoTime now=clock.Now();
@@ -558,7 +565,7 @@ void pacing_test(){
     delete algo;
 }
 void test_trivial(){
-    SendPacketManager manager(nullptr);
+    SendPacketManager manager(nullptr,nullptr);
     TimeDelta delta=manager.GetRetransmissionDelay();
     DLOG(INFO)<<delta;
 }
@@ -572,12 +579,12 @@ void test_test(){
    //test_stream_endecode();
    //test_ufloat();
     //test_readbuf();
-    //test_alarm();
+    test_alarm();
     //test_stop_waiting();
     //test_socket_address();
     //thread_test();
     //simu_send_receiver_test();
-    test_sender_receiver();
+    //test_sender_receiver();
     //packet_indexed_queue_test();
     //pacing_test();
     //test_trivial();

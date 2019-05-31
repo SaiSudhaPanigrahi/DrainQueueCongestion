@@ -49,8 +49,9 @@ src/string_utils.cc
 src/unacked_packet_map.cc
 fun_test.cc
 congestion/proto_bandwidth_sampler.cc 
+congestion/proto_bbr_sender.cc
+congestion/proto_pacing_sender.cc
 congestion/proto_send_algorithm_interface.cc
-congestion/proto_bbr_sender.cc  
 )
              
 

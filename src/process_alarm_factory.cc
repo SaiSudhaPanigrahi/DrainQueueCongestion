@@ -1,16 +1,18 @@
 #include "process_alarm_factory.h"
-#include "proto_time.h"
 #include "logging.h"
+#include <stdio.h>
 namespace dqc{
 MainEngine::~MainEngine(){
     SetStop();
     while(!cbs_.empty()){
         auto it=cbs_.begin();
+		it->second->RemoveByEngine();
         cbs_.erase(it);
     }
 }
-void MainEngine::HeartBeat(){
-    int64_t now=TimeMillis();
+void MainEngine::HeartBeat(ProtoTime time){
+    TimeDelta delta=time-ProtoTime::Zero();
+    int64_t now=delta.ToMilliseconds();
     std::vector<std::pair<AlarmCb*,int64_t>> registers;
     while(!cbs_.empty()){
         auto it=cbs_.begin();
@@ -70,13 +72,15 @@ void MainEngine::UnRegister(MainEngine::iterator token){
     DCHECK(found);
     cbs_.erase(beg);
 }
-class PrcessAlarm:public AlarmCb::AlarmInterface,public Alarm{
+class ProcessAlarm:public AlarmCb::AlarmInterface,public Alarm{
 public:
-    PrcessAlarm(MainEngine* engine,std::unique_ptr<Alarm::Delegate> delegate):
+    ProcessAlarm(MainEngine* engine,std::unique_ptr<Alarm::Delegate> delegate):
     Alarm(std::move(delegate)),
     cb_(this),
     engine_(engine){}
-    ~PrcessAlarm(){}
+    ~ProcessAlarm(){
+        CancelImpl();
+    }
     int64_t OnAlarm() override{
         Fire();
         return 0;
@@ -105,7 +109,8 @@ private:
 void AlarmCb::OnRegistered(MainEngine::iterator token,
                            MainEngine *engine){
 
-    token_=token_;
+	//token_=token_; bug find, fuck, this cost me nearly one hour.
+    token_=token;
     engine_=engine;
     registered_=true;
 }
@@ -127,7 +132,7 @@ int64_t AlarmCb::OnAlarm(){
     return alarm_->OnAlarm();
 }
 std::shared_ptr<Alarm> ProcessAlarmFactory::CreateAlarm(std::unique_ptr<Alarm::Delegate> delegate){
-    Alarm *alarm=new PrcessAlarm(engine_,std::move(delegate));
+    Alarm *alarm=new ProcessAlarm(engine_,std::move(delegate));
     return std::shared_ptr<Alarm>(alarm);
 }
 }

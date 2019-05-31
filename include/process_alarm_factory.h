@@ -1,5 +1,6 @@
 #pragma once
 #include "alarm.h"
+#include "proto_time.h"
 #include <map>
 namespace dqc{
 class AlarmCb;
@@ -9,7 +10,7 @@ public:
     typedef std::multimap<int64_t,AlarmCb*>::size_type sz_type;
     MainEngine(){}
     ~MainEngine();
-    void HeartBeat();
+    void HeartBeat(ProtoTime time);
     void RegisterAlarm(int64_t &time_out,AlarmCb* alarm);
     iterator RegisterAlarm(iterator token,int64_t &time_out);
     void UnRegister(iterator token);
@@ -32,6 +33,9 @@ public:
 };
     AlarmCb(AlarmInterface *alarm):alarm_(alarm){}
     ~AlarmCb(){}
+    void RemoveByEngine(){
+        registered_=false;
+    }
     bool registered() const {return registered_;}
     void OnRegistered(MainEngine::iterator token,MainEngine *engine);
     void Reregistered(int64_t &time_out);

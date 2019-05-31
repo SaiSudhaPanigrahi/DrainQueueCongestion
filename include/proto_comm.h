@@ -7,6 +7,8 @@ enum SentPacketState:uint8_t{
     SPS_ACKED,
     SPS_NERVER_SENT,
     SPS_UN_ACKABLE,
+    SPS_LOST,
+    SPS_RETRANSED,
 };
 enum TransType:uint8_t{
     TT_NO_RETRANS,
