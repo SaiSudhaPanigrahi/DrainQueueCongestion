@@ -58,7 +58,7 @@ void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
 void ProtoCon::Close(uint32_t id){
 
 }
-void ProtoCon::Process(uint32_t stream_id){
+void ProtoCon::Process(){
     if(!packet_writer_){
         DLOG(INFO)<<"set writer first";
         return;

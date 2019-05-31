@@ -24,7 +24,7 @@ public:
         packet_writer_=writer;
     }
     void set_peer(SocketAddress &peer){peer_=peer;}
-    void Process(uint32_t stream_id);
+    void Process();
     bool CanWrite(HasRetransmittableData has_retrans);
     PacketNumber AllocSeq(){
         return seq_++;
