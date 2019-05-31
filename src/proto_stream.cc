@@ -63,6 +63,9 @@ bool ProtoStream::HasBufferedData() const{
     return BufferedBytes()>0;
 }
 void ProtoStream::OnCanWrite(){
+    if(!HasBufferedData()&&stream_visitor_){
+        stream_visitor_->OnCanWrite();
+    }
     WriteBufferedData();
 }
 bool ProtoStream::WriteStreamData(StreamOffset offset,ByteCount len,basic::DataWriter *writer){

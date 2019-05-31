@@ -190,6 +190,7 @@ void Sender::Bind(const char *ip,uint16_t port){
     fd_->Bind(ip,port);
     connection_.set_packet_writer(fd_);
     stream_=connection_.GetOrCreateStream(stream_id_);
+    stream_->set_stream_vistor(this);
 }
 void Sender::set_peer(SocketAddress &peer){
     connection_.set_peer(peer);
@@ -232,10 +233,14 @@ void Sender::DataGenerator(int times){
     std::string piece(data,1500);
     bool success=false;
     for(i=0;i<times;i++){
+        if(data_generated_index_>total_generated_){
+            break;
+        }
         success=stream_->WriteDataToBuffer(piece);
         if(!success){
             break;
         }
+        data_generated_index_++;
     }
 }
 Receiver::Receiver(ProtoClock *clock)

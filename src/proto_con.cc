@@ -59,7 +59,6 @@ void ProtoCon::Close(uint32_t id){
 
 }
 void ProtoCon::Process(uint32_t stream_id){
-    ProtoStream *stream=GetOrCreateStream(stream_id);
     if(!packet_writer_){
         DLOG(INFO)<<"set writer first";
         return;
@@ -68,12 +67,10 @@ void ProtoCon::Process(uint32_t stream_id){
     if(CanWrite(HAS_RETRANSMITTABLE_DATA)){
     bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
     if(!packet_send){
-        if(stream->HasBufferedData()){
-            stream->OnCanWrite();
+        if(waiting_info_.empty()){
+            NotifyCanSendToStreams();
         }
-        if(!waiting_info_.empty()){
-            Send();
-        }
+        Send();
     }
     }
 }
@@ -103,15 +100,12 @@ void ProtoCon::OnRetransmissionTimeOut(){
     SendRetransPending(TT_RTO_RETRANS);
 }
 void ProtoCon::OnCanWrite(){
-    ProtoStream *stream=GetOrCreateStream(0);
     bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
     if(!packet_send){
-        if(stream->HasBufferedData()){
-            stream->OnCanWrite();
+        if(waiting_info_.empty()){
+            NotifyCanSendToStreams();
         }
-        if(!waiting_info_.empty()){
-            Send();
-        }
+        Send();
     }
 }
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
@@ -183,6 +177,11 @@ ProtoStream *ProtoCon::GetStream(uint32_t id){
         stream=found->second;
     }
     return stream;
+}
+void ProtoCon::NotifyCanSendToStreams(){
+    for(auto it=streams_.begin();it!=streams_.end();it++){
+        it->second->OnCanWrite();
+    }
 }
 int ProtoCon::Send(){
     if(waiting_info_.empty()){

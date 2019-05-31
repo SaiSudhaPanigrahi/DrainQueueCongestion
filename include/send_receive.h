@@ -62,7 +62,7 @@ private:
     int count_{1};
     PacketNumber seq_{1};
 };*/
-class Sender{
+class Sender:public ProtoStream::StreamCanWriteVisitor{
 public:
     Sender(ProtoClock *clock);
     ~Sender();
@@ -74,6 +74,9 @@ public:
     }
     void Process();
     void DataGenerator(int times);
+    void OnCanWrite() override{
+        DataGenerator(2);
+    }
 private:
     ProtoClock *clock_{nullptr};
     ProtoTime rto_{ProtoTime::Zero()};
@@ -87,6 +90,8 @@ private:
     bool running_{true};
     //SocketAddress peer_;
     uint32_t stream_id_{0};
+    int data_generated_index_{0};
+    int total_generated_{100};
 };
 class Receiver:public ProtoFrameVisitor{
 public:

@@ -53,6 +53,7 @@ public:
 private:
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);
+    void NotifyCanSendToStreams();
     int Send();
     bool SendRetransPending(TransType tt);
     void Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,TransType tt);

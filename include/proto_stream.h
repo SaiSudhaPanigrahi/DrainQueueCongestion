@@ -8,8 +8,14 @@ namespace dqc{
 struct PacketStream;
 class ProtoStream:public ProtoStreamSequencer::StreamInterface{
 public:
+    class StreamCanWriteVisitor{
+    public:
+        virtual ~StreamCanWriteVisitor(){}
+        virtual void OnCanWrite()=0;
+    };
     ProtoStream(ProtoConVisitor *visitor,uint32_t id);
     ~ProtoStream(){}
+    void set_stream_vistor(StreamCanWriteVisitor *visitor){ stream_visitor_=visitor;}
     bool WriteDataToBuffer(std::string &piece);
     void OnAck(StreamOffset offset,ByteCount len);
     ByteCount get_send_buffer_len () const{
@@ -37,5 +43,6 @@ private:
     ProtoStreamSequencer sequencer_;
     StreamSendBuffer send_buf_;
     std::map<StreamOffset,ByteCount> sent_info_;
+    StreamCanWriteVisitor *stream_visitor_{nullptr};
 };
 }

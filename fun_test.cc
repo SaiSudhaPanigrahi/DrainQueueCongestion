@@ -479,7 +479,7 @@ void test_sender_receiver(){
     SocketAddress serv_addr=receiver.get_local_addr();
     sender.set_peer(serv_addr);
     //sender.set_test_rto_flag(true);
-    sender.DataGenerator(100);
+    //sender.DataGenerator(100);
     TimeDelta run_time(TimeDelta::FromMilliseconds(10000));
     ProtoTime now=clock.Now();
     ProtoTime stop=now+run_time;
