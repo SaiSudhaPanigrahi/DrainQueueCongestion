@@ -8,6 +8,7 @@
 #include "fun_test.h"
 #include "proto_types.h"
 #include "interval.h"
+#include "ns3/log.h"
 using namespace dqc;
 template<int N>
 class MedianFilter{
@@ -49,7 +50,17 @@ private:
     int offset_{0};
     bool full_rank_{false};
 };
+#include <iostream>
+#include "ns3/global-stream.h"
+#include "proto_bandwidth.h"
+NS_LOG_COMPONENT_DEFINE("main");
 int main(){
+    std::string filename("error.log");
+    std::ios::openmode filemode=std::ios_base::out;
+    ns3::GlobalStream::Create(filename,filemode);
+    ns3::LogComponentEnable("main",ns3::LOG_ALL);
+    ns3::LogComponentEnable("pacing",ns3::LOG_ALL);
+    NS_LOG_INFO("hello ns3 log");
     su_platform_init();
     //SendPacketManager manager(nullptr);
     //manager.Test();
@@ -58,6 +69,7 @@ int main(){
     su_platform_uninit();
     //QuicBandwidth bw(QuicBandwidth::FromBitsPerSecond(1000));
     //TimeDelta wait=bw.TransferTime(1000);
+    //NS_LOG_INFO(bw<<wait);
     //std::cout<<std::to_string(wait.ToMilliseconds());
     /*IntervalSet<int> stream;
     stream.Add(0,100);

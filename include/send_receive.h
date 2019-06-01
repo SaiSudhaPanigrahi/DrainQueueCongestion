@@ -91,7 +91,7 @@ private:
     //SocketAddress peer_;
     uint32_t stream_id_{0};
     int data_generated_index_{0};
-    int total_generated_{100};
+    int total_generated_{2000};
 };
 class Receiver:public ProtoFrameVisitor{
 public:

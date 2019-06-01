@@ -2,7 +2,9 @@
 #include "logging.h"
 #include "flag_impl.h"
 #include "flag_util_impl.h"
+#include "ns3/log.h"
 namespace dqc{
+NS_LOG_COMPONENT_DEFINE("pacing");
 namespace {
 // Configured maximum size of the burst coming out of quiescence.  The burst
 // is never larger than the current CWND in packets.
@@ -76,8 +78,10 @@ void PacingSender::OnPacketSent(
   }
   // The next packet should be sent as soon as the current packet has been
   // transferred.  PacingRate is based on bytes in flight including this packet.
-  TimeDelta delay =
-      PacingRate(bytes_in_flight + bytes).TransferTime(bytes);
+  QuicBandwidth bw=PacingRate(bytes_in_flight + bytes);
+  QuicBandwidth sender_bw=sender_->PacingRate(bytes_in_flight+bytes);
+  NS_LOG_INFO(sender_bw);
+  TimeDelta delay =bw.TransferTime(bytes);
   if (!pacing_limited_ || lumpy_tokens_ == 0) {
     // Reset lumpy_tokens_ if either application or cwnd throttles sending or
     // token runs out.
@@ -101,6 +105,7 @@ void PacingSender::OnPacketSent(
   if (pacing_limited_) {
     // Make up for lost time since pacing throttles the sending.
     ideal_next_packet_send_time_ = ideal_next_packet_send_time_ + delay;
+    //DLOG(INFO)<<ideal_next_packet_send_time_<<" "<<delay;
   } else {
     ideal_next_packet_send_time_ =
         std::max(ideal_next_packet_send_time_ + delay, sent_time + delay);

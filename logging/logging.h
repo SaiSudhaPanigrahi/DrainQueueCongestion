@@ -154,20 +154,19 @@ DEFINE_CHECK_FUNC(_NE, !=)
 #endif  // NDEBUG
 
 #if DMLC_LOG_CUSTOMIZE
-#define LOG_INFO dmlc::CustomLogMessage(__FILE__, __LINE__)
+#define DMLC_LOG_INFO dmlc::CustomLogMessage(__FILE__, __LINE__)
 #else
-#define LOG_INFO dmlc::LogMessage(__FILE__, __LINE__)
+#define DMLC_LOG_INFO dmlc::LogMessage(__FILE__, __LINE__)
 #endif
-#define LOG_ERROR LOG_INFO
-#define LOG_WARNING LOG_INFO
-#define LOG_FATAL dmlc::LogMessageFatal(__FILE__, __LINE__)
-#define LOG_QFATAL LOG_FATAL
-
+#define DMLC_LOG_ERROR DMLC_LOG_INFO
+#define DMLC_LOG_WARNING DMLC_LOG_INFO
+#define DMLC_LOG_FATAL dmlc::LogMessageFatal(__FILE__, __LINE__)
+#define DMLC_LOG_QFATAL DMLC_LOG_FATAL
 // Poor man version of VLOG
-#define VLOG(x) LOG_INFO.stream()
+#define VLOG(x) DMLC_LOG_INFO.stream()
 
-#define LOG(severity) LOG_##severity.stream()
-#define LG LOG_INFO.stream()
+#define LOG(severity) DMLC_LOG_##severity.stream()
+#define LG DMLC_LOG_INFO.stream()
 #define LOG_IF(severity, condition) \
   !(condition) ? (void)0 : dmlc::LogMessageVoidify() & LOG(severity)
 

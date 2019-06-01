@@ -8,6 +8,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 set(CMAKE_CXX_FLAGS "-fPIC")  
 set(CMAKE_C_FLAGS "-fPIC") 
 add_definitions(-D__STDC_FORMAT_MACROS)
+add_definitions(-DNS3_LOG_ENABLE)
 #add_definitions(-DNDEBUG)
 add_definitions(-std=c++11  )#-fno-rtti
 set(CMAKE_CXX_STANDARD 11)
@@ -17,6 +18,7 @@ include_directories(${CMAKE_SOURCE_DIR}/)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/logging)
 include_directories(${CMAKE_SOURCE_DIR}/congestion)
+include_directories(${CMAKE_SOURCE_DIR}/ns3)
 set(dqc_LIB 
 src/ack_frame.cc       
 src/alarm.cc           
@@ -52,6 +54,9 @@ congestion/proto_bandwidth_sampler.cc
 congestion/proto_bbr_sender.cc
 congestion/proto_pacing_sender.cc
 congestion/proto_send_algorithm_interface.cc
+ns3/fatal-impl.cc
+ns3/global-stream.cc
+ns3/log.cc
 )
              
 

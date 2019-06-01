@@ -9,7 +9,6 @@ public:
     :connection_(connection){}
     ~SendAlarmDelegate(){}
     void OnAlarm() override{
-        DLOG(FATAL)<<"alarm";
         connection_->OnCanWrite();
     }
 private:
@@ -27,6 +26,8 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
     sent_manager_.SetSendAlgorithm(kBBR);
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
+    QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));
+    sent_manager_.SetMaxPacingRate(max_rate);
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
@@ -140,7 +141,7 @@ bool ProtoCon::OnAckFrameStart(PacketNumber largest_acked,
   return true;
 }
 bool ProtoCon::OnAckRange(PacketNumber start, PacketNumber end){
-    DLOG(INFO)<<start<<" "<<end;
+    //DLOG(INFO)<<start<<" "<<end;
     sent_manager_.OnAckRange(start,end);
     return true;
 }
@@ -206,7 +207,7 @@ int ProtoCon::Send(){
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
     DCHECK(packet_writer_);
-    sent_manager_.OnSentPacket(&serialized,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
+    sent_manager_.OnSentPacket(&serialized,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,clock_->Now());
     int available=writer.length();
     packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
@@ -252,7 +253,7 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,Tr
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
 //    printf("%x\n",type);
-    sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,ProtoTime::Zero());
+    sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,clock_->Now());
     packet_writer_->SendTo(src,writer.length(),peer_);
     }
 }

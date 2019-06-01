@@ -14,7 +14,9 @@ public:
   // Sets the send algorithm to the given congestion control type and points the
   // pacing sender at |send_algorithm_|. Can be called any number of times.
     void SetSendAlgorithm(CongestionControlType congestion_control_type);
-
+    void SetMaxPacingRate(QuicBandwidth max_pacing_rate) {
+    pacing_sender_.set_max_pacing_rate(max_pacing_rate);
+    }
   // Sets the send algorithm to |send_algorithm| and points the pacing sender at
   // |send_algorithm_|. Takes ownership of |send_algorithm|. Can be called any
   // number of times.
