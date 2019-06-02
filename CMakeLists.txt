@@ -34,7 +34,8 @@ src/process_alarm_factory.cc
 src/proto_bandwidth.cc 
 src/proto_con.cc              
 src/proto_error_codes.cc      
-src/proto_framer.cc           
+src/proto_framer.cc  
+src/proto_socket.cc         
 src/proto_stream.cc           
 src/proto_stream_sequencer.cc 
 src/proto_time.cc             
@@ -46,7 +47,6 @@ src/rtt_stats.cc
 src/send_packet_manager.cc
 src/send_receive.cc
 src/socket_address.cc
-src/socket.cc
 src/string_utils.cc
 src/unacked_packet_map.cc
 fun_test.cc

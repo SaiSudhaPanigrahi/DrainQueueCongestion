@@ -6,7 +6,7 @@
 #include "send_packet_manager.h"
 #include "proto_framer.h"
 #include "proto_stream_data_producer.h"
-#include "socket.h"
+#include "proto_socket.h"
 #include "alarm.h"
 #include <deque>
 #include <map>

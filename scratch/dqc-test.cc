@@ -77,7 +77,7 @@ static void InstallDqc(
     recvApp->SetStartTime (Seconds (startTime));
     recvApp->SetStopTime (Seconds (stopTime));	
 }
-static double simDuration=50;
+static double simDuration=100;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
@@ -85,6 +85,7 @@ float appStop=simDuration-10;
 int main(){
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
     LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
+	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     const uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     const uint32_t msQDelay = TOPO_DEFAULT_QDELAY;

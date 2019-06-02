@@ -4,7 +4,7 @@
 #include "flag_util_impl.h"
 #include "ns3/log.h"
 namespace dqc{
-NS_LOG_COMPONENT_DEFINE("pacing");
+NS_LOG_COMPONENT_DEFINE("proto_pacing");
 namespace {
 // Configured maximum size of the burst coming out of quiescence.  The burst
 // is never larger than the current CWND in packets.

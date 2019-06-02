@@ -1,7 +1,7 @@
 #pragma once
 #include "proto_con.h"
 #include "received_packet_manager.h"
-#include "socket.h"
+#include "proto_socket.h"
 #include "interval.h"
 #include "process_alarm_factory.h"
 namespace dqc{

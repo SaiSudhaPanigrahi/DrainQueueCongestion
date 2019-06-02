@@ -1,8 +1,13 @@
 #include "ns3/dqc_receiver.h"
 #include "ns3/log.h"
 #include "byte_codec.h"
+using namespace dqc;
 namespace ns3{
-NS_LOG_COMPONENT_DEFINE("dqcreceiver");    
+NS_LOG_COMPONENT_DEFINE("dqcreceiver");
+DqcReceiver::DqcReceiver()
+{
+	m_frameDecoder.set_visitor(this);
+}
 void DqcReceiver::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());
@@ -19,9 +24,55 @@ InetSocketAddress DqcReceiver::GetLocalAddress(){
     Ipv4Address local_ip = ipv4->GetAddress (1, 0).GetLocal ();
 	return InetSocketAddress{local_ip,m_bindPort};    
 }
+bool DqcReceiver::OnStreamFrame(dqc::PacketStream &frame){
+    if(m_recvInterval.Empty()){
+    	m_recvInterval.Add(frame.offset,frame.offset+frame.len);
+    }else{
+        if(m_recvInterval.IsDisjoint(frame.offset,frame.offset+frame.len)){
+            m_recvInterval.Add(frame.offset,frame.offset+frame.len);
+        }else{
+            NS_LOG_INFO("redundancy "<<frame.offset);
+        }
+    }
+	return true;
+}
+void DqcReceiver::OnError(dqc::ProtoFramer* framer){
+
+}
+bool DqcReceiver::OnAckFrameStart(dqc::PacketNumber largest_acked,
+                     dqc::TimeDelta ack_delay_time){
+	return true;
+}
+bool DqcReceiver::OnAckRange(dqc::PacketNumber start,
+                dqc::PacketNumber end){
+	return true;
+}
+bool DqcReceiver::OnAckTimestamp(dqc::PacketNumber packet_number,
+		dqc::ProtoTime timestamp){
+	return true;
+}
+bool DqcReceiver::OnAckFrameEnd(dqc::PacketNumber start){
+	return true;
+}
+bool DqcReceiver::OnStopWaitingFrame(const dqc::PacketNumber least_unacked){
+    NS_LOG_INFO("stop waiting "<<least_unacked.ToUint64());
+    m_recvManager.DontWaitForPacketsBefore(least_unacked);
+	return true;
+}
 void DqcReceiver::StartApplication(){
 }
 void DqcReceiver::StopApplication(){
+}
+void DqcReceiver::SendAckFrame(dqc::ProtoTime now){
+    const AckFrame &ack_frame=m_recvManager.GetUpdateAckFrame(now);
+    char buf[1500];
+    basic::DataWriter w(buf,1500);
+    ProtoPacketHeader header;
+    header.packet_number=AllocSeq();
+    AppendPacketHeader(header,&w);
+    m_frameEncoder.AppendAckFrameAndTypeByte(ack_frame,&w);
+    Ptr<Packet> p=Create<Packet>((uint8_t*)buf,w.length());
+	SendToNetwork(p);
 }
 void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	Address remoteAddr;
@@ -31,17 +82,19 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	    m_peerPort= InetSocketAddress::ConvertFrom (remoteAddr).GetPort ();
 		m_knowPeer=true;
 	}
+	ProtoTime now=m_clock.Now();
 	uint32_t recv=packet->GetSize ();
-	uint8_t buf[1000]={'\0'};
-	memset(buf,0,1000);
+	uint8_t buf[1500]={'\0'};
 	packet->CopyData(buf,recv);
-    int64_t now=Simulator::Now().GetMilliSeconds();
     basic::DataReader r((char*)buf,recv);
-    uint64_t seq=0;
-    uint64_t sent_time=0;
-    r.ReadUInt64(&seq);
-    r.ReadUInt64(&sent_time);
-    int64_t owd=now-sent_time;
-    NS_LOG_INFO(seq<<" "<<owd);
-}    
+    ProtoPacketHeader header;
+    ProcessPacketHeader(&r,header);
+    PacketNumber seq=header.packet_number;
+    m_recvManager.RecordPacketReceived(seq,now);
+    m_frameDecoder.ProcessFrameData(&r,header);
+    SendAckFrame(now);
+}
+void DqcReceiver::SendToNetwork(Ptr<Packet> p){
+    m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
+}
 }

@@ -26,8 +26,8 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
     sent_manager_.SetSendAlgorithm(kBBR);
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
-    QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));
-    sent_manager_.SetMaxPacingRate(max_rate);
+    //QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));
+    //sent_manager_.SetMaxPacingRate(max_rate);
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
