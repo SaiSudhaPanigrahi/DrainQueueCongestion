@@ -35,12 +35,15 @@ def build(bld):
     'model/thirdparty/congestion/proto_bbr_sender.cc',
     'model/thirdparty/congestion/proto_pacing_sender.cc',
     'model/thirdparty/congestion/proto_send_algorithm_interface.cc',
-    'model/dqcsender.cc',
+    'model/dqc_sender.cc',
+    'model/dqc_receiver.cc',
     ]
     headers = bld(features='ns3header')
     headers.module = 'dqc'
     headers.source = [
-    'model/dqcsender.h',
+    'model/dqc_sender.h',
+    'model/dqc_receiver.h',
+    'model/dqc_clock.h'
     ]
     module.env.append_value('DEFINES', '__STDC_FORMAT_MACROS')
     module.env.append_value("CFLAGS","-fPIC")
