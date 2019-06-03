@@ -96,6 +96,10 @@ void DqcSender::SendToNetwork(Ptr<Packet> p){
 	TimeTag tag;
     tag.SetSentTime (ms);
 	p->AddPacketTag (tag);
+	if(!m_traceBwCb.IsNull()){
+		QuicBandwidth send_bw=m_connection.EstimatedBandwidth();
+		m_traceBwCb((int32_t)send_bw.ToKBitsPerSecond());
+	}
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
 }
 void DqcSender::Process(){

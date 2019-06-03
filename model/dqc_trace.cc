@@ -20,6 +20,13 @@ void DqcTrace::OpenTraceRttFile(std::string name){
 			+name+"_rtt.txt";
 	m_rtt.open(path.c_str(), std::fstream::out);    
 }
+void DqcTrace::OpenTraceBandwidthFile(std::string name){
+	char buf[FILENAME_MAX];
+	memset(buf,0,FILENAME_MAX);
+	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
+			+name+"_bw.txt";
+	m_bw.open(path.c_str(), std::fstream::out);     
+}
 void DqcTrace::OnOwd(uint32_t seq,uint32_t owd){
 	char line [256];
 	memset(line,0,256);
@@ -40,9 +47,21 @@ void DqcTrace::OnRtt(uint32_t seq,uint32_t rtt){
 		m_rtt<<line<<std::endl;
 	}    
 }
+void DqcTrace::OnBw(int32_t kbps){
+	char line [256];
+	memset(line,0,256);
+	if(m_bw.is_open()){
+		float now=Simulator::Now().GetSeconds();
+		sprintf (line, "%f %16d",
+				now,kbps);
+		m_bw<<line<<std::endl;
+	}       
+    
+}
 void DqcTrace::Close(){
     CloseTraceOwdFile();
     CloseTraceRttFile();
+    CloseTraceBandwidthFile();
 }
 void DqcTrace::CloseTraceOwdFile(){
 	if(m_owd.is_open()){
@@ -53,5 +72,10 @@ void DqcTrace::CloseTraceRttFile(){
 	if(m_rtt.is_open()){
 		m_rtt.close();
 	}    
-}    
+}
+void DqcTrace::CloseTraceBandwidthFile(){
+    if(m_bw.is_open()){
+        m_bw.close();
+    }
+}   
 }

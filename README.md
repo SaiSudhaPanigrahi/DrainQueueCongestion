@@ -14,3 +14,11 @@ And add the CPLUS_INCLUDE_PATH flag in /etc/profile, for example:
 ```
 export CPLUS_INCLUDE_PATH=CPLUS_INCLUDE_PATH:/home/zsy/C_Test/ns-allinone-3.26/ns-3.26/src/dqc/model/thirdparty/include:/home/zsy/C_Test/ns-allinone-3.26/ns-3.26/src/dqc/model/thirdparty/congestion/:/home/zsy/C_Test/ns-allinone-3.26/ns-3.26/src/dqc/model/thirdparty/logging
 ```
+simulation results:   
+Test with 3 flow in a point to point channel(3Mbps, one way delay 100ms, max queue length 300ms).  
+bandwidth fiairness:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bw.png)  
+one way delay  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
+
+

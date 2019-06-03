@@ -11,7 +11,7 @@
 #include <iostream>
 using namespace ns3;
 using namespace dqc;
-const uint32_t TOPO_DEFAULT_BW     = 2000000;    // in bps: 1Mbps
+const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 1Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      100;    // in ms:   50ms
 const uint32_t TOPO_DEFAULT_QDELAY =     300;    // in ms:  300ms
 const uint32_t DEFAULT_PACKET_SIZE = 1000;
@@ -80,14 +80,15 @@ static void InstallDqc(
     recvApp->SetStartTime (Seconds (startTime));
     recvApp->SetStopTime (Seconds (stopTime));
 	if(trace){
+		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
-static double simDuration=200;
+static double simDuration=300;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
-float appStop=simDuration-10;
+float appStop=simDuration;
 int main(){
     std::string filename("error.log");
     std::ios::openmode filemode=std::ios_base::out;
@@ -99,11 +100,27 @@ int main(){
     const uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     const uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
-	DqcTrace trace;
-	std::string owd="dqc";
-	trace.OpenTraceOwdFile(owd);
-	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace);
-    Simulator::Stop (Seconds(simDuration + 10.0));
+	int test_pair=1;
+	DqcTrace trace1;
+	std::string log="dqc_"+std::to_string(test_pair);
+	trace1.OpenTraceOwdFile(log);
+	trace1.OpenTraceBandwidthFile(log);
+	test_pair++;
+	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
+	DqcTrace trace2;
+	log="dqc_"+std::to_string(test_pair);
+	trace2.OpenTraceOwdFile(log);
+	trace2.OpenTraceBandwidthFile(log);
+	test_pair++;
+	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
+
+	DqcTrace trace3;
+	log="dqc_"+std::to_string(test_pair);
+	trace3.OpenTraceOwdFile(log);
+	trace3.OpenTraceBandwidthFile(log);
+	test_pair++;
+	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3);
+    Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	
     return 0;

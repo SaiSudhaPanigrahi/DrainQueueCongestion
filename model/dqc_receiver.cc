@@ -63,6 +63,10 @@ bool DqcReceiver::OnStopWaitingFrame(const dqc::PacketNumber least_unacked){
 void DqcReceiver::StartApplication(){
 }
 void DqcReceiver::StopApplication(){
+	m_running=false;
+	if(!m_traceOwdCb.IsNull()){
+		m_traceOwdCb((uint32_t)m_largestSeq.ToUint64(),0);
+	}	
 }
 void DqcReceiver::SendAckFrame(dqc::ProtoTime now){
     const AckFrame &ack_frame=m_recvManager.GetUpdateAckFrame(now);
@@ -76,6 +80,7 @@ void DqcReceiver::SendAckFrame(dqc::ProtoTime now){
 	SendToNetwork(p);
 }
 void DqcReceiver::RecvPacket(Ptr<Socket> socket){
+	if(!m_running){return;}
 	Address remoteAddr;
 	auto packet = socket->RecvFrom (remoteAddr);
 	if(!m_knowPeer){

@@ -17,6 +17,12 @@ public:
     void SetMaxPacingRate(QuicBandwidth max_pacing_rate) {
     pacing_sender_.set_max_pacing_rate(max_pacing_rate);
     }
+    QuicBandwidth PacingRate()const {
+        return pacing_sender_.PacingRate(0);
+    }
+    QuicBandwidth BandwidthEstimate() const{
+    	return send_algorithm_->BandwidthEstimate();
+    }	
   // Sets the send algorithm to |send_algorithm| and points the pacing sender at
   // |send_algorithm_|. Takes ownership of |send_algorithm|. Can be called any
   // number of times.

@@ -42,6 +42,7 @@ private:
     }
 	void RecvPacket(Ptr<Socket> socket);
 	void SendToNetwork(Ptr<Packet> p);
+	bool m_running{true};
     bool m_knowPeer{false};   
     Ipv4Address m_peerIp;
     uint16_t m_peerPort;

@@ -30,6 +30,10 @@ public dqc::ProtoStream::StreamCanWriteVisitor{
 public:
     DqcSender();
     ~DqcSender(){}
+	typedef Callback<void,int32_t> TraceBandwidth;
+	void SetBwTraceFuc(TraceBandwidth cb){
+		m_traceBwCb=cb;
+	}	
 	void Bind(uint16_t port);
 	InetSocketAddress GetLocalAddress();
 	void ConfigurePeer(Ipv4Address addr,uint16_t port);    
@@ -64,5 +68,6 @@ private:
     int64_t m_packetInteval{1};//1 ms
     int m_packetGenerated{0};
     int m_packetAllowed{50000};
+	TraceBandwidth m_traceBwCb;
 };   
 }

@@ -16,6 +16,9 @@ ProtoFrameVisitor,ProtoStreamDataProducer{
 public:
     ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory);
     ~ProtoCon();
+    QuicBandwidth EstimatedBandwidth() const{
+    	return sent_manager_.BandwidthEstimate();
+    }
     void ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
                           const ProtoReceivedPacket& packet);
     ProtoStream *GetOrCreateStream(uint32_t id);
