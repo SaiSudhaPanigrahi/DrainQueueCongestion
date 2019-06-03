@@ -12,7 +12,7 @@
 #include "fun_test.h"
 #include "received_packet_manager.h"
 #include "rtt_stats.h"
-#include "socket.h"
+#include "proto_socket.h"
 #include "proto_stream.h"
 #include "proto_con.h"
 #include "proto_stream_data_producer.h"
@@ -24,6 +24,7 @@
 #include "proto_constants.h"
 #include "packet_number_indexed_queue.h"
 #include "proto_pacing_sender.h"
+#include "ns3/log.h"
 using namespace dqc;
 using namespace std;
 using namespace basic;
@@ -563,10 +564,31 @@ void pacing_test(){
     DLOG(INFO)<<"forever "<<forever;
     delete algo;
 }
+#include "ns3/global-stream.h"
+#include "proto_bandwidth.h"
+#include "proto_constants.h"
+NS_LOG_COMPONENT_DEFINE("test");
 void test_trivial(){
-    SendPacketManager manager(nullptr,nullptr);
+    std::string filename("error.log");
+    std::ios::openmode filemode=std::ios_base::out;
+    ns3::GlobalStream::Create(filename,filemode);
+    ns3::LogComponentEnable("test",ns3::LOG_ALL);
+    ns3::LogComponentEnable("proto_pacing",ns3::LOG_ALL);
+    ns3::LogComponentEnable("proto_bbr",ns3::LOG_ALL);
+    NS_LOG_INFO("hello ns3 log");
+    SystemClock clock;
+    SendPacketManager manager(&clock,nullptr);
     TimeDelta delta=manager.GetRetransmissionDelay();
     DLOG(INFO)<<delta;
+    manager.SetSendAlgorithm(kBBR);
+    QuicBandwidth pacing_bw=manager.PacingRate();
+    float kDefaultHighGain = 2.885f;
+    ByteCount ini_cwnd=10 * kDefaultTCPMSS;
+    TimeDelta rtt(TimeDelta::FromMilliseconds(100));
+    QuicBandwidth bw=kDefaultHighGain*(QuicBandwidth::FromBytesAndTimeDelta(ini_cwnd,rtt));
+    TimeDelta wait=bw.TransferTime(1000);
+    NS_LOG_INFO("pacing rate "<<pacing_bw);
+    NS_LOG_FILE_INFO(bw<<wait);
 }
 void test_test(){
     //ack_frame_test();
@@ -583,8 +605,8 @@ void test_test(){
     //test_socket_address();
     //thread_test();
     //simu_send_receiver_test();
-    test_sender_receiver();
+    //test_sender_receiver();
     //packet_indexed_queue_test();
     //pacing_test();
-    //test_trivial();
+    test_trivial();
 }

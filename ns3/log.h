@@ -198,7 +198,7 @@ void LogComponentDisableAll (enum LogLevel level);
  * NS_LOG (LOG_DEBUG, "a number="<<aNumber<<", anotherNumber="<<anotherNumber);
  * \endcode
  */
-#define NS_LOG0(level, msg,line)                                      \
+#define MY_NS_LOG0(level, msg, line)                               \
   do                                                            \
     {                                                           \
       if (g_log.IsEnabled (level))                              \
@@ -207,20 +207,32 @@ void LogComponentDisableAll (enum LogLevel level);
           NS_LOG_APPEND_NODE_PREFIX;                            \
           NS_LOG_APPEND_CONTEXT;                                \
           NS_LOG_APPEND_FUNC_PREFIX;                            \
-          std::ostream *stream=g_log.m_stream;                  \
-          if(!stream){                                          \
-            stream=ns3::GetGlobalStream();                           \
-          }                                                     \
-          if(!stream){                                          \
-          std::clog <<g_log.Name()<<"_"<<line<<" "<<msg << std::endl;                        \
-          }else{                                                \
-           (*stream) <<g_log.Name()<<"_"<<line<<" "<<msg << std::endl;                       \
-          }                                                     \
+          std::ostream *stream=ns3::GetGlobalStream();          \
+          if(stream){\
+            (*stream) <<g_log.Name()<<"_"<<line<<" "<<msg << std::endl;\
+          }else{\
+             std::clog << msg << std::endl;\
+          }\
+        }                                                       \
+    }                                                           \
+  while (false)
+#define NS_LOG_FILE(level,msg)   MY_NS_LOG0(level,msg, __LINE__)
+#define NS_LOG_FILE_INFO(msg) NS_LOG_FILE(ns3::LOG_INFO,msg)
+
+#define NS_LOG(level, msg)                                      \
+  do                                                            \
+    {                                                           \
+      if (g_log.IsEnabled (level))                              \
+        {                                                       \
+          NS_LOG_APPEND_TIME_PREFIX;                            \
+          NS_LOG_APPEND_NODE_PREFIX;                            \
+          NS_LOG_APPEND_CONTEXT;                                \
+          NS_LOG_APPEND_FUNC_PREFIX;                            \
+          std::clog << msg << std::endl;                        \
         }                                                       \
     }                                                           \
   while (false)
 
-#define NS_LOG(level, msg)  NS_LOG0(level,msg,__LINE__)
 /**
  * \ingroup logging
  * \param msg the message to log

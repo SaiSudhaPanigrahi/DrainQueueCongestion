@@ -1,5 +1,5 @@
 #pragma once
-#include "log.h"
+#include "ns3/log.h"
 #include <string>
 #include <fstream>
 namespace ns3{

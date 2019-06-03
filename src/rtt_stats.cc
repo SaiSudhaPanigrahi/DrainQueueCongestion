@@ -16,7 +16,7 @@ RttStats::RttStats()
       smoothed_rtt_(TimeDelta::Zero()),
       previous_srtt_(TimeDelta::Zero()),
       mean_deviation_(TimeDelta::Zero()),
-      initial_rtt_(TimeDelta::FromMicroseconds(kInitialRttMs)),
+      initial_rtt_(TimeDelta::FromMilliseconds(kInitialRttMs)),
       max_ack_delay_(TimeDelta::Zero()),
       ignore_max_ack_delay_(false) {}
 
