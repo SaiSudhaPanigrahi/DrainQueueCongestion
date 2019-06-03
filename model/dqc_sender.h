@@ -63,6 +63,6 @@ private:
     EventId m_processTimer;
     int64_t m_packetInteval{1};//1 ms
     int m_packetGenerated{0};
-    int m_packetAllowed{500};
+    int m_packetAllowed{50000};
 };   
 }

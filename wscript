@@ -37,13 +37,19 @@ def build(bld):
     'model/thirdparty/congestion/proto_send_algorithm_interface.cc',
     'model/dqc_sender.cc',
     'model/dqc_receiver.cc',
+    'model/global-stream.cc',
+    'model/time_tag.cc',
+    'model/dqc_trace.cc',
     ]
     headers = bld(features='ns3header')
     headers.module = 'dqc'
     headers.source = [
     'model/dqc_sender.h',
     'model/dqc_receiver.h',
-    'model/dqc_clock.h'
+    'model/dqc_clock.h',
+    'model/global-stream.h',
+    'model/time_tag.h',
+    'model/dqc_trace.h',
     ]
     module.env.append_value('DEFINES', '__STDC_FORMAT_MACROS')
     module.env.append_value("CFLAGS","-fPIC")

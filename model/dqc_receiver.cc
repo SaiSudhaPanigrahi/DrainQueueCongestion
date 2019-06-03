@@ -1,5 +1,6 @@
 #include "ns3/dqc_receiver.h"
 #include "ns3/log.h"
+#include "ns3/time_tag.h"
 #include "byte_codec.h"
 using namespace dqc;
 namespace ns3{
@@ -84,6 +85,9 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	}
 	ProtoTime now=m_clock.Now();
 	uint32_t recv=packet->GetSize ();
+	TimeTag tag;
+	packet->PeekPacketTag (tag);
+	uint32_t owd=Simulator::Now().GetMilliSeconds()-tag.GetSentTime();
 	uint8_t buf[1500]={'\0'};
 	packet->CopyData(buf,recv);
     basic::DataReader r((char*)buf,recv);
@@ -92,6 +96,16 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
     PacketNumber seq=header.packet_number;
     m_recvManager.RecordPacketReceived(seq,now);
     m_frameDecoder.ProcessFrameData(&r,header);
+	if(!m_largestSeq.IsInitialized()){
+		m_largestSeq=seq;
+	}else{
+		if(seq>m_largestSeq){
+			m_largestSeq=seq;
+		}
+	}
+	if(!m_traceOwdCb.IsNull()){
+		m_traceOwdCb((uint32_t)seq.ToUint64(),owd);
+	}
     SendAckFrame(now);
 }
 void DqcReceiver::SendToNetwork(Ptr<Packet> p){

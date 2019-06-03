@@ -17,6 +17,10 @@ public dqc::ProtoFrameVisitor{
 public:
     DqcReceiver();
     ~DqcReceiver(){}
+	typedef Callback<void,uint32_t,uint32_t> TraceOwd;
+	void SetOwdTraceFuc(TraceOwd cb){
+		m_traceOwdCb=cb;
+	}
 	void Bind(uint16_t port);
 	InetSocketAddress GetLocalAddress();
     bool OnStreamFrame(dqc::PacketStream &frame) override;
@@ -45,9 +49,11 @@ private:
     Ptr<Socket> m_socket;
     DqcSimuClock m_clock;
     dqc::PacketNumber m_seq{1};
+	dqc::PacketNumber m_largestSeq;
     dqc::ReceivdPacketManager m_recvManager;
     dqc::ProtoFramer m_frameDecoder;
     dqc::ProtoFramer m_frameEncoder;
     IntervalSet<dqc::StreamOffset> m_recvInterval;
+	TraceOwd m_traceOwdCb;
 };    
 }

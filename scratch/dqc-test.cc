@@ -7,6 +7,8 @@
 #include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/traffic-control-module.h"
 #include "ns3/dqc-module.h"
+#include <string>
+#include <iostream>
 using namespace ns3;
 using namespace dqc;
 const uint32_t TOPO_DEFAULT_BW     = 2000000;    // in bps: 1Mbps
@@ -60,7 +62,8 @@ static void InstallDqc(
 						 uint16_t send_port,
                          uint16_t recv_port,
                          float startTime,
-                         float stopTime
+                         float stopTime,
+						 DqcTrace *trace
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> ();
@@ -75,14 +78,20 @@ static void InstallDqc(
     sendApp->SetStartTime (Seconds (startTime));
     sendApp->SetStopTime (Seconds (stopTime));
     recvApp->SetStartTime (Seconds (startTime));
-    recvApp->SetStopTime (Seconds (stopTime));	
+    recvApp->SetStopTime (Seconds (stopTime));
+	if(trace){
+		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
+	}	
 }
-static double simDuration=100;
+static double simDuration=200;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration-10;
 int main(){
+    std::string filename("error.log");
+    std::ios::openmode filemode=std::ios_base::out;
+    GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
     LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
@@ -90,7 +99,10 @@ int main(){
     const uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     const uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
-	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop);
+	DqcTrace trace;
+	std::string owd="dqc";
+	trace.OpenTraceOwdFile(owd);
+	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace);
     Simulator::Stop (Seconds(simDuration + 10.0));
     Simulator::Run ();
     Simulator::Destroy();	

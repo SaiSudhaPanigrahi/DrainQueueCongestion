@@ -1,6 +1,7 @@
 #include <string>
 #include "ns3/dqc_sender.h"
 #include "ns3/log.h"
+#include "ns3/time_tag.h"
 #include "byte_codec.h"
 #include "proto_utils.h"
 using namespace dqc;
@@ -91,6 +92,10 @@ void DqcSender::RecvPacket(Ptr<Socket> socket){
     m_connection.ProcessUdpPacket(m_self,m_remote,packet);
 }
 void DqcSender::SendToNetwork(Ptr<Packet> p){
+	uint32_t ms=Simulator::Now().GetMilliSeconds();
+	TimeTag tag;
+    tag.SetSentTime (ms);
+	p->AddPacketTag (tag);
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
 }
 void DqcSender::Process(){
