@@ -79,8 +79,7 @@ void PacingSender::OnPacketSent(
   // The next packet should be sent as soon as the current packet has been
   // transferred.  PacingRate is based on bytes in flight including this packet.
   QuicBandwidth bw=PacingRate(bytes_in_flight + bytes);
-  QuicBandwidth sender_bw=sender_->PacingRate(bytes_in_flight+bytes);
-  NS_LOG_INFO(sender_bw);
+  //QuicBandwidth sender_bw=sender_->PacingRate(bytes_in_flight+bytes);
   TimeDelta delay =bw.TransferTime(bytes);
   if (!pacing_limited_ || lumpy_tokens_ == 0) {
     // Reset lumpy_tokens_ if either application or cwnd throttles sending or
@@ -160,6 +159,8 @@ QuicBandwidth PacingSender::PacingRate(QuicByteCount bytes_in_flight) const {
         std::min(max_pacing_rate_.ToBitsPerSecond(),
                  sender_->PacingRate(bytes_in_flight).ToBitsPerSecond()));
   }
-  return sender_->PacingRate(bytes_in_flight);
+  QuicBandwidth pacing_rate=sender_->PacingRate(bytes_in_flight);
+  //NS_LOG_INFO(pacing_rate);
+  return  pacing_rate;
 }
 }

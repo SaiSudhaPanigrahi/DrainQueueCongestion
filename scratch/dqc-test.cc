@@ -11,8 +11,8 @@
 #include <iostream>
 using namespace ns3;
 using namespace dqc;
-const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 1Mbps
-const uint32_t TOPO_DEFAULT_PDELAY =      100;    // in ms:   50ms
+const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 3Mbps
+const uint32_t TOPO_DEFAULT_PDELAY =      100;    // in ms:   100ms
 const uint32_t TOPO_DEFAULT_QDELAY =     300;    // in ms:  300ms
 const uint32_t DEFAULT_PACKET_SIZE = 1000;
 static int ip=1;
@@ -67,7 +67,8 @@ static void InstallDqc(
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> ();
-    Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
+    //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
+	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
     Ptr<Ipv4> ipv4 = receiver->GetObject<Ipv4> ();
@@ -89,33 +90,76 @@ uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
-int main(){
+int main(int argc, char *argv[]){
     std::string filename("error.log");
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);
-    LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
-    LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
+    //LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+    //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
+	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
+	LogComponentEnable("BBR_OLD",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
-    const uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
-    const uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
+    uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
+    uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
+	CommandLine cmd;
+    std::string instance=std::string("1");
+    cmd.AddValue ("it", "instacne", instance);
+    cmd.Parse (argc, argv);
+    if(instance==std::string("1")){
+        linkBw=3000000;
+        msDelay=100;
+        msQDelay=300;
+    }else if(instance==std::string("2")){
+        linkBw=3000000;
+        msDelay=100;
+        msQDelay=400;        
+    }else if(instance==std::string("3")){
+        linkBw=3000000;
+        msDelay=100;
+        msQDelay=600;        
+    }else if(instance==std::string("4")){
+        linkBw=4000000;
+        msDelay=100;
+        msQDelay=300;        
+    }else if(instance==std::string("5")){
+        linkBw=4000000;
+        msDelay=100;
+        msQDelay=400;        
+    }else if(instance==std::string("6")){
+        linkBw=4000000;
+        msDelay=100;
+        msQDelay=600;        
+    }else if(instance==std::string("7")){
+        linkBw=5000000;
+        msDelay=100;
+        msQDelay=300;        
+    }else if(instance==std::string("8")){
+        linkBw=5000000;
+        msDelay=100;
+        msQDelay=400;        
+    }else if(instance==std::string("9")){
+        linkBw=5000000;
+        msDelay=100;
+        msQDelay=600;        
+    }
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;
 	DqcTrace trace1;
-	std::string log="dqc_"+std::to_string(test_pair);
+	std::string log=instance+"_dqc_"+std::to_string(test_pair);
 	trace1.OpenTraceOwdFile(log);
 	trace1.OpenTraceBandwidthFile(log);
 	test_pair++;
 	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
 	DqcTrace trace2;
-	log="dqc_"+std::to_string(test_pair);
+	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace2.OpenTraceOwdFile(log);
 	trace2.OpenTraceBandwidthFile(log);
 	test_pair++;
 	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
 
 	DqcTrace trace3;
-	log="dqc_"+std::to_string(test_pair);
+	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace3.OpenTraceOwdFile(log);
 	trace3.OpenTraceBandwidthFile(log);
 	test_pair++;

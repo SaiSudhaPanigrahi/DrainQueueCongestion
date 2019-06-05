@@ -65,7 +65,7 @@ void DqcSender::DataGenerator(int times){
     std::string piece(data,1500);
     bool success=false;
     for(i=0;i<times;i++){
-        if(m_packetGenerated>m_packetAllowed){
+        if(m_pakcetLimit&&(m_packetGenerated>m_packetAllowed)){
             break;
         }
         success=m_stream->WriteDataToBuffer(piece);

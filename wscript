@@ -33,8 +33,11 @@ def build(bld):
     'model/thirdparty/src/unacked_packet_map.cc',
     'model/thirdparty/congestion/proto_bandwidth_sampler.cc',
     'model/thirdparty/congestion/proto_bbr_sender.cc',
+    'model/thirdparty/congestion/proto_bbr_sender_old.cc', 
+    'model/thirdparty/congestion/proto_bbr_sender_v0.cc',  
     'model/thirdparty/congestion/proto_pacing_sender.cc',
     'model/thirdparty/congestion/proto_send_algorithm_interface.cc',
+    'model/dqc_delay_ack_receiver.cc',
     'model/dqc_sender.cc',
     'model/dqc_receiver.cc',
     'model/global-stream.cc',
@@ -44,6 +47,7 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'dqc'
     headers.source = [
+    'model/dqc_delay_ack_receiver.h',
     'model/dqc_sender.h',
     'model/dqc_receiver.h',
     'model/dqc_clock.h',

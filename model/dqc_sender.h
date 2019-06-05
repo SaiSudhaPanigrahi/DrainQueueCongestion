@@ -67,6 +67,7 @@ private:
     EventId m_processTimer;
     int64_t m_packetInteval{1};//1 ms
     int m_packetGenerated{0};
+	bool m_pakcetLimit{false};
     int m_packetAllowed{50000};
 	TraceBandwidth m_traceBwCb;
 };   

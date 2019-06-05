@@ -142,6 +142,7 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
                                                      frame_it->stream_frame.len);
                     }
                 }
+			   it->bytes_acked=info->bytes_sent;
                unacked_packets_.RemoveFromInflight(seq);
             }
             last_ack_frame_.packets.Add(seq);
