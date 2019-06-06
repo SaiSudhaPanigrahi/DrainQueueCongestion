@@ -209,6 +209,9 @@ int ProtoCon::Send(){
     DCHECK(packet_writer_);
     sent_manager_.OnSentPacket(&serialized,PacketNumber(0),HAS_RETRANSMITTABLE_DATA,clock_->Now());
     int available=writer.length();
+	if(trace_sent_){
+		trace_sent_->OnSent(header.packet_number,clock_->Now());
+	}
     packet_writer_->SendTo(src,writer.length(),peer_);
     return available;
 }

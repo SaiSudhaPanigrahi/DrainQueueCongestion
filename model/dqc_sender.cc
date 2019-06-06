@@ -36,6 +36,7 @@ void DqcSender::Bind(uint16_t port){
     m_bindPort=port;
     m_socket->SetRecvCallback (MakeCallback(&DqcSender::RecvPacket,this));
     m_connection.set_packet_writer(&m_writer);
+	m_connection.SetTraceSentSeq(this);
     m_stream=m_connection.GetOrCreateStream(m_streamId);
     m_stream->set_stream_vistor(this);
 }
@@ -93,6 +94,7 @@ void DqcSender::RecvPacket(Ptr<Socket> socket){
 }
 void DqcSender::SendToNetwork(Ptr<Packet> p){
 	uint32_t ms=Simulator::Now().GetMilliSeconds();
+	m_lastSentTs=ms;
 	TimeTag tag;
     tag.SetSentTime (ms);
 	p->AddPacketTag (tag);
@@ -104,10 +106,29 @@ void DqcSender::SendToNetwork(Ptr<Packet> p){
 }
 void DqcSender::Process(){
     if(m_processTimer.IsExpired()){
+		int64_t now_ms=Simulator::Now().GetMilliSeconds();
+		if(m_lastSentTs!=0){
+			if((now_ms-m_lastSentTs)>5000){
+				SendPacketManager *sent_manager=m_connection.GetSentPacketManager();
+				int32_t largest_sent=(int32_t)(m_connection.GetMaxSentSeq().ToUint64());
+				int32_t largest_acked=(int32_t)(sent_manager->largest_acked().ToUint64());
+				int buffer=m_stream->BufferedBytes();
+				ByteCount in_flight=0;
+				ByteCount cwnd=0;
+				sent_manager->InFlight(&in_flight,&cwnd);
+				NS_LOG_INFO(std::to_string(largest_sent)<<" "<<std::to_string(largest_acked));
+				NS_LOG_INFO(std::to_string(buffer)
+				<<" "<<std::to_string(m_stream->get_send_buffer_len())
+				<<" "<<sent_manager->CheckCanSend()
+				<<" "<<std::to_string(in_flight)
+				<<" cwnd "<<std::to_string(cwnd)
+				);
+			}
+		}
     	ProtoTime now=m_clock.Now();
     	m_timeDriver.HeartBeat(now);
     	m_connection.Process();
-        Time next=MilliSeconds(m_packetInteval);
+        Time next=MicroSeconds(m_packetInteval);
         m_processTimer=Simulator::Schedule(next,&DqcSender::Process,this);
     }
 }

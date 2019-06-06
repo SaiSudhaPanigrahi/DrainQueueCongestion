@@ -287,7 +287,7 @@ bool ProtoFramer::AppendPacketNumber(ProtoPacketNumberLength packet_number_lengt
                                  PacketNumber packet_number,
                                  basic::DataWriter* writer){
   size_t length = packet_number_length;
-  if (length != 1 && length != 2 && length != 4 && length != 6 && length != 8) {
+  if (length != 1 && length != 2 && length!=3&& length != 4 && length != 6 && length != 8) {
     DLOG(FATAL)<< "Invalid packet_number_length: " << length;
     return false;
   }

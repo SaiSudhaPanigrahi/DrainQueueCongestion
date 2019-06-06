@@ -104,6 +104,13 @@ void SendPacketManager::RetransmitRtoPackets(){
 }
 void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
     DCHECK(packets_acked_.empty());
+	if(!largest_acked_.IsInitialized()){
+		largest_acked_=largest_acked;
+	}else{
+		if(largest_acked>largest_acked_){
+			largest_acked_=largest_acked;
+		}
+	}
     rtt_updated_=MaybeUpdateRTT(largest_acked,ack_delay_time,ack_receive_time);
     ack_packet_itor_=last_ack_frame_.packets.rbegin();
 }

@@ -82,6 +82,7 @@ static void InstallDqc(
     recvApp->SetStopTime (Seconds (stopTime));
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
+		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]){
     std::string filename("error.log");
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);
-    //LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+    LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
@@ -147,21 +148,18 @@ int main(int argc, char *argv[]){
 	int test_pair=1;
 	DqcTrace trace1;
 	std::string log=instance+"_dqc_"+std::to_string(test_pair);
-	trace1.OpenTraceOwdFile(log);
-	trace1.OpenTraceBandwidthFile(log);
+	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
 	DqcTrace trace2;
 	log=instance+"_dqc_"+std::to_string(test_pair);
-	trace2.OpenTraceOwdFile(log);
-	trace2.OpenTraceBandwidthFile(log);
+	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
 
 	DqcTrace trace3;
 	log=instance+"_dqc_"+std::to_string(test_pair);
-	trace3.OpenTraceOwdFile(log);
-	trace3.OpenTraceBandwidthFile(log);
+	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3);
     Simulator::Stop (Seconds(simDuration));

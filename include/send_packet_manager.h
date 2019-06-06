@@ -22,7 +22,13 @@ public:
     }
     QuicBandwidth BandwidthEstimate() const{
     	return send_algorithm_->BandwidthEstimate();
-    }	
+    }
+	PacketNumber largest_acked() const {return largest_acked_;}
+	void InFlight(ByteCount *inflight,ByteCount *cwnd) {
+	 *inflight=unacked_packets_.bytes_in_flight();
+	 *cwnd=send_algorithm_->GetCongestionWindow();
+	}
+	bool CheckCanSend() const {return send_algorithm_->CanSend(unacked_packets_.bytes_in_flight());}
   // Sets the send algorithm to |send_algorithm| and points the pacing sender at
   // |send_algorithm_|. Takes ownership of |send_algorithm|. Can be called any
   // number of times.
@@ -75,7 +81,7 @@ private:
     StreamAckedObserver *acked_observer_{nullptr};
     UnackedPacketMap unacked_packets_;
     PendingRetransmissionMap pendings_;
-    PacketNumber largest_acked_{0};
+    PacketNumber largest_acked_;
     LostPacketVector packets_lost_;
     AckedPacketVector packets_acked_;
     AckFrame last_ack_frame_;

@@ -6,6 +6,20 @@ namespace ns3{
 DqcTrace::~DqcTrace(){
     Close();
 }
+void DqcTrace::Log(std::string name,uint8_t enable){
+	if(enable&E_DQC_OWD){
+		OpenTraceOwdFile(name);
+	}
+	if(enable&E_DQC_RTT){
+		OpenTraceRttFile(name);
+	}
+	if(enable&E_DQC_BW){
+		OpenTraceBandwidthFile(name);
+	}
+	if(enable&E_DQC_SENTSEQ){
+		OpenTraceSentSeqFile(name);
+	}
+}
 void DqcTrace::OpenTraceOwdFile(std::string name){
 	char buf[FILENAME_MAX];
 	memset(buf,0,FILENAME_MAX);
@@ -26,6 +40,13 @@ void DqcTrace::OpenTraceBandwidthFile(std::string name){
 	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
 			+name+"_bw.txt";
 	m_bw.open(path.c_str(), std::fstream::out);     
+}
+void DqcTrace::OpenTraceSentSeqFile(std::string name){
+	char buf[FILENAME_MAX];
+	memset(buf,0,FILENAME_MAX);
+	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
+			+name+"_sent_seq.txt";
+	m_sentSeq.open(path.c_str(), std::fstream::out);  	
 }
 void DqcTrace::OnOwd(uint32_t seq,uint32_t owd){
 	char line [256];
@@ -58,10 +79,21 @@ void DqcTrace::OnBw(int32_t kbps){
 	}       
     
 }
+void DqcTrace::OnSentSeq(int32_t seq){
+	char line [256];
+	memset(line,0,256);
+	if(m_sentSeq.is_open()){
+		float now=Simulator::Now().GetSeconds();
+		sprintf (line, "%f %16d",
+				now,seq);
+		m_sentSeq<<line<<std::endl;
+	}     	
+}
 void DqcTrace::Close(){
     CloseTraceOwdFile();
     CloseTraceRttFile();
     CloseTraceBandwidthFile();
+	CloseTraceSentSeqFile();
 }
 void DqcTrace::CloseTraceOwdFile(){
 	if(m_owd.is_open()){
@@ -77,5 +109,10 @@ void DqcTrace::CloseTraceBandwidthFile(){
     if(m_bw.is_open()){
         m_bw.close();
     }
-}   
+} 
+void DqcTrace::CloseTraceSentSeqFile(){
+    if(m_sentSeq.is_open()){
+        m_sentSeq.close();
+    }	
+}
 }

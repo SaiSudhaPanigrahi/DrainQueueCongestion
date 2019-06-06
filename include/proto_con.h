@@ -14,11 +14,18 @@ namespace dqc{
 class ProtoCon:public ProtoConVisitor,StreamAckedObserver,
 ProtoFrameVisitor,ProtoStreamDataProducer{
 public:
+class TraceSentSeq{
+public:
+    virtual ~TraceSentSeq(){}
+    virtual void OnSent(PacketNumber seq,ProtoTime sent_ts){};
+};
+    void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
     ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory);
     ~ProtoCon();
     QuicBandwidth EstimatedBandwidth() const{
     	return sent_manager_.BandwidthEstimate();
     }
+	SendPacketManager * GetSentPacketManager() {return &sent_manager_;}
     void ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
                           const ProtoReceivedPacket& packet);
     ProtoStream *GetOrCreateStream(uint32_t id);
@@ -29,6 +36,7 @@ public:
     void set_peer(SocketAddress &peer){peer_=peer;}
     void Process();
     bool CanWrite(HasRetransmittableData has_retrans);
+	PacketNumber GetMaxSentSeq() const { return seq_;}
     PacketNumber AllocSeq(){
         return seq_++;
     }
@@ -74,5 +82,6 @@ private:
     Socket *packet_writer_{nullptr};
     AlarmFactory *alarm_factory_{nullptr};
     std::shared_ptr<Alarm> send_alarm_;
+    TraceSentSeq *trace_sent_{nullptr};
 };
 }//namespace dqc;
