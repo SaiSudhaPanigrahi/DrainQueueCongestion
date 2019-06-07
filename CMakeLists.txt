@@ -51,6 +51,8 @@ src/string_utils.cc
 src/unacked_packet_map.cc
 fun_test.cc
 congestion/proto_bandwidth_sampler.cc
+congestion/pcc_monitor_interval_queue.cc
+model/thirdparty/congestion/pcc_sender.cc
 congestion/proto_bbr_sender_old.cc
 congestion/proto_bbr_sender_v0.cc
 congestion/proto_bbr_sender.cc

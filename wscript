@@ -31,6 +31,8 @@ def build(bld):
     'model/thirdparty/src/socket_address.cc',
     'model/thirdparty/src/string_utils.cc',
     'model/thirdparty/src/unacked_packet_map.cc',
+    'model/thirdparty/congestion/pcc_monitor_interval_queue.cc',
+    'model/thirdparty/congestion/pcc_sender.cc',
     'model/thirdparty/congestion/proto_bandwidth_sampler.cc',
     'model/thirdparty/congestion/proto_bbr_sender.cc',
     'model/thirdparty/congestion/proto_bbr_sender_old.cc', 

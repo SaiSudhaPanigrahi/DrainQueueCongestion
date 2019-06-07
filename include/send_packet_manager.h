@@ -23,6 +23,7 @@ public:
     QuicBandwidth BandwidthEstimate() const{
     	return send_algorithm_->BandwidthEstimate();
     }
+	RttStats *GetRttStats(){ return &rtt_stats_;}
 	PacketNumber largest_acked() const {return largest_acked_;}
 	void InFlight(ByteCount *inflight,ByteCount *cwnd) {
 	 *inflight=unacked_packets_.bytes_in_flight();

@@ -8,7 +8,7 @@ TODO
 - [x] Send packet through socket  
 - [x] congestion control   
 
-As for ns3 test case, the wscript file gives clear hint how to arange this file  
+As for ns3 test case, the wscript file gives clear hint how to arrange this file  
 in the right position in ns3.  
 And add the CPLUS_INCLUDE_PATH flag in /etc/profile, for example:  
 ```
@@ -25,4 +25,5 @@ bandwidth fairness:
 one way delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
 
+And the pcc code is copied from https://github.com/PCCproject/PCC-Uspace/tree/master/src/pcc.  
 
