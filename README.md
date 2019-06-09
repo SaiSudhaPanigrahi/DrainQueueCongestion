@@ -25,5 +25,5 @@ bandwidth fairness:
 one way delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
 
-And the pcc code is copied from https://github.com/PCCproject/PCC-Uspace/tree/master/src/pcc.  
+And the pcc code is copied from https://github.com/PCCproject/PCC-Uspace/tree/master/src/pcc. But it does not work here for now.  
 
