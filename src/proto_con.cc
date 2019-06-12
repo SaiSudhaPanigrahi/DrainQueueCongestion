@@ -23,7 +23,7 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory)
     frame_encoder_.set_data_producer(this);
     //to decode ack frame;
     frame_decoder_.set_visitor(this);
-    sent_manager_.SetSendAlgorithm(kBBR);
+    sent_manager_.SetSendAlgorithm(kBBR_DELAY);//kBBR_DELAY
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
     //QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));

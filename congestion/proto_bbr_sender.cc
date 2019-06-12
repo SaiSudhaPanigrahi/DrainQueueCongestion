@@ -33,7 +33,6 @@ const float kDerivedHighCWNDGain = 2.0f;
 const float kStartupAfterLossGain = 1.5f;
 // The cycle of gains used during the PROBE_BW stage.
 const float kPacingGain[] = {1.25, 0.75, 1, 1, 1, 1, 1, 1};
-
 // The length of the gain cycle.
 const size_t kGainCycleLength = sizeof(kPacingGain) / sizeof(kPacingGain[0]);
 // The size of the bandwidth filter window, in round-trips.
@@ -46,7 +45,7 @@ const TimeDelta kProbeRttTime = TimeDelta::FromMilliseconds(200);
 // If the bandwidth does not increase by the factor of |kStartupGrowthTarget|
 // within |kRoundTripsWithoutGrowthBeforeExitingStartup| rounds, the connection
 // will exit the STARTUP mode.
-const float kStartupGrowthTarget = 1.25;
+const float kStartupGrowthTarget = 1.5;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 // Coefficient of target congestion window to use when basing PROBE_RTT on BDP.
 const float kModerateProbeRttMultiplier = 0.75;

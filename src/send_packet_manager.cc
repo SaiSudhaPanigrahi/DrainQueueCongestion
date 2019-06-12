@@ -85,28 +85,46 @@ void SendPacketManager::OnRetransmissionTimeOut(){
 }
 //it seems network is awful, may be resend one packet,
 void SendPacketManager::RetransmitRtoPackets(){
+	DeliverOnePacketToPendingQueue();
+    ++consecutive_rto_count_;
+}
+void SendPacketManager::FastRetransmit(){
+	if(has_in_flight()){
+		bool delivered=DeliverOnePacketToPendingQueue();
+		if(delivered){
+			fast_retrans_flag_=true;
+		}
+	}
+}
+bool SendPacketManager::DeliverOnePacketToPendingQueue(){
+	bool delivered=false;
     PacketNumber seq=unacked_packets_.GetLeastUnacked();
     if(!seq.IsInitialized()){
-        return;
+        return delivered;
     }
     if(!pendings_.empty()){
-        return;
+    	delivered=true;
+        return delivered;
     }
     for(auto it=unacked_packets_.begin();it!=unacked_packets_.end();it++){
         if(it->inflight&&(it->state==SPS_OUT)){
             it->state=SPS_RETRANSED;
             PostToPending(seq,*it);
+            delivered=true;
             break;
         }
         seq++;
     }
-    ++consecutive_rto_count_;
+	return delivered;
 }
 void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
     DCHECK(packets_acked_.empty());
 	if(!largest_acked_.IsInitialized()){
 		largest_acked_=largest_acked;
 	}else{
+		if(largest_acked==largest_acked_){
+			FastRetransmit();
+		}
 		if(largest_acked>largest_acked_){
 			largest_acked_=largest_acked;
 		}

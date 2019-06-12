@@ -48,6 +48,13 @@ public:
     // Retransmits two packets for an RTO and removes any non-retransmittable
     // packets from flight.
     void RetransmitRtoPackets();
+    bool NeedFastRetrans() {
+    	bool need_retrans=fast_retrans_flag_;
+    	fast_retrans_flag_=false;
+    	return need_retrans;
+    }
+    void FastRetransmit();
+    bool DeliverOnePacketToPendingQueue();
     void OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
     AckResult OnAckEnd(ProtoTime ack_receive_time);
@@ -58,6 +65,9 @@ public:
     void MaybeInvokeCongestionEvent(bool rtt_updated,
                                   ByteCount prior_in_flight,
                                   ProtoTime event_time);
+    bool has_in_flight(){
+    	return unacked_packets_.bytes_in_flight()>0;
+    }
     void Test();
     void Test2();
     const TimeDelta GetRetransmissionDelay() const{
@@ -95,5 +105,6 @@ private:
     PacingSender pacing_sender_;
     Random rand_;
     std::unique_ptr<SendAlgorithmInterface> send_algorithm_{nullptr};
+    bool fast_retrans_flag_{false};
 };
 }//namespace dqc;
