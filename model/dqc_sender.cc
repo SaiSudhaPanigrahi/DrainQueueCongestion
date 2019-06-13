@@ -1,4 +1,5 @@
 #include <string>
+#include "ns3/simulator.h"
 #include "ns3/dqc_sender.h"
 #include "ns3/log.h"
 #include "ns3/time_tag.h"
@@ -25,7 +26,7 @@ int FakePackeWriter::SendTo(const char*buf,size_t size,dqc::SocketAddress &dst){
 DqcSender::DqcSender()
 :m_writer(this)
 ,m_alarmFactory(new ProcessAlarmFactory(&m_timeDriver))
-,m_connection(&m_clock,m_alarmFactory.get()){}
+,m_connection(&m_clock,m_alarmFactory.get(),/*kBBR_DELAY*/kCubicBytes){}
 void DqcSender::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());
@@ -39,6 +40,10 @@ void DqcSender::Bind(uint16_t port){
 	m_connection.SetTraceSentSeq(this);
     m_stream=m_connection.GetOrCreateStream(m_streamId);
     m_stream->set_stream_vistor(this);
+	SendPacketManager *sent_manager=m_connection.GetSentPacketManager();
+	RttStats* rtt_stats=sent_manager->GetRttStats();
+	rtt_stats->UpdateRtt(TimeDelta::FromMilliseconds(100),TimeDelta::FromMilliseconds(0),ProtoTime::Zero());
+	NS_LOG_INFO(rtt_stats->smoothed_rtt().ToMicroseconds());
 }
 InetSocketAddress DqcSender::GetLocalAddress(){
     Ptr<Node> node=GetNode();
@@ -101,12 +106,14 @@ void DqcSender::SendToNetwork(Ptr<Packet> p){
 	if(!m_traceBwCb.IsNull()){
 		QuicBandwidth send_bw=m_connection.EstimatedBandwidth();
 		m_traceBwCb((int32_t)send_bw.ToKBitsPerSecond());
+		//NS_LOG_INFO("bw "<<std::to_string((int32_t)send_bw.ToKBitsPerSecond()));
 	}
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
 }
 void DqcSender::Process(){
     if(m_processTimer.IsExpired()){
 		int64_t now_ms=Simulator::Now().GetMilliSeconds();
+		//NS_LOG_INFO("now "<<std::to_string(Simulator::Now().GetMicroSeconds()));
 		if(m_lastSentTs!=0){
 			if((now_ms-m_lastSentTs)>5000){
 				SendPacketManager *sent_manager=m_connection.GetSentPacketManager();

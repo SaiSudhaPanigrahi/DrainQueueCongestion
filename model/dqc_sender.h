@@ -34,6 +34,9 @@ public:
 	typedef Callback<void,int32_t> TraceBandwidth;
 	void SetBwTraceFuc(TraceBandwidth cb){
 		m_traceBwCb=cb;
+		if(m_traceBwCb.IsNull()){
+			abort();
+		}
 	}
 	typedef Callback<void,int32_t> TraceSentSeq;
 	void SetSentSeqTraceFuc(TraceSentSeq cb){

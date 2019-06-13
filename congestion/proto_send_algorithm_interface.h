@@ -2,6 +2,7 @@
 #include "proto_types.h"
 #include "proto_time.h"
 #include "proto_bandwidth.h"
+#include "proto_connection_stats.h"
 namespace dqc{
 class RttStats;
 class Random;
@@ -15,6 +16,7 @@ public:
         const UnackedPacketMap* unacked_packets,
         CongestionControlType type,
         Random *random,
+ 		QuicConnectionStats* stats,
         QuicPacketCount initial_congestion_window);
     virtual ~SendAlgorithmInterface(){}
   // Sets the number of connections to emulate when doing congestion control,

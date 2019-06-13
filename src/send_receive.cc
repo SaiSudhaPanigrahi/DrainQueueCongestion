@@ -174,7 +174,7 @@ void simu_send_receiver_test(){
 Sender::Sender(ProtoClock *clock)
 :clock_(clock)
 ,alarm_factory_(new ProcessAlarmFactory(&time_driver_))
-,connection_(clock,alarm_factory_.get()){
+,connection_(clock,alarm_factory_.get(),kBBR){
     const TimeDelta delta=connection_.GetRetransmissionDelay();
     rto_=clock_->Now()+delta;
     DLOG(INFO)<<delta;

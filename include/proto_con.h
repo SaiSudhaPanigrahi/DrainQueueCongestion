@@ -8,6 +8,7 @@
 #include "proto_stream_data_producer.h"
 #include "proto_socket.h"
 #include "alarm.h"
+#include "proto_connection_stats.h"
 #include <deque>
 #include <map>
 namespace dqc{
@@ -20,7 +21,7 @@ public:
     virtual void OnSent(PacketNumber seq,ProtoTime sent_ts){};
 };
     void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
-    ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory);
+    ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionControlType cc);
     ~ProtoCon();
     QuicBandwidth EstimatedBandwidth() const{
     	return sent_manager_.BandwidthEstimate();
@@ -83,5 +84,6 @@ private:
     AlarmFactory *alarm_factory_{nullptr};
     std::shared_ptr<Alarm> send_alarm_;
     TraceSentSeq *trace_sent_{nullptr};
+	QuicConnectionStats con_stats_;
 };
 }//namespace dqc;

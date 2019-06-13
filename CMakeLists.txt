@@ -32,7 +32,8 @@ src/platform_linux.c
 src/platform_windows.c        
 src/process_alarm_factory.cc
 src/proto_bandwidth.cc 
-src/proto_con.cc              
+src/proto_con.cc  
+src/proto_connection_stats.cc            
 src/proto_error_codes.cc      
 src/proto_framer.cc  
 src/proto_socket.cc         
@@ -50,6 +51,8 @@ src/socket_address.cc
 src/string_utils.cc
 src/unacked_packet_map.cc
 fun_test.cc
+congestion/cubic_bytes.cc
+congestion/hybrid_slow_start.cc
 congestion/proto_bandwidth_sampler.cc
 congestion/pcc_monitor_interval_queue.cc
 congestion/pcc_sender.cc
@@ -59,6 +62,7 @@ congestion/proto_bbr_sender_v0.cc
 congestion/proto_delay_bbr_sender.cc
 congestion/proto_pacing_sender.cc
 congestion/proto_send_algorithm_interface.cc
+congestion/tcp_cubic_sender_bytes.cc
 ns3/fatal-impl.cc
 ns3/global-stream.cc
 ns3/log.cc

@@ -96,6 +96,7 @@ int main(int argc, char *argv[]){
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+	LogComponentEnable("delay_bbr_sender",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
@@ -143,6 +144,10 @@ int main(int argc, char *argv[]){
         linkBw=5000000;
         msDelay=100;
         msQDelay=600;        
+    }else if(instance==std::string("10")){
+        linkBw=10000000;
+        msDelay=100;
+        msQDelay=300;        
     }
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;

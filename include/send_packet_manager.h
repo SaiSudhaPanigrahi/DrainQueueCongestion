@@ -5,11 +5,12 @@
 #include "ack_frame.h"
 #include "proto_pacing_sender.h"
 #include "rtt_stats.h"
+#include "proto_connection_stats.h"
 #include "random.h"
 namespace dqc{
 class SendPacketManager{
 public:
-    SendPacketManager(ProtoClock *clock,StreamAckedObserver *acked_observer);
+    SendPacketManager(ProtoClock *clock,QuicConnectionStats* stats,StreamAckedObserver *acked_observer);
     ~SendPacketManager();
   // Sets the send algorithm to the given congestion control type and points the
   // pacing sender at |send_algorithm_|. Can be called any number of times.
@@ -89,6 +90,7 @@ private:
     void ClearAckedAndLossVector();
     const TimeDelta GetRetransmissionDelay(size_t consecutive_rto_count) const ;
     ProtoClock *clock_{nullptr};
+	QuicConnectionStats* stats_;
     StreamAckedObserver *acked_observer_{nullptr};
     UnackedPacketMap unacked_packets_;
     PendingRetransmissionMap pendings_;

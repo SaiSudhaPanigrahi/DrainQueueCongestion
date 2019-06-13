@@ -56,6 +56,7 @@ void DqcTrace::OnOwd(uint32_t seq,uint32_t owd){
 		sprintf (line, "%f %16d %16d",
 				now,seq,owd);
 		m_owd<<line<<std::endl;
+		m_owd.flush();
 	}    
 }
 void DqcTrace::OnRtt(uint32_t seq,uint32_t rtt){
@@ -76,6 +77,7 @@ void DqcTrace::OnBw(int32_t kbps){
 		sprintf (line, "%f %16d",
 				now,kbps);
 		m_bw<<line<<std::endl;
+		m_bw.flush();
 	}       
     
 }

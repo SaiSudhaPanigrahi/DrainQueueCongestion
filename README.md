@@ -18,12 +18,16 @@ Run simulation:
 ```
 ./waf --run "scratch/dqc-test --it=1"
 ```
-simulation results:   
+BBR simulation results:   
 Test with 3 flow in a point to point channel(3Mbps, one way delay 100ms, max queue length 300ms).  
 bandwidth fairness:  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bw.png)  
 one way delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
-
+Cubic simulation results:  
+bandwidth fairness:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_bw.png)  
+one way delay  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_delay.png)  
 And the pcc code is copied from https://github.com/PCCproject/PCC-Uspace/tree/master/src/pcc. But it does not work here for now.  
 

@@ -15,8 +15,9 @@ const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
 }
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
-SendPacketManager::SendPacketManager(ProtoClock *clock,StreamAckedObserver *acked_observer)
+SendPacketManager::SendPacketManager(ProtoClock *clock,QuicConnectionStats* stats,StreamAckedObserver *acked_observer)
 :clock_(clock)
+,stats_(stats)
 ,acked_observer_(acked_observer)
 ,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){
     DCHECK(clock_);
@@ -30,6 +31,7 @@ void SendPacketManager::SetSendAlgorithm(CongestionControlType congestion_contro
                                                    &rtt_stats_,
                                                    &unacked_packets_,
                                                    congestion_control_type,&rand_,
+												   stats_,
                                                    kMinInitialCongestionWindow));
 
     pacing_sender_.set_sender(send_algorithm_.get());
