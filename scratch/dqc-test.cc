@@ -47,11 +47,11 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     TrafficControlHelper tch;
     tch.Uninstall (devices);
 
-	//std::string errorModelType = "ns3::RateErrorModel";
-  	//ObjectFactory factory;
-  	//factory.SetTypeId (errorModelType);
-  	//Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
-	//devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
+	std::string errorModelType = "ns3::RateErrorModel";
+  	ObjectFactory factory;
+  	factory.SetTypeId (errorModelType);
+  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
+	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
 
 
     return nodes;
@@ -92,6 +92,11 @@ uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main(int argc, char *argv[]){
+	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (0.01));
+	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
+
+	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (0.01));
+	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
     std::string filename("error.log");
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);

@@ -5,6 +5,17 @@
 using namespace dqc;
 namespace ns3{
 NS_LOG_COMPONENT_DEFINE("dqcreceiver");
+const int64_t mMaxDelayedAckTimeMs = 25;
+/*class AckDelegate:public dqc::Alarm::Delegate{
+public:
+	AckDelegate(DqcReceiver *receiver):receiver_(receiver){}
+	~AckDelegate(){}
+    void OnAlarm() override{
+    	receiver_->SendAckFrame();
+    }
+private:
+	DqcReceiver *receiver_{nullptr};
+};*/
 DqcReceiver::DqcReceiver()
 {
 	m_frameDecoder.set_visitor(this);
@@ -68,7 +79,8 @@ void DqcReceiver::StopApplication(){
 		m_traceOwdCb((uint32_t)m_largestSeq.ToUint64(),0);
 	}	
 }
-void DqcReceiver::SendAckFrame(dqc::ProtoTime now){
+void DqcReceiver::SendAckFrame(){
+    ProtoTime now=m_clock.Now();
     const AckFrame &ack_frame=m_recvManager.GetUpdateAckFrame(now);
     char buf[1500];
     basic::DataWriter w(buf,1500);
@@ -111,7 +123,7 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	if(!m_traceOwdCb.IsNull()){
 		m_traceOwdCb((uint32_t)seq.ToUint64(),owd);
 	}
-    SendAckFrame(now);
+    SendAckFrame();
 }
 void DqcReceiver::SendToNetwork(Ptr<Packet> p){
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});

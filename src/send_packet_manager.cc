@@ -12,6 +12,7 @@ static const size_t kMaxRetransmissions = 10;
 static const size_t kMaxRetransmissionsOnTimeout = 2;
 // The path degrading delay is the sum of this number of consecutive RTO delays.
 const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
+const int32_t kMaxFastRetransNum=2;
 }
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
@@ -87,36 +88,40 @@ void SendPacketManager::OnRetransmissionTimeOut(){
 }
 //it seems network is awful, may be resend one packet,
 void SendPacketManager::RetransmitRtoPackets(){
-	DeliverOnePacketToPendingQueue();
+	DeliverPacketsToPendingQueue(2);
     ++consecutive_rto_count_;
 }
 void SendPacketManager::FastRetransmit(){
 	if(has_in_flight()){
-		bool delivered=DeliverOnePacketToPendingQueue();
+		int delivered=DeliverPacketsToPendingQueue(kMaxFastRetransNum);
 		if(delivered){
 			fast_retrans_flag_=true;
 		}
 	}
 }
-bool SendPacketManager::DeliverOnePacketToPendingQueue(){
-	bool delivered=false;
+int SendPacketManager::DeliverPacketsToPendingQueue(int n){
+	int delivered=0;
     PacketNumber seq=unacked_packets_.GetLeastUnacked();
     if(!seq.IsInitialized()){
         return delivered;
     }
-    if(!pendings_.empty()){
-    	delivered=true;
-        return delivered;
-    }
+	int count=pendings_.size();
+	if(count>=n){
+		delivered=n;
+		return delivered;
+	}
     for(auto it=unacked_packets_.begin();it!=unacked_packets_.end();it++){
         if(it->inflight&&(it->state==SPS_OUT)){
             it->state=SPS_RETRANSED;
             PostToPending(seq,*it);
-            delivered=true;
-            break;
+            count++;
+			if(count>=n){break;}
+            
         }
         seq++;
     }
+	delivered=count;
+	CHECK(delivered);
 	return delivered;
 }
 void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
@@ -322,6 +327,7 @@ void SendPacketManager::MarkForRetrans(PacketNumber seq){
     }
 }
 void SendPacketManager::PostToPending(PacketNumber seq,TransmissionInfo &info){
+	unacked_packets_.RemoveLossFromInflight(seq);//for fast retrans
     pendings_[seq]=info;
 }
 void SendPacketManager::ClearAckedAndLossVector(){

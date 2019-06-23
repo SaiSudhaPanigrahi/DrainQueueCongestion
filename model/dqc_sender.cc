@@ -26,7 +26,7 @@ int FakePackeWriter::SendTo(const char*buf,size_t size,dqc::SocketAddress &dst){
 DqcSender::DqcSender()
 :m_writer(this)
 ,m_alarmFactory(new ProcessAlarmFactory(&m_timeDriver))
-,m_connection(&m_clock,m_alarmFactory.get(),/*kBBR_DELAY*/kCubicBytes){}
+,m_connection(&m_clock,m_alarmFactory.get(),kBBR/*kBBR kPOTEN kCubicBytes*/){}
 void DqcSender::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());

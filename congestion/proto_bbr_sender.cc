@@ -33,6 +33,7 @@ const float kDerivedHighCWNDGain = 2.0f;
 const float kStartupAfterLossGain = 1.5f;
 // The cycle of gains used during the PROBE_BW stage.
 const float kPacingGain[] = {1.25, 0.75, 1, 1, 1, 1, 1, 1};
+//const float kPacingShadowGain[] = {1.25, 1, 0.75, 1, 1, 1, 1, 1};
 // The length of the gain cycle.
 const size_t kGainCycleLength = sizeof(kPacingGain) / sizeof(kPacingGain[0]);
 // The size of the bandwidth filter window, in round-trips.
@@ -96,9 +97,9 @@ BbrSender::BbrSender(ProtoTime now,
                                  kDefaultTCPMSS),
       max_congestion_window_(max_tcp_congestion_window * kDefaultTCPMSS),
       min_congestion_window_(kDefaultMinimumCongestionWindow),
-      high_gain_(kDefaultHighGain),
-      high_cwnd_gain_(kDefaultHighGain),
-      drain_gain_(1.f / kDefaultHighGain),
+      high_gain_(kDerivedHighCWNDGain),
+      high_cwnd_gain_(kDerivedHighCWNDGain),
+      drain_gain_(1.f / kDerivedHighCWNDGain),
       pacing_rate_(QuicBandwidth::Zero()),
       pacing_gain_(1),
       congestion_window_gain_(1),
@@ -176,10 +177,25 @@ void BbrSender::OnPacketSent(ProtoTime sent_time,
 
   sampler_.OnPacketSent(sent_time, packet_number, bytes, bytes_in_flight,
                         is_retransmittable);
+  if(mode_==PROBE_BW&&pacing_gain_==1){
+		virtual_in_flight_+=bytes;
+  }
+  /*if (mode_ == PROBE_BW) {
+    UpdateGainCyclePhase(sent_time, bytes_in_flight, false);
+  }*/
 }
 
 bool BbrSender::CanSend(QuicByteCount bytes_in_flight) {
-  return bytes_in_flight < GetCongestionWindow();
+  bool can_send=false;
+  /*if(mode_==PROBE_BW&&pacing_gain_==1){
+	can_send=virtual_in_flight_<virtual_cwnd_;
+	return can_send;
+  }*/
+  can_send=bytes_in_flight < GetCongestionWindow();
+  /*if(mode_==PROBE_BW&&!InRecovery()){
+   can_send=true;
+  }*/
+  return can_send;
 }
 
 QuicBandwidth BbrSender::PacingRate(QuicByteCount bytes_in_flight) const {
@@ -399,8 +415,15 @@ void BbrSender::EnterProbeBandwidthMode(ProtoTime now) {
 
   last_cycle_start_ = now;
   pacing_gain_ = kPacingGain[cycle_current_offset_];
+  ResetVirtualCounter();	
 }
-
+// add by zsy;
+void BbrSender::ResetVirtualCounter(){
+    if(mode_==PROBE_BW&&pacing_gain_==1){
+		virtual_in_flight_=0;
+		virtual_cwnd_=GetTargetCongestionWindow(1);
+	}	
+}
 void BbrSender::DiscardLostPackets(const LostPacketVector& lost_packets) {
   for (const LostPacket& packet : lost_packets) {
     sampler_.OnPacketLost(packet.packet_number);
@@ -514,7 +537,7 @@ void BbrSender::UpdateGainCyclePhase(ProtoTime now,
                                      bool has_losses) {
   const QuicByteCount bytes_in_flight = unacked_packets_->bytes_in_flight();
   // In most cases, the cycle is advanced after an RTT passes.
-  bool should_advance_gain_cycling = now - last_cycle_start_ > GetMinRtt();
+  bool should_advance_gain_cycling = now - last_cycle_start_ > /*state_hold_duration_*/GetMinRtt();
 
   // If the pacing gain is above 1.0, the connection is trying to probe the
   // bandwidth by increasing the number of bytes in flight to at least
@@ -545,6 +568,7 @@ void BbrSender::UpdateGainCyclePhase(ProtoTime now,
       return;
     }
     pacing_gain_ = kPacingGain[cycle_current_offset_];
+	ResetVirtualCounter();
   }
 }
 
@@ -791,7 +815,12 @@ void BbrSender::CalculateCongestionWindow(QuicByteCount bytes_acked,
     // window.
     congestion_window_ = congestion_window_ + bytes_acked;
   }
-
+  //add by zsy,  non sense
+  /*if(mode_==PROBE_BW&& pacing_gain_==kPacingGain[3]){
+	  target_window =
+      GetTargetCongestionWindow(1.0);
+	  congestion_window_=target_window;
+	}*/
   // Enforce the limits on the congestion window.
   congestion_window_ = std::max(congestion_window_, min_congestion_window_);
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);

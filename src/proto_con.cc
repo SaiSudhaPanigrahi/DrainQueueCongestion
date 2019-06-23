@@ -2,6 +2,9 @@
 #include "proto_con.h"
 #include "proto_utils.h"
 #include "byte_codec.h"
+#include "ns3/log.h"
+NS_LOG_COMPONENT_DEFINE("proto_connection");
+using namespace ns3;
 namespace dqc{
 class SendAlarmDelegate:public Alarm::Delegate{
 public:
@@ -13,6 +16,17 @@ public:
     }
 private:
     ProtoCon *connection_;
+};
+class FastRetransDelegate:public Alarm::Delegate{
+public:
+	FastRetransDelegate(ProtoCon *connection)
+    :connection_(connection){}
+	~FastRetransDelegate(){}
+	void OnAlarm() override{
+		connection_->OnFastRetransmit();
+	}
+private:
+	ProtoCon *connection_;
 };
 ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionControlType cc)
 :clock_(clock)
@@ -26,6 +40,8 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionContr
     sent_manager_.SetSendAlgorithm(cc);//kBBR_DELAY
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
+	std::unique_ptr<FastRetransDelegate>  fast_retrans_delegate(new FastRetransDelegate(this));
+	fast_retrans_alarm_=alarm_factory_->CreateAlarm(std::move(fast_retrans_delegate));
     //QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));
     //sent_manager_.SetMaxPacingRate(max_rate);
 }
@@ -82,7 +98,6 @@ bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
     if(send_alarm_->IsSet()){
         return false;
     }
-
     ProtoTime now=clock_->Now();
     TimeDelta delta=sent_manager_.TimeUntilSend(now);
     if(delta.IsInfinite()){
@@ -137,7 +152,8 @@ void ProtoCon::OnError(ProtoFramer* framer){
 bool ProtoCon::OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time){
   DLOG(INFO)<<largest_acked<<" "<<std::to_string(ack_delay_time.ToMilliseconds());
-  sent_manager_.OnAckStart(largest_acked,ack_delay_time,time_of_last_received_packet_);
+  new_ack_received_time_=clock_->Now();
+  sent_manager_.OnAckStart(largest_acked,ack_delay_time,new_ack_received_time_);
   return true;
 }
 bool ProtoCon::OnAckRange(PacketNumber start, PacketNumber end){
@@ -151,7 +167,10 @@ bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
 }
 bool ProtoCon::OnAckFrameEnd(PacketNumber start){
     DLOG(INFO)<<start;
-    sent_manager_.OnAckEnd(time_of_last_received_packet_);
+    sent_manager_.OnAckEnd(new_ack_received_time_);
+	TimeDelta max_rtt=CalculateFastRetranTime();
+	ProtoTime next=new_ack_received_time_+max_rtt;
+	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
     return true;
 }
 bool ProtoCon::WriteStreamData(uint32_t id,
@@ -163,6 +182,22 @@ bool ProtoCon::WriteStreamData(uint32_t id,
         return false;
     }
     return stream->WriteStreamData(offset,len,writer);
+}
+TimeDelta ProtoCon::CalculateFastRetranTime(){
+	RttStats *rtt_stats=sent_manager_.GetRttStats();
+	TimeDelta max_rtt=rtt_stats->smoothed_rtt();
+	max_rtt=std::max(max_rtt,rtt_stats->latest_rtt());
+	max_rtt=max_rtt+rtt_stats->mean_deviation();
+	CHECK(max_rtt.ToMilliseconds()>0);
+	return max_rtt;	
+}
+void ProtoCon::OnFastRetransmit(){
+	sent_manager_.FastRetransmit();
+	TimeDelta max_rtt=CalculateFastRetranTime();
+	ProtoTime next=clock_->Now()+max_rtt;
+	bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
+	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
+	NS_LOG_INFO("fast retrans");
 }
 ProtoStream *ProtoCon::CreateStream(){
     uint32_t id=stream_id_;

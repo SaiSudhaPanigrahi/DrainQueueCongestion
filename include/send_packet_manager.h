@@ -55,7 +55,7 @@ public:
     	return need_retrans;
     }
     void FastRetransmit();
-    bool DeliverOnePacketToPendingQueue();
+    int DeliverPacketsToPendingQueue(int n);
     void OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
     AckResult OnAckEnd(ProtoTime ack_receive_time);

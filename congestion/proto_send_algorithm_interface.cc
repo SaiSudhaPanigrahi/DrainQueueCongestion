@@ -5,6 +5,7 @@
 #include "proto_bbr_sender_v0.h"
 #include "pcc_sender.h"
 #include "proto_delay_bbr_sender.h"
+#include "proto_potential_sender.h"
 #include "tcp_cubic_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
@@ -71,6 +72,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kPCC:{
             return new PccSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
+        case kPOTEN:{
+            return new PotentialSender(clock->Now(),
                                rtt_stats,
                                unacked_packets,
                                initial_congestion_window,

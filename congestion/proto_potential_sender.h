@@ -7,7 +7,7 @@
 namespace dqc{
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
-// BbrSender implements BBR congestion control algorithm.  BBR aims to estimate
+// PotentialSender implements BBR congestion control algorithm.  BBR aims to estimate
 // the current available Bottleneck Bandwidth and RTT (hence the name), and
 // regulates the pacing rate and the size of the congestion window based on
 // those signals.
@@ -16,7 +16,7 @@ typedef uint64_t QuicRoundTripCount;
 // pacing is disabled.
 //
 // TODO(vasilvv): implement traffic policer (long-term sampling) mode.
-class BbrSender : public SendAlgorithmInterface {
+class PotentialSender : public SendAlgorithmInterface {
  public:
   enum Mode {
     // Startup phase of the connection.
@@ -45,7 +45,7 @@ class BbrSender : public SendAlgorithmInterface {
  // Debug state can be exported in order to troubleshoot potential congestion
   // control issues.
   struct DebugState {
-    explicit DebugState(const BbrSender& sender);
+    explicit DebugState(const PotentialSender& sender);
     DebugState(const DebugState& state);
 
     Mode mode;
@@ -68,15 +68,15 @@ class BbrSender : public SendAlgorithmInterface {
     QuicPacketNumber end_of_app_limited_phase;
   };
 
-  BbrSender(ProtoTime now,
+  PotentialSender(ProtoTime now,
             const RttStats* rtt_stats,
             const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
-  BbrSender(const BbrSender&) = delete;
-  BbrSender& operator=(const BbrSender&) = delete;
-  ~BbrSender() override;
+  PotentialSender(const PotentialSender&) = delete;
+  PotentialSender& operator=(const PotentialSender&) = delete;
+  ~PotentialSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   bool InSlowStart() const override;
@@ -105,6 +105,7 @@ class BbrSender : public SendAlgorithmInterface {
   bool CanSend(QuicByteCount bytes_in_flight) override;
   QuicBandwidth PacingRate(QuicByteCount bytes_in_flight) const override;
   QuicBandwidth BandwidthEstimate() const override;
+  QuicBandwidth GetBestBandwidth() const;
   QuicByteCount GetCongestionWindow() const override;
   QuicByteCount GetSlowStartThreshold() const override;
   CongestionControlType GetCongestionControlType() const override;
@@ -185,7 +186,8 @@ class BbrSender : public SendAlgorithmInterface {
   // Updates the current bandwidth and min_rtt estimate based on the samples for
   // the received acknowledgements.  Returns true if min_rtt has expired.
   bool UpdateBandwidthAndMinRtt(ProtoTime now,
-                                const AckedPacketVector& acked_packets);
+                                const AckedPacketVector& acked_packets,
+                                QuicBandwidth *recv_rate);
   // Updates the current gain used in PROBE_BW mode.
   void UpdateGainCyclePhase(ProtoTime now,
                             QuicByteCount prior_in_flight,
@@ -193,6 +195,8 @@ class BbrSender : public SendAlgorithmInterface {
   // Tracks for how many round-trips the bandwidth has not increased
   // significantly.
   void CheckIfFullBandwidthReached();
+  bool CheckIfCongestion();
+  void ResetDelayRtt();
   // Transitions from STARTUP to DRAIN and from DRAIN to PROBE_BW if
   // appropriate.
   void MaybeExitStartupOrDrain(ProtoTime now);
@@ -229,7 +233,6 @@ class BbrSender : public SendAlgorithmInterface {
   // Called right before exiting STARTUP.
   void OnExitStartup(ProtoTime now);
 
-  void ResetVirtualCounter();
   const RttStats* rtt_stats_;
   const UnackedPacketMap* unacked_packets_;
   Random* random_;
@@ -382,14 +385,15 @@ class BbrSender : public SendAlgorithmInterface {
 
   // Latched value of --quic_always_get_bw_sample_when_acked.
   const bool always_get_bw_sample_when_acked_;
-  QuicByteCount virtual_in_flight_{0};
-  QuicByteCount virtual_cwnd_{0};
-  TimeDelta state_hold_duration_{TimeDelta::FromMilliseconds(100)};
+  QuicBandwidth last_recv_rate_{QuicBandwidth::Zero()};
+  QuicRoundTripCount probe_counter_{0};
+  QuicRoundTripCount probe_phase_{0};
+  TimeDelta srtt_{TimeDelta::Zero()};
 };
 
  std::ostream& operator<<(std::ostream& os,
-                                             const BbrSender::Mode& mode);
+                                             const PotentialSender::Mode& mode);
  std::ostream& operator<<(
     std::ostream& os,
-    const BbrSender::DebugState& state);
+    const PotentialSender::DebugState& state);
 }

@@ -11,6 +11,7 @@
 #include "packet_number.h"
 #include "received_packet_manager.h"
 #include "proto_framer.h"
+#include "process_alarm_factory.h"
 namespace ns3{
 class DqcReceiver:public Application,
 public dqc::ProtoFrameVisitor{
@@ -33,10 +34,10 @@ public:
     		dqc::ProtoTime timestamp) override;
     bool OnAckFrameEnd(dqc::PacketNumber start) override;
     bool OnStopWaitingFrame(const dqc::PacketNumber least_unacked) override;
+    void SendAckFrame();
 private:
 	virtual void StartApplication() override;
 	virtual void StopApplication() override;
-    void SendAckFrame(dqc::ProtoTime now);
     dqc::PacketNumber AllocSeq(){
         return m_seq++;
     }

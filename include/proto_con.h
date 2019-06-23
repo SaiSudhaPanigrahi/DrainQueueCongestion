@@ -62,6 +62,8 @@ public:
                                  StreamOffset offset,
                                  ByteCount len,
                                  basic::DataWriter *writer) override;
+	TimeDelta CalculateFastRetranTime();
+    void OnFastRetransmit();
 private:
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);
@@ -75,6 +77,7 @@ private:
     uint32_t stream_id_{0};
     PacketNumber seq_{1};
     ProtoTime time_of_last_received_packet_;
+    ProtoTime new_ack_received_time_{ProtoTime::Zero()};
     SendPacketManager sent_manager_;
     SocketAddress peer_;
     bool first_packet_from_peer_{true};
@@ -83,6 +86,7 @@ private:
     Socket *packet_writer_{nullptr};
     AlarmFactory *alarm_factory_{nullptr};
     std::shared_ptr<Alarm> send_alarm_;
+	 std::shared_ptr<Alarm> fast_retrans_alarm_;
     TraceSentSeq *trace_sent_{nullptr};
 	QuicConnectionStats con_stats_;
 };
