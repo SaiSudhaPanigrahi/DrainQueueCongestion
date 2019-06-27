@@ -20,10 +20,15 @@ Run simulation:
 ```
 BBR simulation results:   
 Test with 3 flow in a point to point channel(3Mbps, one way delay 100ms, max queue length 300ms).  
-bandwidth fairness:  
+bandwidth fairness(drain_to_target_(false)):  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bw.png)  
-one way delay  
+one way transmission delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
+BBR with the parameter (drain_to_target_(false)):  
+rate dynamic:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/drain_to_target_bw.png)  
+one way transmission delay:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/drain_to_target_delay.png)  
 Cubic simulation results:  
 bandwidth fairness:  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_bw.png)  
