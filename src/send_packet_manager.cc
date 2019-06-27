@@ -89,12 +89,14 @@ void SendPacketManager::OnRetransmissionTimeOut(){
 //it seems network is awful, may be resend one packet,
 void SendPacketManager::RetransmitRtoPackets(){
 	DeliverPacketsToPendingQueue(2);
+	unacked_packets_.RemoveObsolete();
     ++consecutive_rto_count_;
 }
 void SendPacketManager::FastRetransmit(){
 	if(has_in_flight()){
 		int delivered=DeliverPacketsToPendingQueue(kMaxFastRetransNum);
-		if(delivered){
+		unacked_packets_.RemoveObsolete();
+		if(delivered>0){
 			fast_retrans_flag_=true;
 		}
 	}
@@ -130,7 +132,7 @@ void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_dela
 		largest_acked_=largest_acked;
 	}else{
 		if(largest_acked==largest_acked_){
-			FastRetransmit();
+			//FastRetransmit();
 		}
 		if(largest_acked>largest_acked_){
 			largest_acked_=largest_acked;

@@ -44,6 +44,7 @@ src/proto_types.cc
 src/proto_utils.cc
 src/random.cc
 src/received_packet_manager.cc
+src/rtt_monitor.cc
 src/rtt_stats.cc
 src/send_packet_manager.cc
 src/send_receive.cc

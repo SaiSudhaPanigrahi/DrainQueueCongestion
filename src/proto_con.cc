@@ -195,7 +195,7 @@ void ProtoCon::OnFastRetransmit(){
 	sent_manager_.FastRetransmit();
 	TimeDelta max_rtt=CalculateFastRetranTime();
 	ProtoTime next=clock_->Now()+max_rtt;
-	bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
+	bool packet_send=SendRetransPending(TT_FAST_RETRANS);
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
 	NS_LOG_INFO("fast retrans");
 }
@@ -290,7 +290,6 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,Tr
     serialized.buf=nullptr;//buf addr is not quite useful;
     serialized.len=writer.length();
     serialized.retransble_frames.push_back(frame);
-//    printf("%x\n",type);
     sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,clock_->Now());
     packet_writer_->SendTo(src,writer.length(),peer_);
     }

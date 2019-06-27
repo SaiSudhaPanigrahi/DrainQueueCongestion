@@ -14,6 +14,7 @@ enum TransType:uint8_t{
     TT_NO_RETRANS,
     TT_FIRST_TRANS=TT_NO_RETRANS,
     TT_LOSS_RETRANS,
+	TT_FAST_RETRANS,
     TT_RTO_RETRANS,
 };
 class StreamAckedObserver{
