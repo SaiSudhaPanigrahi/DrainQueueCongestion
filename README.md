@@ -24,11 +24,16 @@ bandwidth fairness(drain_to_target_(false)):
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bw.png)  
 one way transmission delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/delay.png)  
-BBR with the parameter (drain_to_target_(false)):  
+BBR with the parameter (drain_to_target_(true)):  
 rate dynamic:  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/drain_to_target_bw.png)  
 one way transmission delay:  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/drain_to_target_delay.png)  
+BBRv2:  
+rate dynamic:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bbr2-bw.png)  
+one way transmission delay:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/bbr2-owd.png)  
 Cubic simulation results:  
 bandwidth fairness:  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_bw.png)  

@@ -18,6 +18,7 @@ RttStats::RttStats()
       mean_deviation_(TimeDelta::Zero()),
       initial_rtt_(TimeDelta::FromMilliseconds(kInitialRttMs)),
       max_ack_delay_(TimeDelta::Zero()),
+      last_update_time_(ProtoTime::Zero()),
       ignore_max_ack_delay_(false) {}
 
 void RttStats::set_initial_rtt(TimeDelta initial_rtt)
@@ -49,7 +50,7 @@ void RttStats::UpdateRtt(TimeDelta send_delta,
         << send_delta.ToMicroseconds();
     return;
   }
-
+  last_update_time_ = now;
   // Update min_rtt_ first. min_rtt_ does not use an rtt_sample corrected for
   // ack_delay but the raw observed send_delta, since poor clock granularity at
   // the client may cause a high ack_delay to result in underestimation of the

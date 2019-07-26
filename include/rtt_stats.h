@@ -44,6 +44,20 @@ class RttStats
 
     TimeDelta mean_deviation() const { return mean_deviation_; }
 
+    TimeDelta max_ack_delay() const { return max_ack_delay_; }
+
+    ProtoTime last_update_time() const { return last_update_time_; }
+
+    bool ignore_max_ack_delay() const { return ignore_max_ack_delay_; }
+
+    void set_ignore_max_ack_delay(bool ignore_max_ack_delay) {
+        ignore_max_ack_delay_ = ignore_max_ack_delay;
+    }
+
+    void set_initial_max_ack_delay(TimeDelta initial_max_ack_delay) {
+        max_ack_delay_ = std::max(max_ack_delay_, initial_max_ack_delay);
+    }
+
   private:
     TimeDelta latest_rtt_;
     TimeDelta min_rtt_;
@@ -57,6 +71,7 @@ class RttStats
  // The maximum ack delay observed over the connection after excluding ack
   // delays that were too large to be included in an RTT measurement.
     TimeDelta max_ack_delay_;
+    ProtoTime last_update_time_;
   // Whether to ignore the peer's max ack delay.
     bool ignore_max_ack_delay_;
     DISALLOW_COPY_AND_ASSIGN(RttStats);
