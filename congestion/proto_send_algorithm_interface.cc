@@ -2,11 +2,13 @@
 #include "rtt_stats.h"
 #include "proto_bbr_sender.h"
 #include "proto_bbr_sender_old.h"
-#include "proto_bbr_sender_v0.h"
+#include "proto_queue_limit.h"
 #include "pcc_sender.h"
 #include "proto_delay_bbr_sender.h"
 #include "proto_potential_sender.h"
 #include "tcp_cubic_sender_bytes.h"
+#include "bbr2_sender.h"
+#include "proto_bbr_sender_shadow.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -45,8 +47,16 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                random
                                );
         }
-        case kBBR_V0:{
-            return new BbrSenderV0(clock->Now(),
+        case kQueueLimit:{
+            return new QueueLimitSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random);
+        }
+        case kShadow:{
+            return new BbrShadowSender(clock->Now(),
                                rtt_stats,
                                unacked_packets,
                                initial_congestion_window,
@@ -88,6 +98,16 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                random
                                );
         }
+        case kBBRv2:{
+            return new Bbr2Sender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random,
+							   stats
+                               );
+        }		
         default:{
             return new BbrSender(clock->Now(),
                                rtt_stats,

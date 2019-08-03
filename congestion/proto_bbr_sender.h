@@ -229,7 +229,6 @@ class BbrSender : public SendAlgorithmInterface {
   // Called right before exiting STARTUP.
   void OnExitStartup(ProtoTime now);
 
-  void ResetVirtualCounter();
   const RttStats* rtt_stats_;
   const UnackedPacketMap* unacked_packets_;
   Random* random_;
@@ -382,9 +381,6 @@ class BbrSender : public SendAlgorithmInterface {
 
   // Latched value of --quic_always_get_bw_sample_when_acked.
   const bool always_get_bw_sample_when_acked_;
-  QuicByteCount virtual_in_flight_{0};
-  QuicByteCount virtual_cwnd_{0};
-  TimeDelta state_hold_duration_{TimeDelta::FromMilliseconds(100)};
 };
 
  std::ostream& operator<<(std::ostream& os,

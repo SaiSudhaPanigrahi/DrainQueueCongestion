@@ -8,7 +8,7 @@
 namespace dqc{
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
-// BbrSender implements BBR congestion control algorithm.  BBR aims to estimate
+// BbrShadowSender implements BBR congestion control algorithm.  BBR aims to estimate
 // the current available Bottleneck Bandwidth and RTT (hence the name), and
 // regulates the pacing rate and the size of the congestion window based on
 // those signals.
@@ -17,7 +17,7 @@ typedef uint64_t QuicRoundTripCount;
 // pacing is disabled.
 //
 // TODO(vasilvv): implement traffic policer (long-term sampling) mode.
-class BbrSender : public SendAlgorithmInterface {
+class BbrShadowSender : public SendAlgorithmInterface {
  public:
   enum Mode {
     // Startup phase of the connection.
@@ -42,11 +42,22 @@ class BbrSender : public SendAlgorithmInterface {
     // start).
     GROWTH
   };
-
+  class QueueMonitor{
+    public:
+        QueueMonitor();
+        void Reset();
+        void NewSample(ProtoTime now,TimeDelta sample,TimeDelta interval,Mode mode);
+        bool IsCongestion() const {return congestion_;}
+    private:
+        TimeDelta que_th_;
+        ProtoTime first_above_ts_;
+        uint32_t count_;
+        bool congestion_{false};
+  };
  // Debug state can be exported in order to troubleshoot potential congestion
   // control issues.
   struct DebugState {
-    explicit DebugState(const BbrSender& sender);
+    explicit DebugState(const BbrShadowSender& sender);
     DebugState(const DebugState& state);
 
     Mode mode;
@@ -69,15 +80,15 @@ class BbrSender : public SendAlgorithmInterface {
     QuicPacketNumber end_of_app_limited_phase;
   };
 
-  BbrSender(ProtoTime now,
+  BbrShadowSender(ProtoTime now,
             const RttStats* rtt_stats,
             const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
-  BbrSender(const BbrSender&) = delete;
-  BbrSender& operator=(const BbrSender&) = delete;
-  ~BbrSender() override;
+  BbrShadowSender(const BbrShadowSender&) = delete;
+  BbrShadowSender& operator=(const BbrShadowSender&) = delete;
+  ~BbrShadowSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   bool InSlowStart() const override;
@@ -229,8 +240,6 @@ class BbrSender : public SendAlgorithmInterface {
 
   // Called right before exiting STARTUP.
   void OnExitStartup(ProtoTime now);
-  TimeDelta GetDuration() const;
-  bool IsDelayCongestion() const;
   const RttStats* rtt_stats_;
   const UnackedPacketMap* unacked_packets_;
   Random* random_;
@@ -382,14 +391,22 @@ class BbrSender : public SendAlgorithmInterface {
 
   // Latched value of --quic_always_get_bw_sample_when_acked.
   const bool always_get_bw_sample_when_acked_;
-  TimeDelta state_hold_duration_{TimeDelta::FromMilliseconds(100)};
-  RttMonitor rtt_average_{TimeDelta::FromMilliseconds(100)};
   float shadow_gain_{1.0};
+// avoid excess queue at start up
+  void ResetMonitorRtt(){
+	  min_rtt_in_monitor_=min_rtt_in_monitor_;
+  }
+  void CaptureSendSeqWhenDrain(){
+	  send_seq_at_drain_=last_sent_packet_;
+  }
+  TimeDelta min_rtt_in_monitor_{TimeDelta::Infinite()};
+  QuicPacketNumber send_seq_at_drain_;
+  QueueMonitor backlog_monitor_;
 };
 
  std::ostream& operator<<(std::ostream& os,
-                                             const BbrSender::Mode& mode);
+                                             const BbrShadowSender::Mode& mode);
  std::ostream& operator<<(
     std::ostream& os,
-    const BbrSender::DebugState& state);
+    const BbrShadowSender::DebugState& state);
 }

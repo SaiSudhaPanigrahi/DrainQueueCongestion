@@ -31,11 +31,10 @@
 #include <stdarg.h>
 #include <errno.h>
 #endif
-
+#include "ns3_platform.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 typedef void* su_thread;
 typedef void* (*su_thread_fun)(void* data);
 typedef void* su_mutex;
@@ -97,9 +96,11 @@ int			su_addr_eq(su_addr* src, su_addr* dst);
 #define SU_MAX(a, b)		((a) > (b) ? (a) : (b))
 #define SU_MIN(a, b)		((a) < (b) ? (a) : (b))
 #define SU_ABS(a, b)		((a) > (b) ? ((a) - (b)) : ((b) - (a)))
-
-#define GET_SYS_MS()		(su_get_sys_time() / 1000)
-
+#if defined NS3_SIMULATION_CLOCK
+#define GET_SYS_MS() get_ns_clock_ms()
+#else
+#define GET_SYS_MS() (su_get_sys_time() / 1000)
+#endif
 #ifdef __cplusplus
 }
 #endif

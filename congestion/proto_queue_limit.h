@@ -1,27 +1,13 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// BBR (Bottleneck Bandwidth and RTT) congestion control algorithm.
-
-
-
-#include <cstdint>
-#include <ostream>
-
+#pragma once
 #include <ostream>
 #include "proto_send_algorithm_interface.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_windowed_filter.h"
 #include "logging.h"
-
-namespace dqc {
-
+namespace dqc{
 class RttStats;
-
 typedef uint64_t QuicRoundTripCount;
-
-// BbrSenderV0 implements BBR congestion control algorithm.  BBR aims to estimate
+// QueueLimitSender implements BBR congestion control algorithm.  BBR aims to estimate
 // the current available Bottleneck Bandwidth and RTT (hence the name), and
 // regulates the pacing rate and the size of the congestion window based on
 // those signals.
@@ -30,7 +16,7 @@ typedef uint64_t QuicRoundTripCount;
 // pacing is disabled.
 //
 // TODO(vasilvv): implement traffic policer (long-term sampling) mode.
-class BbrSenderV0 : public SendAlgorithmInterface {
+class QueueLimitSender : public SendAlgorithmInterface {
  public:
   enum Mode {
     // Startup phase of the connection.
@@ -51,17 +37,26 @@ class BbrSenderV0 : public SendAlgorithmInterface {
     NOT_IN_RECOVERY,
     // Allow an extra outstanding byte for each byte acknowledged.
     CONSERVATION,
-    // Allow 1.5 extra outstanding bytes for each byte acknowledged.
-    MEDIUM_GROWTH,
     // Allow two extra outstanding bytes for each byte acknowledged (slow
     // start).
     GROWTH
   };
-
-  // Debug state can be exported in order to troubleshoot potential congestion
+  class QueueMonitor{
+    public:
+        QueueMonitor();
+        void Reset();
+        void NewSample(ProtoTime now,TimeDelta sample,TimeDelta interval,Mode mode);
+        bool IsCongestion() const {return congestion_;}
+    private:
+        TimeDelta que_th_;
+        ProtoTime first_above_ts_;
+        uint32_t count_;
+        bool congestion_{false};
+  };
+ // Debug state can be exported in order to troubleshoot potential congestion
   // control issues.
   struct DebugState {
-    explicit DebugState(const BbrSenderV0& sender);
+    explicit DebugState(const QueueLimitSender& sender);
     DebugState(const DebugState& state);
 
     Mode mode;
@@ -84,26 +79,25 @@ class BbrSenderV0 : public SendAlgorithmInterface {
     QuicPacketNumber end_of_app_limited_phase;
   };
 
-  BbrSenderV0(ProtoTime now,const RttStats* rtt_stats,
+  QueueLimitSender(ProtoTime now,
+            const RttStats* rtt_stats,
             const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
-  ~BbrSenderV0() override;
-   bool ShouldSendProbingPacket() const override;
+  QueueLimitSender(const QueueLimitSender&) = delete;
+  QueueLimitSender& operator=(const QueueLimitSender&) = delete;
+  ~QueueLimitSender() override;
+
   // Start implementation of SendAlgorithmInterface.
   bool InSlowStart() const override;
   bool InRecovery() const override;
-  bool IsProbingForMoreBandwidth() const ;
+  bool ShouldSendProbingPacket() const override;
 
-  /*void SetFromConfig(const QuicConfig& config,
-                     Perspective perspective) override;
 
   void AdjustNetworkParameters(QuicBandwidth bandwidth,
-                               TimeDelta rtt) override;*/
-  void AdjustNetworkParameters(QuicBandwidth bandwidth,
-                                       TimeDelta rtt,
-                                       bool allow_cwnd_to_decrease) override{}
+                               TimeDelta rtt,
+                               bool allow_cwnd_to_decrease) override;
   void SetNumEmulatedConnections(int num_connections) override {}
   void SetInitialCongestionWindowInPackets(
       QuicPacketCount congestion_window) override;
@@ -131,6 +125,37 @@ class BbrSenderV0 : public SendAlgorithmInterface {
 
   // Gets the number of RTTs BBR remains in STARTUP phase.
   QuicRoundTripCount num_startup_rtts() const { return num_startup_rtts_; }
+  bool has_non_app_limited_sample() const {
+    return has_non_app_limited_sample_;
+  }
+
+  // Sets the pacing gain used in STARTUP.  Must be greater than 1.
+  void set_high_gain(float high_gain) {
+    DCHECK_LT(1.0f, high_gain);
+    high_gain_ = high_gain;
+    if (mode_ == STARTUP) {
+      pacing_gain_ = high_gain;
+    }
+  }
+
+  // Sets the CWND gain used in STARTUP.  Must be greater than 1.
+  void set_high_cwnd_gain(float high_cwnd_gain) {
+    DCHECK_LT(1.0f, high_cwnd_gain);
+    high_cwnd_gain_ = high_cwnd_gain;
+    if (mode_ == STARTUP) {
+      congestion_window_gain_ = high_cwnd_gain;
+    }
+  }
+
+  // Sets the gain used in DRAIN.  Must be less than 1.
+  void set_drain_gain(float drain_gain) {
+    DCHECK_GT(1.0f, drain_gain);
+    drain_gain_ = drain_gain;
+  }
+
+  // Returns the current estimate of the RTT of the connection.  Outside of the
+  // edge cases, this is minimum RTT.
+  TimeDelta GetMinRtt() const;
 
   DebugState ExportDebugState() const;
 
@@ -141,21 +166,12 @@ class BbrSenderV0 : public SendAlgorithmInterface {
                          QuicRoundTripCount>
       MaxBandwidthFilter;
 
-  typedef WindowedFilter<TimeDelta,
-                         MaxFilter<TimeDelta>,
-                         QuicRoundTripCount,
-                         QuicRoundTripCount>
-      MaxAckDelayFilter;
-
   typedef WindowedFilter<QuicByteCount,
                          MaxFilter<QuicByteCount>,
                          QuicRoundTripCount,
                          QuicRoundTripCount>
       MaxAckHeightFilter;
 
-  // Returns the current estimate of the RTT of the connection.  Outside of the
-  // edge cases, this is minimum RTT.
-  TimeDelta GetMinRtt() const;
   // Returns whether the connection has achieved full bandwidth required to exit
   // the slow start.
   bool IsAtFullBandwidth() const;
@@ -168,7 +184,7 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   bool ShouldExtendMinRttExpiry() const;
 
   // Enters the STARTUP mode.
-  void EnterStartupMode();
+  void EnterStartupMode(ProtoTime now);
   // Enters the PROBE_BW mode.
   void EnterProbeBandwidthMode(ProtoTime now);
 
@@ -202,17 +218,27 @@ class BbrSenderV0 : public SendAlgorithmInterface {
                            bool is_round_start);
 
   // Updates the ack aggregation max filter in bytes.
-  void UpdateAckAggregationBytes(ProtoTime ack_time,
-                                 QuicByteCount newly_acked_bytes);
+  // Returns the most recent addition to the filter, or |newly_acked_bytes| if
+  // nothing was fed in to the filter.
+  QuicByteCount UpdateAckAggregationBytes(ProtoTime ack_time,
+                                          QuicByteCount newly_acked_bytes);
 
   // Determines the appropriate pacing rate for the connection.
   void CalculatePacingRate();
   // Determines the appropriate congestion window for the connection.
-  void CalculateCongestionWindow(QuicByteCount bytes_acked);
-  // Determines the approriate window that constrains the in-flight during
+  void CalculateCongestionWindow(QuicByteCount bytes_acked,
+                                 QuicByteCount excess_acked);
+  // Determines the appropriate window that constrains the in-flight during
   // recovery.
   void CalculateRecoveryWindow(QuicByteCount bytes_acked,
                                QuicByteCount bytes_lost);
+
+  // Returns true if there are enough bytes in flight to ensure more bandwidth
+  // will be observed if present.
+  bool IsPipeSufficientlyFull() const;
+
+  // Called right before exiting STARTUP.
+  void OnExitStartup(ProtoTime now);
 
   const RttStats* rtt_stats_;
   const UnackedPacketMap* unacked_packets_;
@@ -222,7 +248,7 @@ class BbrSenderV0 : public SendAlgorithmInterface {
 
   // Bandwidth sampler provides BBR with the bandwidth measurements at
   // individual points.
-  std::unique_ptr<BandwidthSamplerInterface> sampler_;
+  BandwidthSampler sampler_;
 
   // The number of the round trips that have occurred during the connection.
   QuicRoundTripCount round_trip_count_;
@@ -244,14 +270,6 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   ProtoTime aggregation_epoch_start_time_;
   QuicByteCount aggregation_epoch_bytes_;
 
-  // The number of bytes acknowledged since the last time bytes in flight
-  // dropped below the target window.
-  QuicByteCount bytes_acked_since_queue_drained_;
-
-  // The muliplier for calculating the max amount of extra CWND to add to
-  // compensate for ack aggregation.
-  float max_aggregation_bytes_multiplier_;
-
   // Minimum RTT estimate.  Automatically expires within 10 seconds (and
   // triggers PROBE_RTT mode) if no new value is sampled during that period.
   TimeDelta min_rtt_;
@@ -270,6 +288,15 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   // The smallest value the |congestion_window_| can achieve.
   QuicByteCount min_congestion_window_;
 
+  // The pacing gain applied during the STARTUP phase.
+  float high_gain_;
+
+  // The CWND gain applied during the STARTUP phase.
+  float high_cwnd_gain_;
+
+  // The pacing gain applied during the DRAIN phase.
+  float drain_gain_;
+
   // The current pacing rate of the connection.
   QuicBandwidth pacing_rate_;
 
@@ -281,9 +308,6 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   // The gain used for the congestion window during PROBE_BW.  Latched from
   // quic_bbr_cwnd_gain flag.
   const float congestion_window_gain_constant_;
-  // The coefficient by which mean RTT variance is added to the congestion
-  // window.  Latched from quic_bbr_rtt_variation_weight flag.
-  const float rtt_variance_weight_;
   // The number of RTTs to stay in STARTUP mode.  Defaults to 3.
   QuicRoundTripCount num_startup_rtts_;
   // If true, exit startup if 1RTT has passed with no bandwidth increase and
@@ -316,6 +340,11 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   // Indicates whether the most recent bandwidth sample was marked as
   // app-limited.
   bool last_sample_is_app_limited_;
+  // Indicates whether any non app-limited samples have been recorded.
+  bool has_non_app_limited_sample_;
+  // Indicates app-limited calls should be ignored as long as there's
+  // enough data inflight to see more bandwidth when necessary.
+  bool flexible_app_limited_;
 
   // Current state of recovery.
   RecoveryState recovery_state_;
@@ -325,20 +354,28 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   QuicPacketNumber end_recovery_at_;
   // A window used to limit the number of bytes in flight during loss recovery.
   QuicByteCount recovery_window_;
-
-  // When true, recovery is rate based rather than congestion window based.
-  bool rate_based_recovery_;
+  // If true, consider all samples in recovery app-limited.
+  bool is_app_limited_recovery_;
 
   // When true, pace at 1.5x and disable packet conservation in STARTUP.
   bool slower_startup_;
   // When true, disables packet conservation in STARTUP.
   bool rate_based_startup_;
-  // Used as the initial packet conservation mode when first entering recovery.
-  RecoveryState initial_conservation_in_startup_;
+  // When non-zero, decreases the rate in STARTUP by the total number of bytes
+  // lost in STARTUP divided by CWND.
+  uint8_t startup_rate_reduction_multiplier_;
+  // Sum of bytes lost in STARTUP.
+  QuicByteCount startup_bytes_lost_;
+
+  // When true, add the most recent ack aggregation measurement during STARTUP.
+  bool enable_ack_aggregation_during_startup_;
+  // When true, expire the windowed ack aggregation values in STARTUP when
+  // bandwidth increases more than 25%.
+  bool expire_ack_aggregation_in_startup_;
 
   // If true, will not exit low gain mode until bytes_in_flight drops below BDP
   // or it's time for high gain mode.
-  bool fully_drain_queue_;
+  bool drain_to_target_;
 
   // If true, use a CWND of 0.75*BDP during probe_rtt instead of 4 packets.
   bool probe_rtt_based_on_bdp_;
@@ -353,13 +390,26 @@ class BbrSenderV0 : public SendAlgorithmInterface {
   bool app_limited_since_last_probe_rtt_;
   TimeDelta min_rtt_since_last_probe_rtt_;
 
+  // Latched value of --quic_always_get_bw_sample_when_acked.
+  const bool always_get_bw_sample_when_acked_;
+
+  //ad by zsy
+  void ResetMonitorRtt(){
+	  min_rtt_in_monitor_=TimeDelta::Infinite();
+  }
+  void CaptureSendSeqWhenDrain(){
+	  send_seq_at_drain_=last_sent_packet_;
+  }
+  QuicPacketNumber send_seq_at_drain_;
+  TimeDelta min_rtt_in_monitor_{TimeDelta::Infinite()};
+  int shadow_gain_{2};
+  bool drain_extra_buffer_{false};
+  QueueMonitor backlog_monitor_;
 };
 
-std::ostream& operator<<(std::ostream& os,
-                                             const BbrSenderV0::Mode& mode);
-std::ostream& operator<<(
+ std::ostream& operator<<(std::ostream& os,
+                                             const QueueLimitSender::Mode& mode);
+ std::ostream& operator<<(
     std::ostream& os,
-    const BbrSenderV0::DebugState& state);
-
-}  // namespace net
-
+    const QueueLimitSender::DebugState& state);
+}
