@@ -1,7 +1,7 @@
 #include "unacked_packet_map.h"
 #include "logging.h"
 namespace dqc{
-void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight)
+void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,HasRetransmittableData has_retrans)
 {
     if(!least_unacked_.IsInitialized()){
         least_unacked_=packet->number;
@@ -12,11 +12,12 @@ void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,P
         unacked_packets_.push_back(TransmissionInfo());
     }
     PacketLength bytes_sent=packet->len;
-    TransmissionInfo info(send_ts,bytes_sent);
-    if(set_flight){
-        bytes_in_flight_+=bytes_sent;
-        info.inflight=true;
+    if(has_retrans!=HAS_RETRANSMITTABLE_DATA){
+    	bytes_sent=0;
     }
+    TransmissionInfo info(send_ts,bytes_sent);
+    bytes_in_flight_+=bytes_sent;
+    info.inflight=true;
     unacked_packets_.push_back(info);
     unacked_packets_.back().retransble_frames.swap(packet->retransble_frames);
 }
@@ -61,7 +62,6 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
     if(!packets_acked.empty()){
         largest_newly_acked_=packets_acked.back().packet_number;
     }
-    generate_stop_waiting_=false;
     auto acked_it=packets_acked.begin();
     PacketNumber first_seq=acked_it->packet_number;
     DCHECK(first_seq>=least_unacked_);
@@ -72,8 +72,6 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
         if(info&&info->inflight&&(info->state==SPS_OUT)){
             packets_lost.emplace_back(i,info->bytes_sent);
             info->state=SPS_LOST;
-        }else{
-            generate_stop_waiting_=true;
         }
     }
     for(;acked_it!=packets_acked.end();acked_it++){
@@ -87,8 +85,6 @@ void UnackedPacketMap::InvokeLossDetection(AckedPacketVector &packets_acked,Lost
                 info=GetTransmissionInfo(i);
                 if(info&&info->inflight){
                     packets_lost.emplace_back(i,info->bytes_sent);
-                }else{
-                    generate_stop_waiting_=true;
                 }
             }
         }

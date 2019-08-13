@@ -37,7 +37,7 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionContr
     frame_encoder_.set_data_producer(this);
     //to decode ack frame;
     frame_decoder_.set_visitor(this);
-    sent_manager_.SetSendAlgorithm(cc);//kBBR_DELAY
+    sent_manager_.SetSendAlgorithm(cc);
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
 	std::unique_ptr<FastRetransDelegate>  fast_retrans_delegate(new FastRetransDelegate(this));
@@ -254,10 +254,19 @@ bool ProtoCon::SendRetransPending(TransType tt){
     bool packet_send=false;
     if(sent_manager_.HasPendingForRetrans()){
         PendingRetransmission pend=sent_manager_.NextPendingRetrans();
+        bool has_stream_to_retrans=false;
         for(auto frame_it=pend.retransble_frames.begin();
         frame_it!=pend.retransble_frames.end();frame_it++){
-            Retransmit(frame_it->stream_frame.stream_id,frame_it->stream_frame.offset,
-                       frame_it->stream_frame.len,frame_it->stream_frame.fin,tt);
+        	if(frame_it->type()==PROTO_FRAME_STREAM){
+        		const PacketStream &stream=frame_it->StreamInfo();
+        		has_stream_to_retrans=true;
+        		Retransmit(stream.stream_id,stream.offset,
+            			stream.len,stream.fin,tt);
+        	}
+        }
+        if(!has_stream_to_retrans){
+//TODO Send stop waiting frame only
+        	SendStopWaitingFrame();
         }
         packet_send=true;
     }
@@ -293,5 +302,26 @@ void ProtoCon::Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,Tr
     sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),HAS_RETRANSMITTABLE_DATA,clock_->Now());
     packet_writer_->SendTo(src,writer.length(),peer_);
     }
+}
+void ProtoCon::SendStopWaitingFrame(){
+    char src[1500];
+    memset(src,0,sizeof(src));
+    ProtoPacketHeader header;
+    PacketNumber seq=AllocSeq();
+    header.packet_number=seq;
+    basic::DataWriter writer(src,sizeof(src));
+    AppendPacketHeader(header,&writer);
+    PacketNumber unacked=sent_manager_.GetLeastUnacked();
+    DLOG(INFO)<<"only send stop waiting "<<seq<<" "<<unacked;
+    writer.WriteUInt8(PROTO_FRAME_STOP_WAITING);
+    frame_encoder_.AppendStopWaitingFrame(header,unacked,&writer);
+    ProtoFrame frame(PROTO_FRAME_STOP_WAITING);
+    SerializedPacket serialized;
+    serialized.number=header.packet_number;
+    serialized.buf=nullptr;//buf addr is not quite useful;
+    serialized.len=writer.length();
+    serialized.retransble_frames.push_back(frame);
+    sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),NO_RETRANSMITTABLE_DATA,clock_->Now());
+    packet_writer_->SendTo(src,writer.length(),peer_);
 }
 }//namespace dqc;

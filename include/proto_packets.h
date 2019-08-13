@@ -15,9 +15,22 @@ PacketLength len;
 bool fin;
 const char *data_buffer{nullptr};
 };
-struct ProtoFrame{
-explicit ProtoFrame(PacketStream frame):stream_frame(frame){
+class ProtoFrame{
+public:
+explicit ProtoFrame(PacketStream frame)
+:type_(PROTO_FRAME_STREAM)
+,stream_frame(frame){
 }
+explicit ProtoFrame(ProtoFrameType type)
+:type_(type){}
+ProtoFrameType type() const{
+	return type_;
+}
+const PacketStream& StreamInfo() const{
+	return stream_frame;
+}
+private:
+ProtoFrameType type_;
 PacketStream stream_frame;
 };
 typedef std::vector<ProtoFrame> ProtoFrames;
@@ -29,6 +42,7 @@ bool has_ack;
 bool has_stop_waitting;
 ProtoFrames retransble_frames;
 };
+bool HasStreamInRetransbleFrames(ProtoFrames &frame);
 struct TransmissionInfo{
 TransmissionInfo()
 :sent_time(ProtoTime::Zero()),bytes_sent(0),inflight(false),state(SPS_NERVER_SENT){}

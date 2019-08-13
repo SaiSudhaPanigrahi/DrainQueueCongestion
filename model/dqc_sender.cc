@@ -23,10 +23,19 @@ int FakePackeWriter::SendTo(const char*buf,size_t size,dqc::SocketAddress &dst){
 	m_sender->SendToNetwork(p);
 	return size;
 }
-DqcSender::DqcSender()
+/*kQueueLimit kShadow kBBRv2 kBBR kPOTEN kCubicBytes*/
+DqcSender::DqcSender():DqcSender(kBBR){}
+DqcSender::DqcSender(dqc::CongestionControlType cc_type)
 :m_writer(this)
 ,m_alarmFactory(new ProcessAlarmFactory(&m_timeDriver))
-,m_connection(&m_clock,m_alarmFactory.get(),kBBR/*kBBR kPOTEN kCubicBytes*/){}
+,m_connection(&m_clock,m_alarmFactory.get(), cc_type){}
+void DqcSender::SetBwTraceFuc(TraceBandwidth cb){
+	m_traceBwCb=cb;
+	if(m_traceBwCb.IsNull()){
+		NS_LOG_INFO("bw trace is null");
+		abort();
+	}
+}
 void DqcSender::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());

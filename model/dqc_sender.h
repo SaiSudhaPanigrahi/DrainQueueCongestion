@@ -29,15 +29,11 @@ class DqcSender: public Application,
 public dqc::ProtoStream::StreamCanWriteVisitor,
 public dqc::ProtoCon::TraceSentSeq{
 public:
-    DqcSender();
+	DqcSender();
+	DqcSender(dqc::CongestionControlType cc_type); 
     ~DqcSender(){}
 	typedef Callback<void,int32_t> TraceBandwidth;
-	void SetBwTraceFuc(TraceBandwidth cb){
-		m_traceBwCb=cb;
-		if(m_traceBwCb.IsNull()){
-			abort();
-		}
-	}
+	void SetBwTraceFuc(TraceBandwidth cb);
 	typedef Callback<void,int32_t> TraceSentSeq;
 	void SetSentSeqTraceFuc(TraceSentSeq cb){
 		m_traceSentSeqCb=cb;

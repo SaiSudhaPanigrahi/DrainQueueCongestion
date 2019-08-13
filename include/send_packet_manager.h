@@ -59,10 +59,6 @@ public:
     void OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
     AckResult OnAckEnd(ProtoTime ack_receive_time);
-    // in order to handle ack,stop_waiting frame lost;
-    bool should_send_stop_waiting(){
-        return unacked_packets_.should_send_stop_waiting();
-    }
     void MaybeInvokeCongestionEvent(bool rtt_updated,
                                   ByteCount prior_in_flight,
                                   ProtoTime event_time);

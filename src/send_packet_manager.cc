@@ -43,7 +43,7 @@ void SendPacketManager::SetSendAlgorithm(SendAlgorithmInterface* send_algorithm)
 }
 bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
                       HasRetransmittableData has_retrans,ProtoTime send_ts){
-    bool in_flight=(has_retrans==HAS_RETRANSMITTABLE_DATA);
+    //bool in_flight=(has_retrans==HAS_RETRANSMITTABLE_DATA);
     PacketNumber packet_number = packet->number;
     if(using_pacing_){
         pacing_sender_.OnPacketSent(send_ts,unacked_packets_.bytes_in_flight(),
@@ -52,7 +52,7 @@ bool SendPacketManager::OnSentPacket(SerializedPacket *packet,PacketNumber old,
         send_algorithm_->OnPacketSent(send_ts,unacked_packets_.bytes_in_flight(),
                                     packet_number,packet->len,has_retrans);
     }
-    unacked_packets_.AddSentPacket(packet,old,send_ts,in_flight);
+    unacked_packets_.AddSentPacket(packet,old,send_ts,has_retrans);
     return true;
 }
 const TimeDelta SendPacketManager::TimeUntilSend(ProtoTime now) const{
@@ -107,18 +107,22 @@ int SendPacketManager::DeliverPacketsToPendingQueue(int n){
     if(!seq.IsInitialized()){
         return delivered;
     }
-	int count=pendings_.size();
-	if(count>=n){
-		delivered=n;
-		return delivered;
-	}
+    int count=0;
+    for(auto it=pendings_.begin();it!=pendings_.end();it++){
+    	if(HasStreamInRetransbleFrames(it->second.retransble_frames)){
+    		count++;
+    		if(count>=n){
+    			delivered=n;
+    			return delivered;
+    		}
+    	}
+    }
     for(auto it=unacked_packets_.begin();it!=unacked_packets_.end();it++){
-        if(it->inflight&&(it->state==SPS_OUT)){
+        if(it->inflight&&(it->state==SPS_OUT)&&HasStreamInRetransbleFrames((*it).retransble_frames)){
             it->state=SPS_RETRANSED;
             PostToPending(seq,*it);
             count++;
 			if(count>=n){break;}
-            
         }
         seq++;
     }
@@ -171,9 +175,11 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
                 if(acked_observer_){
                     for(auto frame_it=info->retransble_frames.begin();
                     frame_it!=info->retransble_frames.end();frame_it++){
-                        acked_observer_->OnAckStream(frame_it->stream_frame.stream_id,
-                                                     frame_it->stream_frame.offset,
-                                                     frame_it->stream_frame.len);
+                    	if(frame_it->type()==PROTO_FRAME_STREAM){
+                    		const PacketStream &stream=frame_it->StreamInfo();
+                            acked_observer_->OnAckStream(stream.stream_id,
+                            		stream.offset,stream.len);
+                    	}
                     }
                 }
 			   it->bytes_acked=info->bytes_sent;
@@ -253,11 +259,6 @@ void SendPacketManager::Test(){
     if(HasPendingForRetrans()){
         DLOG(INFO)<<"has retrans "<<GetLeastUnacked();
     }
-    if(should_send_stop_waiting()){
-        DLOG(INFO)<<"should generate stop waiting "<<GetLeastUnacked();
-
-    }
-
 }
 void SendPacketManager::Test2(){
  if(HasPendingForRetrans()){
@@ -266,7 +267,11 @@ void SendPacketManager::Test2(){
         int len=pending.retransble_frames.size();
         StreamOffset off=0;
         if(len>0){
-            off=pending.retransble_frames.front().stream_frame.offset;
+        	ProtoFrameType type=pending.retransble_frames.front().type();
+        	if(type==PROTO_FRAME_STREAM){
+            	const PacketStream &stream=pending.retransble_frames.front().StreamInfo();
+                off=stream.offset;
+        	}
         }
         DLOG(INFO)<<len<<" "<<off;
         Retransmitted(pending.number);

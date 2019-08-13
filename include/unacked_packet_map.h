@@ -5,14 +5,9 @@
 namespace dqc{
 class UnackedPacketMap{
 public:
-    bool should_send_stop_waiting() {
-        bool ret=generate_stop_waiting_;
-        generate_stop_waiting_=false;
-        return ret;
-    }
       // Returns the sum of bytes from all packets in flight.
     ByteCount bytes_in_flight() const { return bytes_in_flight_; }
-    void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,bool set_flight);
+    void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,HasRetransmittableData has_retrans);
     TransmissionInfo *GetTransmissionInfo(PacketNumber seq);
     PacketNumber GetLeastUnacked() const{ return least_unacked_;}
     bool IsUnacked(PacketNumber seq);
@@ -33,7 +28,6 @@ private:
     DequeUnackedPacketMap unacked_packets_;
     PacketNumber least_unacked_;
     ByteCount bytes_in_flight_{0};
-    bool generate_stop_waiting_{false};
     PacketNumber  largest_newly_acked_;
 };
 }//namespace dqc;

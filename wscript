@@ -19,6 +19,7 @@ def build(bld):
     'model/thirdparty/src/proto_connection_stats.cc',
     'model/thirdparty/src/proto_error_codes.cc',
     'model/thirdparty/src/proto_framer.cc',
+    'model/thirdparty/src/proto_packets.cc',
     'model/thirdparty/src/proto_socket.cc',
     'model/thirdparty/src/proto_stream.cc',
     'model/thirdparty/src/proto_stream_sequencer.cc',

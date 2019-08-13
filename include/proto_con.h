@@ -71,6 +71,7 @@ private:
     int Send();
     bool SendRetransPending(TransType tt);
     void Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,TransType tt);
+    void SendStopWaitingFrame();
     ProtoClock *clock_{nullptr};
     std::map<uint32_t,ProtoStream*> streams_;
     std::deque<PacketStream> waiting_info_;
