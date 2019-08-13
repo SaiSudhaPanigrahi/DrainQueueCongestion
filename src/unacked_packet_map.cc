@@ -1,6 +1,8 @@
 #include "unacked_packet_map.h"
 #include "logging.h"
 namespace dqc{
+ByteCount  UnackedPacketMap::bytes_in_flight() const  { return bytes_in_flight_; }
+PacketNumber  UnackedPacketMap::GetLeastUnacked() const { return least_unacked_;}
 void UnackedPacketMap::AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,HasRetransmittableData has_retrans)
 {
     if(!least_unacked_.IsInitialized()){

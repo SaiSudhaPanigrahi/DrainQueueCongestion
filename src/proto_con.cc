@@ -34,6 +34,7 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionContr
 ,sent_manager_(clock,&con_stats_,this)
 ,alarm_factory_(alarm_factory)
 {
+	//pthread_mutex_init(&que_lock,NULL);
     frame_encoder_.set_data_producer(this);
     //to decode ack frame;
     frame_decoder_.set_visitor(this);
@@ -125,8 +126,8 @@ void ProtoCon::OnCanWrite(){
     }
 }
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
-
-    waiting_info_.emplace_back(id,offset,len,fin);
+    struct PacketStream info(id,offset,len,fin);
+    waiting_info_.push_back(info);
 }
 void ProtoCon::OnAckStream(uint32_t id,StreamOffset off,ByteCount len){
     ProtoStream *stream=GetStream(id);
@@ -223,6 +224,12 @@ int ProtoCon::Send(){
     if(waiting_info_.empty()){
         return 0;
     }
+	if(waiting_info_.size()==0){
+		std::cout<<"wait info bug"<<std::endl;
+		abort();
+	}
+	//std::cout<<"wait info size "<<waiting_info_.size()<<std::endl;
+	//quite none sense https://blog.csdn.net/chunyunzhe/article/details/79256973
     struct PacketStream info=waiting_info_.front();
     waiting_info_.pop_front();
     char src[1500];

@@ -36,6 +36,13 @@ void DqcSender::SetBwTraceFuc(TraceBandwidth cb){
 		abort();
 	}
 }
+void DqcSender::SetSentSeqTraceFuc(TraceSentSeq cb){
+	m_traceSentSeqCb=cb;
+	if(m_traceSentSeqCb.IsNull()){
+		NS_LOG_INFO("bw trace is null");
+		abort();
+	}
+}
 void DqcSender::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());
@@ -118,6 +125,12 @@ void DqcSender::SendToNetwork(Ptr<Packet> p){
 		//NS_LOG_INFO("bw "<<std::to_string((int32_t)send_bw.ToKBitsPerSecond()));
 	}
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
+}
+void DqcSender::OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) {
+	if(!m_traceSentSeqCb.IsNull()){
+		int32_t sent=(int32_t)seq.ToUint64();
+		m_traceSentSeqCb(sent);
+	}
 }
 void DqcSender::Process(){
     if(m_processTimer.IsExpired()){

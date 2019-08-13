@@ -1,9 +1,7 @@
 #include "proto_send_algorithm_interface.h"
 #include "rtt_stats.h"
 #include "proto_bbr_sender.h"
-#include "proto_bbr_sender_old.h"
 #include "proto_queue_limit.h"
-#include "pcc_sender.h"
 #include "proto_delay_bbr_sender.h"
 #include "proto_potential_sender.h"
 #include "tcp_cubic_sender_bytes.h"
@@ -13,7 +11,7 @@ namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
         const RttStats *rtt_stats,
-        const UnackedPacketMap* unacked_packets,
+        const UnackedPacketMapInfoInterface* unacked_packets,
         CongestionControlType type,
         Random *random,
 		QuicConnectionStats* stats,
@@ -63,14 +61,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                max_congestion_window,
                                random);
         }
-        case kBBR_OLD:{
-            return new BbrSenderOld(clock->Now(),
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               random);
-        }
         case kBBR:{
             return new BbrSender(clock->Now(),
                                rtt_stats,
@@ -80,15 +70,7 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                random
                                );
         }
-        case kPCC:{
-            return new PccSender(clock->Now(),
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               random
-                               );
-        }
+	/*
         case kPOTEN:{
             return new PotentialSender(clock->Now(),
                                rtt_stats,
@@ -97,7 +79,7 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                max_congestion_window,
                                random
                                );
-        }
+        }*/
         case kBBRv2:{
             return new Bbr2Sender(clock->Now(),
                                rtt_stats,

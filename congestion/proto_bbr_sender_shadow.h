@@ -82,7 +82,7 @@ class BbrShadowSender : public SendAlgorithmInterface {
 
   BbrShadowSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMap* unacked_packets,
+            const UnackedPacketMapInfoInterface* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
@@ -241,7 +241,7 @@ class BbrShadowSender : public SendAlgorithmInterface {
   // Called right before exiting STARTUP.
   void OnExitStartup(ProtoTime now);
   const RttStats* rtt_stats_;
-  const UnackedPacketMap* unacked_packets_;
+  const UnackedPacketMapInfoInterface* unacked_packets_;
   Random* random_;
 
   Mode mode_;

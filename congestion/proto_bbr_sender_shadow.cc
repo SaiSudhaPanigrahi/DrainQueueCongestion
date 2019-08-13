@@ -110,7 +110,7 @@ void BbrShadowSender::QueueMonitor::NewSample(ProtoTime now,TimeDelta sample,
 }
 BbrShadowSender::BbrShadowSender(ProtoTime now,
                      const RttStats* rtt_stats,
-                     const UnackedPacketMap* unacked_packets,
+                     const UnackedPacketMapInfoInterface* unacked_packets,
                      QuicPacketCount initial_tcp_congestion_window,
                      QuicPacketCount max_tcp_congestion_window,
                      Random* random)

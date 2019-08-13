@@ -35,9 +35,7 @@ public:
 	typedef Callback<void,int32_t> TraceBandwidth;
 	void SetBwTraceFuc(TraceBandwidth cb);
 	typedef Callback<void,int32_t> TraceSentSeq;
-	void SetSentSeqTraceFuc(TraceSentSeq cb){
-		m_traceSentSeqCb=cb;
-	}	
+	void SetSentSeqTraceFuc(TraceSentSeq cb);	
 	void Bind(uint16_t port);
 	InetSocketAddress GetLocalAddress();
 	void ConfigurePeer(Ipv4Address addr,uint16_t port);    
@@ -45,13 +43,9 @@ public:
 		DataGenerator(2);
 	}
 	void SendToNetwork(Ptr<Packet> p);
-	void OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) override{
-		if(!m_traceSentSeqCb.IsNull()){
-			int32_t sent=(int32_t)seq.ToUint64();
-			m_traceSentSeqCb(sent);
-		}
-	}
+	void OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) override;
 private:
+    
 	void DataGenerator(int times);
 	virtual void StartApplication() override;
 	virtual void StopApplication() override;

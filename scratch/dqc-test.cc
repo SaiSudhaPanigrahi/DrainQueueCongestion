@@ -47,16 +47,16 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     TrafficControlHelper tch;
     tch.Uninstall (devices);
 
-	std::string errorModelType = "ns3::RateErrorModel";
+	/*std::string errorModelType = "ns3::RateErrorModel";
   	ObjectFactory factory;
   	factory.SetTypeId (errorModelType);
   	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
-	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
+	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));*/
 
 
     return nodes;
 }
-static void InstallDqc(
+static void InstallDqc(  dqc::CongestionControlType cc_type,
                          Ptr<Node> sender,
                          Ptr<Node> receiver,
 						 uint16_t send_port,
@@ -66,7 +66,7 @@ static void InstallDqc(
 						 DqcTrace *trace
 )
 {
-    Ptr<DqcSender> sendApp = CreateObject<DqcSender> ();
+    Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
     //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
@@ -101,58 +101,62 @@ int main(int argc, char *argv[]){
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
-	LogComponentEnable("delay_bbr_sender",LOG_LEVEL_ALL);
+	LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
+    LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
-	LogComponentEnable("BBR_OLD",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
 	CommandLine cmd;
-    std::string instance=std::string("1");
+    std::string instance=std::string("2");
     cmd.AddValue ("it", "instacne", instance);
     cmd.Parse (argc, argv);
     if(instance==std::string("1")){
         linkBw=3000000;
-        msDelay=100;
-        msQDelay=300;
+        msDelay=20;
+        msQDelay=40;
     }else if(instance==std::string("2")){
         linkBw=3000000;
         msDelay=100;
-        msQDelay=400;        
+        msQDelay=300;        
     }else if(instance==std::string("3")){
-        linkBw=3000000;
-        msDelay=100;
-        msQDelay=600;        
+        linkBw=4000000;
+        msDelay=20;
+        msQDelay=60;        
     }else if(instance==std::string("4")){
         linkBw=4000000;
         msDelay=100;
         msQDelay=300;        
     }else if(instance==std::string("5")){
-        linkBw=4000000;
-        msDelay=100;
-        msQDelay=400;        
+        linkBw=5000000;
+        msDelay=30;
+        msQDelay=60;        
     }else if(instance==std::string("6")){
-        linkBw=4000000;
-        msDelay=100;
-        msQDelay=600;        
+        linkBw=5000000;
+        msDelay=50;
+        msQDelay=150;        
     }else if(instance==std::string("7")){
-        linkBw=5000000;
-        msDelay=100;
-        msQDelay=300;        
+        linkBw=6000000;
+        msDelay=40;
+        msQDelay=100;        
     }else if(instance==std::string("8")){
-        linkBw=5000000;
-        msDelay=100;
-        msQDelay=400;        
-    }else if(instance==std::string("9")){
-        linkBw=5000000;
-        msDelay=100;
-        msQDelay=600;        
-    }else if(instance==std::string("10")){
-        linkBw=10000000;
+        linkBw=6000000;
         msDelay=100;
         msQDelay=300;        
+    }else if(instance==std::string("9")){
+        linkBw=7000000;
+        msDelay=30;
+        msQDelay=90;        
+    }else if(instance==std::string("10")){
+        linkBw=7000000;
+        msDelay=40;
+        msQDelay=100;        
+    }else if(instance==std::string("11")){
+        linkBw=9000000;
+        msDelay=50;
+        msQDelay=150;        
     }
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;
@@ -160,18 +164,18 @@ int main(int argc, char *argv[]){
 	std::string log=instance+"_dqc_"+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
+	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
 	DqcTrace trace2;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
+	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
 
 	DqcTrace trace3;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3);
+	InstallDqc(kCubicBytes,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

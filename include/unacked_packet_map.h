@@ -3,13 +3,21 @@
 #include "proto_time.h"
 #include <deque>
 namespace dqc{
-class UnackedPacketMap{
+class UnackedPacketMapInfoInterface{
+public:
+    virtual PacketNumber GetLeastUnacked() const=0;
+    virtual ByteCount bytes_in_flight() const=0;
+    virtual ~UnackedPacketMapInfoInterface(){}
+};
+class UnackedPacketMap:public  UnackedPacketMapInfoInterface{
 public:
       // Returns the sum of bytes from all packets in flight.
-    ByteCount bytes_in_flight() const { return bytes_in_flight_; }
+    ~UnackedPacketMap(){}
+    ByteCount bytes_in_flight() const override;
+    PacketNumber GetLeastUnacked() const override;
     void AddSentPacket(SerializedPacket *packet,PacketNumber old,ProtoTime send_ts,HasRetransmittableData has_retrans);
     TransmissionInfo *GetTransmissionInfo(PacketNumber seq);
-    PacketNumber GetLeastUnacked() const{ return least_unacked_;}
+    
     bool IsUnacked(PacketNumber seq);
     ProtoTime GetLastPacketSentTime() const;
     void InvokeLossDetection(AckedPacketVector &packets_acked,LostPacketVector &packets_lost);
