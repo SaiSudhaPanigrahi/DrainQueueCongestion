@@ -43,8 +43,6 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionContr
     send_alarm_=alarm_factory_->CreateAlarm(std::move(send_delegate));
 	std::unique_ptr<FastRetransDelegate>  fast_retrans_delegate(new FastRetransDelegate(this));
 	fast_retrans_alarm_=alarm_factory_->CreateAlarm(std::move(fast_retrans_delegate));
-    //QuicBandwidth max_rate(QuicBandwidth::FromKBitsPerSecond(200));
-    //sent_manager_.SetMaxPacingRate(max_rate);
 }
 ProtoCon::~ProtoCon(){
     ProtoStream *stream=nullptr;
@@ -54,6 +52,10 @@ ProtoCon::~ProtoCon(){
         streams_.erase(it);
         delete stream;
     }
+}
+void ProtoCon::SetMaxBandwidth(uint32_t bps){
+    QuicBandwidth max_rate(QuicBandwidth::FromBitsPerSecond(bps));
+    sent_manager_.SetMaxPacingRate(max_rate);
 }
 void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
                           const ProtoReceivedPacket& packet){

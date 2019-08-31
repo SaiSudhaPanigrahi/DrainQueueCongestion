@@ -22,8 +22,7 @@ SendPacketManager::SendPacketManager(ProtoClock *clock,QuicConnectionStats* stat
 ,acked_observer_(acked_observer)
 ,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){
     DCHECK(clock_);
-    uint32_t seed=TimeMillis();
-    rand_.seed(seed);
+    rand_.seedTime();
 }
 SendPacketManager::~SendPacketManager(){
 }

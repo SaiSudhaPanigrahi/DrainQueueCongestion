@@ -105,7 +105,7 @@ enum AckResult {
 // QUIC. Note that this is separate from the congestion feedback type -
 // some congestion control algorithms may use the same feedback type
 // (Reno and Cubic are the classic example for that).
-enum CongestionControlType { kCubicBytes, kRenoBytes,kBBR_DELAY,kQueueLimit,kShadow,kBBR_OLD, kBBR, kPCC, kGoogCC,kPOTEN,kBBRv2};
+enum CongestionControlType { kCubicBytes, kRenoBytes,kBBR_DELAY,kQueueLimit,kShadow, kBBR,kBBRPlus,kTsunami,kHighSpeedRail,kGoogCC,kPOTEN,kBBRv2};
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
 ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq);

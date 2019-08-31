@@ -126,7 +126,7 @@ BbrSender::BbrSender(ProtoTime now,
       startup_bytes_lost_(0),
       enable_ack_aggregation_during_startup_(false),
       expire_ack_aggregation_in_startup_(false),
-      drain_to_target_(false),
+      drain_to_target_(true),
       probe_rtt_based_on_bdp_(false),
       probe_rtt_skipped_if_similar_rtt_(false),
       probe_rtt_disabled_if_app_limited_(false),
@@ -187,8 +187,7 @@ QuicBandwidth BbrSender::PacingRate(QuicByteCount bytes_in_flight) const {
     return high_gain_ * QuicBandwidth::FromBytesAndTimeDelta(
                             initial_congestion_window_, GetMinRtt());
   }
-  float factor=(float(100-kPacingMarginPercent))/100;
-  return pacing_rate_*factor;
+  return pacing_rate_;
 }
 
 QuicBandwidth BbrSender::BandwidthEstimate() const {

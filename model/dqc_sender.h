@@ -32,6 +32,7 @@ public:
 	DqcSender();
 	DqcSender(dqc::CongestionControlType cc_type); 
     ~DqcSender(){}
+    void SetMaxBandwidth(uint32_t bps);
 	typedef Callback<void,int32_t> TraceBandwidth;
 	void SetBwTraceFuc(TraceBandwidth cb);
 	typedef Callback<void,int32_t> TraceSentSeq;

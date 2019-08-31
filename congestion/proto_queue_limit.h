@@ -52,6 +52,7 @@ class QueueLimitSender : public SendAlgorithmInterface {
         ProtoTime first_above_ts_;
         uint32_t count_;
         bool congestion_{false};
+        TimeDelta T_{TimeDelta::Zero()};
   };
  // Debug state can be exported in order to troubleshoot potential congestion
   // control issues.
@@ -405,6 +406,10 @@ class QueueLimitSender : public SendAlgorithmInterface {
   int shadow_gain_{2};
   bool drain_extra_buffer_{false};
   QueueMonitor backlog_monitor_;
+  int64_t drain_target_window_{-1};
+  QuicBandwidth bw_es_when_drain_{QuicBandwidth::Zero()};
+  int id_{0};
+  ProtoTime drain_cutoff_{ProtoTime::Zero()};
 };
 
  std::ostream& operator<<(std::ostream& os,

@@ -36,6 +36,9 @@ void DqcSender::SetBwTraceFuc(TraceBandwidth cb){
 		abort();
 	}
 }
+void DqcSender::SetMaxBandwidth(uint32_t bps){
+    m_connection.SetMaxBandwidth(bps);
+}
 void DqcSender::SetSentSeqTraceFuc(TraceSentSeq cb){
 	m_traceSentSeqCb=cb;
 	if(m_traceSentSeqCb.IsNull()){
@@ -101,7 +104,7 @@ void DqcSender::StartApplication(){
 	m_processTimer=Simulator::ScheduleNow(&DqcSender::Process,this);
 }
 void DqcSender::StopApplication(){
-	
+	m_processTimer.Cancel();
 }
 void DqcSender::RecvPacket(Ptr<Socket> socket){
 	Address remoteAddr;

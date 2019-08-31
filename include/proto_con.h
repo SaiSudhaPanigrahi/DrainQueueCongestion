@@ -21,6 +21,7 @@ public:
     virtual void OnSent(PacketNumber seq,ProtoTime sent_ts){};
 };
     void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
+    void SetMaxBandwidth(uint32_t bps);
     ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionControlType cc);
     ~ProtoCon();
     QuicBandwidth EstimatedBandwidth() const{

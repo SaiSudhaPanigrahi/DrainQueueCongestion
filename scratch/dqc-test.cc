@@ -56,14 +56,15 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
 
     return nodes;
 }
-static void InstallDqc(  dqc::CongestionControlType cc_type,
-                         Ptr<Node> sender,
-                         Ptr<Node> receiver,
-						 uint16_t send_port,
-                         uint16_t recv_port,
-                         float startTime,
-                         float stopTime,
-						 DqcTrace *trace
+static void InstallDqc( dqc::CongestionControlType cc_type,
+                        Ptr<Node> sender,
+                        Ptr<Node> receiver,
+						uint16_t send_port,
+                        uint16_t recv_port,
+                        float startTime,
+                        float stopTime,
+						DqcTrace *trace,
+                        uint32_t max_bps=0
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
@@ -80,11 +81,42 @@ static void InstallDqc(  dqc::CongestionControlType cc_type,
     sendApp->SetStopTime (Seconds (stopTime));
     recvApp->SetStartTime (Seconds (startTime));
     recvApp->SetStopTime (Seconds (stopTime));
+    if(max_bps>0){
+        sendApp->SetMaxBandwidth(max_bps);
+    }
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
 		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
+}
+static void InstallTcp(
+                         Ptr<Node> sender,
+                         Ptr<Node> receiver,
+                         uint16_t port,
+                         float startTime,
+                         float stopTime
+)
+{
+    // configure TCP source/sender/client
+    auto serverAddr = receiver->GetObject<Ipv4> ()->GetAddress (1,0).GetLocal ();
+    BulkSendHelper source{"ns3::TcpSocketFactory",
+                           InetSocketAddress{serverAddr, port}};
+    // Set the amount of data to send in bytes. Zero is unlimited.
+    source.SetAttribute ("MaxBytes", UintegerValue (0));
+    source.SetAttribute ("SendSize", UintegerValue (DEFAULT_PACKET_SIZE));
+
+    auto clientApps = source.Install (sender);
+    clientApps.Start (Seconds (startTime));
+    clientApps.Stop (Seconds (stopTime));
+
+    // configure TCP sink/receiver/server
+    PacketSinkHelper sink{"ns3::TcpSocketFactory",
+                           InetSocketAddress{Ipv4Address::GetAny (), port}};
+    auto serverApps = sink.Install (receiver);
+    serverApps.Start (Seconds (startTime));
+    serverApps.Stop (Seconds (stopTime));	
+	
 }
 static double simDuration=300;
 uint16_t sendPort=5432;
@@ -101,7 +133,7 @@ int main(int argc, char *argv[]){
     std::ios::openmode filemode=std::ios_base::out;
     GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
-	LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
+	//LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
@@ -109,52 +141,61 @@ int main(int argc, char *argv[]){
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
+    uint32_t max_bps=6000000;
 	CommandLine cmd;
-    std::string instance=std::string("2");
+    std::string instance=std::string("10");
     cmd.AddValue ("it", "instacne", instance);
     cmd.Parse (argc, argv);
     if(instance==std::string("1")){
         linkBw=3000000;
-        msDelay=20;
-        msQDelay=40;
+        msDelay=50;
+        msQDelay=100;
     }else if(instance==std::string("2")){
         linkBw=3000000;
-        msDelay=100;
-        msQDelay=300;        
+        msDelay=50;
+        msQDelay=200;        
     }else if(instance==std::string("3")){
         linkBw=4000000;
-        msDelay=20;
-        msQDelay=60;        
+        msDelay=50;
+        msQDelay=100;
     }else if(instance==std::string("4")){
         linkBw=4000000;
+        msDelay=50;
+        msQDelay=200;        
+    }else if(instance==std::string("5")){
+        linkBw=6000000;
+        msDelay=50;
+        msQDelay=200;        
+    }else if(instance==std::string("6")){
+        linkBw=6000000;
         msDelay=100;
         msQDelay=300;        
-    }else if(instance==std::string("5")){
-        linkBw=5000000;
-        msDelay=30;
-        msQDelay=60;        
-    }else if(instance==std::string("6")){
-        linkBw=5000000;
-        msDelay=50;
-        msQDelay=150;        
     }else if(instance==std::string("7")){
-        linkBw=6000000;
-        msDelay=40;
-        msQDelay=100;        
+        linkBw=8000000;
+        msDelay=100;
+        msQDelay=200;        
     }else if(instance==std::string("8")){
-        linkBw=6000000;
+        linkBw=8000000;
         msDelay=100;
         msQDelay=300;        
     }else if(instance==std::string("9")){
-        linkBw=7000000;
-        msDelay=30;
-        msQDelay=90;        
-    }else if(instance==std::string("10")){
-        linkBw=7000000;
-        msDelay=40;
+        linkBw=10000000;
+        msDelay=50;
         msQDelay=100;        
+    }else if(instance==std::string("10")){
+        linkBw=10000000;
+        msDelay=50;
+        msQDelay=150;        
     }else if(instance==std::string("11")){
-        linkBw=9000000;
+        linkBw=12000000;
+        msDelay=100;
+        msQDelay=200;        
+    }else if(instance==std::string("12")){
+        linkBw=12000000;
+        msDelay=100;
+        msQDelay=300;        
+    }else if(instance==std::string("13")){
+        linkBw=15000000;
         msDelay=50;
         msQDelay=150;        
     }
@@ -164,18 +205,18 @@ int main(int argc, char *argv[]){
 	std::string log=instance+"_dqc_"+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1);
+	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
 	DqcTrace trace2;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2);
+	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kCubicBytes,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3);
+	InstallDqc(kHighSpeedRail/*kRenoBytes kQueueLimit kCubicBytes kBBRPlus kTsunami kHighSpeedRail*/,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

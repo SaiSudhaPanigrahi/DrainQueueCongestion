@@ -61,7 +61,7 @@ const float kSimilarMinRttThreshold = 1.125;
 const TimeDelta kMaxQueueBacklog=TimeDelta::FromMilliseconds(10);//if above,in congestion status;
 }  // namespace
 
-static int DQC_COUNT=0;
+
 QueueLimitSender::DebugState::DebugState(const QueueLimitSender& sender)
     : mode(sender.mode_),
       max_bandwidth(sender.max_bandwidth_.GetBest()),
@@ -177,8 +177,6 @@ QueueLimitSender::QueueLimitSender(ProtoTime now,
     stats_->slowstart_start_time = QuicTime::Zero();
   }*/
   backlog_monitor_.Reset();
-  DQC_COUNT++;
-  id_=DQC_COUNT;
   EnterStartupMode(now);
 }
 
@@ -335,9 +333,9 @@ void QueueLimitSender::OnCongestionEvent(bool /*rtt_updated*/,
                                   ProtoTime event_time,
                                   const AckedPacketVector& acked_packets,
                                   const LostPacketVector& lost_packets) {
- /*if((mode_== PROBE_BW)&&(shadow_gain_==1)&&drain_extra_buffer_){
+  /*if((mode_== PROBE_BW)&&(shadow_gain_==1)&&drain_extra_buffer_){
       CaptureSendSeqWhenDrain();
-  }*/                            
+  }*/                                  
   const QuicByteCount total_bytes_acked_before = sampler_.total_bytes_acked();
 
   bool is_round_start = false;
@@ -360,34 +358,22 @@ void QueueLimitSender::OnCongestionEvent(bool /*rtt_updated*/,
   }
 
   // Handle logic specific to PROBE_BW mode.
-  if (mode_== PROBE_BW) {
+  if (mode_==PROBE_BW){
 	if((pacing_gain_<kPacingGain[0])&&backlog_monitor_.IsCongestion()&&!drain_extra_buffer_){
-		ResetMonitorRtt();
 		backlog_monitor_.Reset();
 		CaptureSendSeqWhenDrain();
         drain_target_window_=GetTargetCongestionWindow(1.0);
 		drain_extra_buffer_=true;
-		shadow_gain_=1;
-		uint32_t seq=send_seq_at_drain_.ToUint64();
-		NS_LOG_INFO("in congestion "<<id_<<" "<<seq);
-        //bw_es_when_drain_=max_bandwidth_.GetBest();	
+		shadow_gain_=1;	
     }
-    /*if((shadow_gain_==1)&&drain_extra_buffer_){
+    if((shadow_gain_==1)&&drain_extra_buffer_){
         const QuicByteCount bytes_in_flight = unacked_packets_->bytes_in_flight();
-        //max_bandwidth_.Update(bw_es_when_drain_, round_trip_count_);
         if(bytes_in_flight<=drain_target_window_){
             shadow_gain_=2;
             drain_extra_buffer_=false;
             drain_target_window_=-1;
-			drain_cutoff_=ProtoTime::Zero();
-			NS_LOG_INFO("leave congestion "<<id_<<" "<<last_sent_packet_);
-        }
-		if(drain_cutoff_!=ProtoTime::Zero()){
-			if(event_time>drain_cutoff_){
-				
-			}
-		}      
-    }*/
+        }        
+    }
     UpdateGainCyclePhase(event_time, prior_in_flight, !lost_packets.empty());
   }
 
@@ -399,6 +385,7 @@ void QueueLimitSender::OnCongestionEvent(bool /*rtt_updated*/,
 
   // Handle logic specific to PROBE_RTT.
   MaybeEnterOrExitProbeRtt(event_time, is_round_start, min_rtt_expired);
+
   // Calculate number of packets acked and lost.
   QuicByteCount bytes_acked =
       sampler_.total_bytes_acked() - total_bytes_acked_before;
@@ -451,12 +438,10 @@ void QueueLimitSender::EnterStartupMode(ProtoTime now) {
 }
 
 void QueueLimitSender::EnterProbeBandwidthMode(ProtoTime now) {
-  ResetMonitorRtt();
   backlog_monitor_.Reset();
   shadow_gain_=2;
   drain_extra_buffer_=false;
   mode_ = PROBE_BW;
-  
   congestion_window_gain_ = congestion_window_gain_constant_;
 
   // Pick a random offset for the gain cycle out of {0, 2..7} range. 1 is
@@ -529,10 +514,7 @@ bool QueueLimitSender::UpdateBandwidthAndMinRtt(
 
     if (!bandwidth_sample.state_at_send.is_app_limited ||
         bandwidth_sample.bandwidth > BandwidthEstimate()) {
-	{
-        max_bandwidth_.Update(bandwidth_sample.bandwidth, round_trip_count_);
-    }
-    
+      max_bandwidth_.Update(bandwidth_sample.bandwidth, round_trip_count_);
     }
   }
 
@@ -543,17 +525,13 @@ bool QueueLimitSender::UpdateBandwidthAndMinRtt(
   //add by zsy;
   if(send_seq_at_drain_.IsInitialized()){
 	  if(seq>send_seq_at_drain_){
-		if(sample_min_rtt<min_rtt_in_monitor_){
+        if(sample_min_rtt<min_rtt_in_monitor_){
 			backlog_monitor_.Reset();
 		}
 		min_rtt_in_monitor_=std::min(min_rtt_in_monitor_,sample_min_rtt);
-        if((shadow_gain_==1)&&drain_extra_buffer_){
+        if(shadow_gain_==1&&drain_extra_buffer_){
 		ResetMonitorRtt();
 		backlog_monitor_.Reset();
-        //shadow_gain_=2;
-        //drain_extra_buffer_=false;
-        //drain_target_window_=-1;
-		//NS_LOG_INFO(id_<<" leave congestion "<<last_sent_packet_);
         }
 	  }else{
 		  ResetMonitorRtt();
@@ -565,7 +543,7 @@ bool QueueLimitSender::UpdateBandwidthAndMinRtt(
   if(!min_rtt_in_monitor_.IsInfinite()){
 	  CHECK(sample_min_rtt>=min_rtt_in_monitor_);
 	  TimeDelta que=sample_min_rtt-min_rtt_in_monitor_;
-	  backlog_monitor_.NewSample(now,que,2*GetMinRtt(),mode_);
+	  backlog_monitor_.NewSample(now,que,4*GetMinRtt(),mode_);
   }
   min_rtt_since_last_probe_rtt_ =
       std::min(min_rtt_since_last_probe_rtt_, sample_min_rtt);
@@ -636,12 +614,12 @@ void QueueLimitSender::UpdateGainCyclePhase(ProtoTime now,
     should_advance_gain_cycling = true;
   }
   //add by zsy
-  if((shadow_gain_==1)&&bytes_in_flight <= GetTargetCongestionWindow(1)){
+  /*if((shadow_gain_==1)&&bytes_in_flight <= GetTargetCongestionWindow(1)){
 	  should_advance_gain_cycling = true;
-  }
+  }*/
   if (should_advance_gain_cycling) {
-//    cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
-//    last_cycle_start_ = now;
+    cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
+    last_cycle_start_ = now;
     // Stay in low gain mode until the target BDP is hit.
     // Low gain mode will be exited immediately when the target BDP is achieved.
     if (drain_to_target_ && pacing_gain_ < 1 &&
@@ -649,22 +627,13 @@ void QueueLimitSender::UpdateGainCyclePhase(ProtoTime now,
         bytes_in_flight > GetTargetCongestionWindow(1)) {
       return;
     }
-    if((shadow_gain_==1)&&drain_extra_buffer_&&(bytes_in_flight>drain_target_window_)){
-		//NS_LOG_INFO(id_<<" byte "<<bytes_in_flight<<" "<<GetTargetCongestionWindow(1)
-		//<<" "<<drain_target_window_<<" "<<last_sent_packet_);
+    /*if((shadow_gain_==1)&&bytes_in_flight > GetTargetCongestionWindow(1)){
     	return;
     }else{
-		if((shadow_gain_==1)&&drain_extra_buffer_&&(bytes_in_flight<=drain_target_window_)){
     	shadow_gain_=2;
     	drain_extra_buffer_=false;
-		drain_target_window_=-1;
-		ResetMonitorRtt();
-		backlog_monitor_.Reset();
-        NS_LOG_INFO("leave congestion "<<id_<<" "<<last_sent_packet_);
-		}
-    }
-    cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
-    last_cycle_start_ = now;
+        //NS_LOG_INFO("leave congestion drain");
+    }*/
     pacing_gain_ = kPacingGain[cycle_current_offset_];
   }
 }
@@ -697,7 +666,6 @@ void QueueLimitSender::MaybeExitStartupOrDrain(ProtoTime now) {
 	bool congestion=backlog_monitor_.IsCongestion();
 	if (mode_ == STARTUP && (is_at_full_bandwidth_||congestion)) {
 	if(congestion){
-		backlog_monitor_.Reset();
 		is_at_full_bandwidth_=true;
 	}
 	OnExitStartup(now);
@@ -707,9 +675,6 @@ void QueueLimitSender::MaybeExitStartupOrDrain(ProtoTime now) {
   }
   if (mode_ == DRAIN &&
       unacked_packets_->bytes_in_flight() <= GetTargetCongestionWindow(1)) {
-	  ResetMonitorRtt();
-	  backlog_monitor_.Reset();
-	  NS_LOG_INFO("leave drain "<<id_<<" "<<last_sent_packet_);
 	  EnterProbeBandwidthMode(now);
   }
 }
@@ -741,15 +706,11 @@ void QueueLimitSender::MaybeEnterOrExitProbeRtt(ProtoTime now,
   }
 
   if (mode_ == PROBE_RTT) {
-    if(shadow_gain_==1&&drain_extra_buffer_){
     shadow_gain_=2;
     drain_extra_buffer_=false;
     ResetMonitorRtt();
     backlog_monitor_.Reset();
     drain_target_window_=-1;
-	NS_LOG_INFO("leve congestion in probe rtt"<<id_);
-	}
-
     sampler_.OnAppLimited();
     if (exit_probe_rtt_at_ == ProtoTime::Zero()) {
       // If the window has reached the appropriate size, schedule exiting
@@ -853,13 +814,16 @@ QuicByteCount QueueLimitSender::UpdateAckAggregationBytes(
                          round_trip_count_);
   return aggregation_epoch_bytes_ - expected_bytes_acked;
 }
-
+const float kDrainGain=0.75;
 void QueueLimitSender::CalculatePacingRate() {
   if (BandwidthEstimate().IsZero()) {
     return;
   }
 
   QuicBandwidth target_rate = pacing_gain_ * BandwidthEstimate();
+  if((mode_==PROBE_BW)&&(shadow_gain_==1)&&(drain_extra_buffer_)){
+      target_rate=kDrainGain*BandwidthEstimate();
+  }
   if (is_at_full_bandwidth_) {
     pacing_rate_ = target_rate;
     return;
@@ -935,13 +899,6 @@ void QueueLimitSender::CalculateCongestionWindow(QuicByteCount bytes_acked,
   // Enforce the limits on the congestion window.
   congestion_window_ = std::max(congestion_window_, min_congestion_window_);
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);
-  if((mode_==PROBE_BW)&&(shadow_gain_==1)&&drain_extra_buffer_){
-  target_window=drain_target_window_;
-  congestion_window_=target_window;
-  congestion_window_ = std::max(congestion_window_, min_congestion_window_);
-  congestion_window_ = std::min(congestion_window_, max_congestion_window_);    
-  //NS_LOG_INFO(target_window<<" "<<congestion_window_<<" CWND ");
-  }
 }
 
 void QueueLimitSender::CalculateRecoveryWindow(QuicByteCount bytes_acked,
@@ -1053,7 +1010,4 @@ std::ostream& operator<<(std::ostream& os, const QueueLimitSender::DebugState& s
 
   return os;
 }
-
 }
-
-

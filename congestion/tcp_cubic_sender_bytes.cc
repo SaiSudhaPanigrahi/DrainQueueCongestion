@@ -10,7 +10,7 @@ namespace dqc{
 namespace {
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kRenoBeta = 0.7f;  // Reno backoff factor.
+const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
 // fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
