@@ -41,5 +41,5 @@ one way delay
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_delay.png)  
 
 
-There is a review papar to evluate the performacne of these algorithms(https://arxiv.org/abs/1909.03673).  
+There is a review papar to evaluate the performance of these algorithms(https://arxiv.org/abs/1909.03673).  
 
