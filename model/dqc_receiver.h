@@ -18,7 +18,7 @@ public dqc::ProtoFrameVisitor{
 public:
     DqcReceiver();
     ~DqcReceiver(){}
-	typedef Callback<void,uint32_t,uint32_t> TraceOwd;
+	typedef Callback<void,uint32_t,uint32_t,uint32_t> TraceOwd;
 	void SetOwdTraceFuc(TraceOwd cb){
 		m_traceOwdCb=cb;
 	}

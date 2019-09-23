@@ -15,7 +15,7 @@ public:
 	DqcTrace(){}
 	~DqcTrace();
 	void Log(std::string name,uint8_t enable);
-	void OnOwd(uint32_t seq,uint32_t owd);
+	void OnOwd(uint32_t seq,uint32_t owd,uint32_t size);
     void OnRtt(uint32_t seq,uint32_t rtt);
 	void OnBw(int32_t kbps);
 	void OnSentSeq(int32_t seq);

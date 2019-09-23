@@ -205,18 +205,18 @@ int main(int argc, char *argv[]){
 	std::string log=instance+"_dqc_"+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
+	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
 	DqcTrace trace2;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
+	InstallDqc(kBBR,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
 	log=instance+"_dqc_"+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail/*kRenoBytes kQueueLimit kCubicBytes kBBRPlus kTsunami kHighSpeedRail*/,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+	InstallDqc(kBBR/*kRenoBytes kQueueLimit kCubicBytes kBBRPlus kTsunami kHighSpeedRail*/,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

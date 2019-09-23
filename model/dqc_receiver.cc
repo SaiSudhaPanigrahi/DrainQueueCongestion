@@ -76,7 +76,7 @@ void DqcReceiver::StartApplication(){
 void DqcReceiver::StopApplication(){
 	m_running=false;
 	if(!m_traceOwdCb.IsNull()){
-		m_traceOwdCb((uint32_t)m_largestSeq.ToUint64(),0);
+		//m_traceOwdCb((uint32_t)m_largestSeq.ToUint64(),0,0);
 	}	
 }
 void DqcReceiver::SendAckFrame(){
@@ -121,7 +121,7 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 		}
 	}
 	if(!m_traceOwdCb.IsNull()){
-		m_traceOwdCb((uint32_t)seq.ToUint64(),owd);
+		m_traceOwdCb((uint32_t)seq.ToUint64(),owd,recv);
 	}
     SendAckFrame();
 }

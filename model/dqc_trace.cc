@@ -48,13 +48,13 @@ void DqcTrace::OpenTraceSentSeqFile(std::string name){
 			+name+"_sent_seq.txt";
 	m_sentSeq.open(path.c_str(), std::fstream::out);  	
 }
-void DqcTrace::OnOwd(uint32_t seq,uint32_t owd){
+void DqcTrace::OnOwd(uint32_t seq,uint32_t owd,uint32_t size){
 	char line [256];
 	memset(line,0,256);
 	if(m_owd.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d %16d",
-				now,seq,owd);
+		sprintf (line, "%f %16d %16d %16d",
+				now,seq,owd,size);
 		m_owd<<line<<std::endl;
 		m_owd.flush();
 	}    

@@ -28,6 +28,7 @@
 #include <vector>
 #include <memory>
 using namespace ns3;
+using namespace dqc;
 using namespace std;
 NS_LOG_COMPONENT_DEFINE ("bbr-rtt");
 
@@ -67,25 +68,28 @@ configuration same as the above dumbbell topology
 n0--L0--n2--L1--n3--L2--n4
 n1--L3--n2--L1--n3--L4--n5
 */
-static link_config_t p4p[]={
-[0]={100*1000000,10,100},
-[1]={5*1000000,10,100},
-[2]={100*1000000,10,100},
-[3]={100*1000000,30,100},
-[4]={100*1000000,30,100},
+link_config_t p4p[]={
+[0]={100*1000000,10,150},
+[1]={5*1000000,10,150},
+[2]={100*1000000,10,150},
+[3]={100*1000000,20,150},
+[4]={100*1000000,20,150},
 };
-
-static void InstallDqc(
-                         Ptr<Node> sender,
-                         Ptr<Node> receiver,
-						 uint16_t send_port,
-                         uint16_t recv_port,
-                         float startTime,
-                         float stopTime,
-						 DqcTrace *trace
+const uint32_t TOPO_DEFAULT_BW     = 5000000;    // in bps: 3Mbps
+const uint32_t TOPO_DEFAULT_PDELAY =      10;    // in ms:   100ms
+const uint32_t TOPO_DEFAULT_QDELAY =     150;    // in ms:  300ms
+static void InstallDqc( dqc::CongestionControlType cc_type,
+                        Ptr<Node> sender,
+                        Ptr<Node> receiver,
+						uint16_t send_port,
+                        uint16_t recv_port,
+                        float startTime,
+                        float stopTime,
+						DqcTrace *trace,
+                        uint32_t max_bps=0
 )
 {
-    Ptr<DqcSender> sendApp = CreateObject<DqcSender> ();
+    Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
     //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
@@ -99,20 +103,74 @@ static void InstallDqc(
     sendApp->SetStopTime (Seconds (stopTime));
     recvApp->SetStartTime (Seconds (startTime));
     recvApp->SetStopTime (Seconds (stopTime));
+    if(max_bps>0){
+        sendApp->SetMaxBandwidth(max_bps);
+    }
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
 		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
-static double simDuration=300;
+static double simDuration=200;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main (int argc, char *argv[]){
-  LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
-  LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
+    LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+    LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
+	CommandLine cmd;
+    std::string instance=std::string("1");
+    std::string cc_tmp("bbrplus");
+	std::string loss_str("0");
+    cmd.AddValue ("it", "instacne", instance);
+	cmd.AddValue ("cc", "cctype", cc_tmp);
+    cmd.Parse (argc, argv);
+    uint64_t linkBw   = TOPO_DEFAULT_BW;
+    uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
+    std::string cc_name("_bbrplus_");
+    cc_name="_"+cc_tmp+"_";
+    if(instance==std::string("1")){
+        linkBw=4000000;
+        msDelay=10;
+    }else if(instance==std::string("2")){
+        linkBw=4000000;
+        msDelay=20;     
+    }else if(instance==std::string("3")){
+        linkBw=4000000;
+        msDelay=30;     
+    }else if(instance==std::string("4")){
+        linkBw=6000000;
+        msDelay=10;     
+    }else if(instance==std::string("5")){
+        linkBw=6000000;
+        msDelay=20;     
+    }else if(instance==std::string("6")){
+        linkBw=6000000;
+        msDelay=30;     
+    }else if(instance==std::string("7")){
+        linkBw=8000000;
+        msDelay=10;
+    }else if(instance==std::string("8")){
+        linkBw=8000000;
+        msDelay=20;
+    }else if(instance==std::string("9")){
+        linkBw=8000000;
+        msDelay=30;
+    }else{
+        linkBw=3000000;
+        msDelay=10;        
+    }
+    p4p[1].bps=linkBw;
+    p4p[1].msDelay=msDelay;
+    uint32_t owd1=p4p[0].msDelay+p4p[1].msDelay+p4p[2].msDelay;
+    uint32_t owd2=p4p[3].msDelay+p4p[1].msDelay+p4p[4].msDelay;
+    uint32_t owd=std::max(owd1,owd2);
+    uint32_t msQdelay=owd*3;
+    for(size_t i=0;i<sizeof(p4p)/sizeof(p4p[0]);i++){
+        p4p[i].msQdelay=msQdelay;
+    }
   NodeContainer c;
   c.Create (6);
   Names::Add ( "N0", c.Get (0));
@@ -201,19 +259,45 @@ int main (int argc, char *argv[]){
 
   // Set up the routing
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-    std::string instance=std::string("1");
+  dqc::CongestionControlType cc=kBBRPlus;
+	if(cc_tmp==std::string("bbr")){
+		cc=kBBR;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrd")){
+		cc=kBBR; //drain to target
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrplus")){
+		cc=kBBRPlus;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrv2")){
+		cc=kBBRv2;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("cubic")){
+		cc=kCubicBytes;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("reno")){
+		cc=kRenoBytes;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("hsr")){
+		cc=kHighSpeedRail;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("tsu")){
+		cc=kTsunami;
+		std::cout<<cc_tmp<<std::endl;
+	}
+  uint32_t max_bps=0;
 	int test_pair=1;
 	DqcTrace trace1;
-	std::string log=instance+"_dqc_rtt_"+std::to_string(test_pair);
+	std::string log=instance+cc_name+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-    InstallDqc(c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace1);
+    InstallDqc(cc,c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
 
 	DqcTrace trace2;
-	log=instance+"_dqc_rtt_"+std::to_string(test_pair);
+	log=instance+cc_name+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(c.Get(1),c.Get(5),sendPort+1,recvPort+1,appStart,appStop,&trace2);
+	InstallDqc(cc,c.Get(1),c.Get(5),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();
