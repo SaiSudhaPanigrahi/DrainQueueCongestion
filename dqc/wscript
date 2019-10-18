@@ -45,6 +45,8 @@ def build(bld):
     'model/thirdparty/congestion/hybrid_slow_start.cc',
     'model/thirdparty/congestion/proto_bandwidth_sampler.cc',
     'model/thirdparty/congestion/proto_bbr_plus_sender.cc',
+    'model/thirdparty/congestion/kalman_bw.cc',
+    'model/thirdparty/congestion/proto_bbr_rand_sender.cc',
     'model/thirdparty/congestion/proto_bbr_sender.cc',
     'model/thirdparty/congestion/proto_bbr_sender_shadow.cc',
     'model/thirdparty/congestion/proto_delay_bbr_sender.cc', 
