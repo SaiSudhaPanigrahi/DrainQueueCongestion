@@ -6,6 +6,7 @@
 #include "proto_delay_bbr_sender.h"
 #include "proto_highrail_sender.h"
 #include "proto_potential_sender.h"
+#include "proto_bbr_rand_sender.h"
 #include "proto_tsunami_sender.h"
 #include "tcp_cubic_sender_bytes.h"
 #include "bbr2_sender.h"
@@ -75,6 +76,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kBBRPlus:{
             return new BbrPlusSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
+        case kBBRRand:{
+            return new BbrRandSender(clock->Now(),
                                rtt_stats,
                                unacked_packets,
                                initial_congestion_window,

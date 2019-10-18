@@ -140,9 +140,9 @@ int main(int argc, char *argv[]){
 	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
 	}
-    std::string filename("error.log");
-    std::ios::openmode filemode=std::ios_base::out;
-    GlobalStream::Create(filename,filemode);
+    //std::string filename("error.log");
+    //std::ios::openmode filemode=std::ios_base::out;
+    //GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
 	//LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
@@ -227,6 +227,9 @@ int main(int argc, char *argv[]){
 	}else if(cc_tmp==std::string("bbrplus")){
 		cc=kBBRPlus;
 		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrrand")){
+		cc=kBBRRand;
+		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrv2")){
 		cc=kBBRv2;
 		std::cout<<cc_tmp<<std::endl;
@@ -258,19 +261,19 @@ int main(int argc, char *argv[]){
 	log=instance+cc_name+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart,appStop,&trace3,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
 
-	DqcTrace trace4;
+	/*DqcTrace trace4;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart,appStop,&trace4,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+80,appStop,&trace4,max_bps);*/
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

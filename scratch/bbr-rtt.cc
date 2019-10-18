@@ -129,8 +129,8 @@ int main (int argc, char *argv[]){
     cmd.Parse (argc, argv);
     uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
-    std::string cc_name("_bbrplus_");
-    cc_name="_"+cc_tmp+"_";
+    std::string cc_name;
+    cc_name="_"+cc_tmp+"_rtt_";
     if(instance==std::string("1")){
         linkBw=4000000;
         msDelay=10;
@@ -268,6 +268,9 @@ int main (int argc, char *argv[]){
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrplus")){
 		cc=kBBRPlus;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrrand")){
+		cc=kBBRRand;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrv2")){
 		cc=kBBRv2;

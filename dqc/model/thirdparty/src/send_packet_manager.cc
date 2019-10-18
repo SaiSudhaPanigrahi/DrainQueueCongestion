@@ -1,6 +1,7 @@
 #include "send_packet_manager.h"
 #include "proto_constants.h"
 #include "logging.h"
+#include <ctime>
 #include <algorithm>
 namespace dqc{
 namespace{
@@ -13,6 +14,7 @@ static const size_t kMaxRetransmissionsOnTimeout = 2;
 // The path degrading delay is the sum of this number of consecutive RTO delays.
 const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
 const int32_t kMaxFastRetransNum=2;
+static int kRandSeedOffsert=0;
 }
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
@@ -22,7 +24,9 @@ SendPacketManager::SendPacketManager(ProtoClock *clock,QuicConnectionStats* stat
 ,acked_observer_(acked_observer)
 ,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){
     DCHECK(clock_);
-    rand_.seedTime();
+	int seed=std::time(nullptr);
+    rand_.seed(seed+kRandSeedOffsert);
+	kRandSeedOffsert+=12345;
 }
 SendPacketManager::~SendPacketManager(){
 }

@@ -182,9 +182,9 @@ int main(int argc, char *argv[]){
 	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
 	}
-    std::string filename("error.log");
-    std::ios::openmode filemode=std::ios_base::out;
-    GlobalStream::Create(filename,filemode);
+    //std::string filename("error.log");
+    //std::ios::openmode filemode=std::ios_base::out;
+    //GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
 	//LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);

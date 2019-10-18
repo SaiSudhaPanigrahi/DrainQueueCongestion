@@ -1,4 +1,4 @@
-#include "ns3/global-stream.h"
+/*#include "ns3/global-stream.h"
 namespace ns3{
 GlobalStream* GlobalStream::Create(std::string filename,std::ios::openmode filemode){
     static GlobalStream *ins=new GlobalStream(filename,filemode);
@@ -20,4 +20,4 @@ GlobalStream::~GlobalStream(){
         delete m_os;
     }
 }
-}
+}*/
