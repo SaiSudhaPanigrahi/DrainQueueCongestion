@@ -183,6 +183,18 @@ bool AppendStreamOffset(size_t offset_length,
 
   return writer->WriteBytesToUInt64(offset_length, offset);
 }
+// Returns the absolute value of the difference between |a| and |b|.
+uint64_t Delta(uint64_t a, uint64_t b) {
+  // Since these are unsigned numbers, we can't just return abs(a - b)
+  if (a < b) {
+    return b - a;
+  }
+  return a - b;
+}
+
+uint64_t ClosestTo(uint64_t target, uint64_t a, uint64_t b) {
+  return (Delta(target, a) < Delta(target, b)) ? a : b;
+}
 uint8_t ProtoFramer::GetStreamFrameTypeByte(const PacketStream& frame,
                                    bool last_frame_in_packet) const{
   uint8_t type_byte = 0;
@@ -737,11 +749,95 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
     set_detailed_error("Unable to read num received packets.");
     return false;
   }
-
+  if(!ProcessTimestampsInAckFrame(num_received_packets,
+                                   PacketNumber(largest_acked), reader)){
+                                       return false;
+                                   }
   // Done processing the ACK frame.
   return visitor_->OnAckFrameEnd(PacketNumber(first_received));
 
   return true;
+}
+bool ProtoFramer::ProcessTimestampsInAckFrame(uint8_t num_received_packets,
+                                   PacketNumber largest_acked,
+                                   basic::DataReader* reader){
+  if (num_received_packets == 0) {
+    return true;
+  }
+  uint8_t delta_from_largest_observed;
+  if (!reader->ReadUInt8(&delta_from_largest_observed)) {
+    set_detailed_error("Unable to read sequence delta in received packets.");
+    return false;
+  }
+  if (largest_acked.ToUint64() <= delta_from_largest_observed) {
+    set_detailed_error(QuicStrCat("delta_from_largest_observed too high: ",
+                                  delta_from_largest_observed,
+                                  ", largest_acked: ", largest_acked.ToUint64())
+                           .c_str());
+    return false;
+  }
+
+  // Time delta from the framer creation.
+  uint32_t time_delta_us;
+  if (!reader->ReadUInt32(&time_delta_us)) {
+    set_detailed_error("Unable to read time delta in received packets.");
+    return false;
+  }
+
+  PacketNumber seq_num = largest_acked - delta_from_largest_observed;
+  if (process_timestamps_) {
+    last_timestamp_ = CalculateTimestampFromWire(time_delta_us);
+
+    visitor_->OnAckTimestamp(seq_num, creation_time_ + last_timestamp_);
+  }
+
+  for (uint8_t i = 1; i < num_received_packets; ++i) {
+    if (!reader->ReadUInt8(&delta_from_largest_observed)) {
+      set_detailed_error("Unable to read sequence delta in received packets.");
+      return false;
+    }
+    if (largest_acked.ToUint64() <= delta_from_largest_observed) {
+      set_detailed_error("delta_from_largest_observed too high");
+      return false;
+    }
+    seq_num = largest_acked - delta_from_largest_observed;
+
+    // Time delta from the previous timestamp.
+    uint64_t incremental_time_delta_us;
+    if (!reader->ReadUFloat16(&incremental_time_delta_us)) {
+      set_detailed_error(
+          "Unable to read incremental time delta in received packets.");
+      return false;
+    }
+
+    if (process_timestamps_) {
+      last_timestamp_ = last_timestamp_ + TimeDelta::FromMicroseconds(
+                                              incremental_time_delta_us);
+      visitor_->OnAckTimestamp(seq_num, creation_time_ + last_timestamp_);
+    }
+  }
+  return true;
+}
+TimeDelta ProtoFramer::CalculateTimestampFromWire(uint32_t time_delta_us){
+  // The new time_delta might have wrapped to the next epoch, or it
+  // might have reverse wrapped to the previous epoch, or it might
+  // remain in the same epoch. Select the time closest to the previous
+  // time.
+  //
+  // epoch_delta is the delta between epochs. A delta is 4 bytes of
+  // microseconds.
+  const uint64_t epoch_delta = UINT64_C(1) << 32;
+  uint64_t epoch = last_timestamp_.ToMicroseconds() & ~(epoch_delta - 1);
+  // Wrapping is safe here because a wrapped value will not be ClosestTo below.
+  uint64_t prev_epoch = epoch - epoch_delta;
+  uint64_t next_epoch = epoch + epoch_delta;
+
+  uint64_t time = ClosestTo(
+      last_timestamp_.ToMicroseconds(), epoch + time_delta_us,
+      ClosestTo(last_timestamp_.ToMicroseconds(), prev_epoch + time_delta_us,
+                next_epoch + time_delta_us));
+
+  return TimeDelta::FromMicroseconds(time);
 }
 bool ProtoFramer::ProcessStopWaitingFrame(basic::DataReader* reader,
                                           const ProtoPacketHeader& header,

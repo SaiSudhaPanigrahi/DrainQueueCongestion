@@ -21,6 +21,7 @@ public:
     virtual void OnSent(PacketNumber seq,ProtoTime sent_ts){};
 };
     void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
+    void SetTraceLossPacketDelay(TraceLossPacketDelay cb){sent_manager_.SetTraceLossPacketDelay(std::move(cb));}
     void SetMaxBandwidth(uint32_t bps);
     ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionControlType cc);
     ~ProtoCon();
@@ -65,6 +66,7 @@ public:
                                  basic::DataWriter *writer) override;
 	TimeDelta CalculateFastRetranTime();
     void OnFastRetransmit();
+	std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo(){return sent_manager_.GetOneWayDelayInfo();}
 private:
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);

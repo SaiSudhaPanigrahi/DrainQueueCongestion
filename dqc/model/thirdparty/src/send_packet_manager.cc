@@ -22,7 +22,8 @@ SendPacketManager::SendPacketManager(ProtoClock *clock,QuicConnectionStats* stat
 :clock_(clock)
 ,stats_(stats)
 ,acked_observer_(acked_observer)
-,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs)){
+,min_rto_timeout_(TimeDelta::FromMilliseconds(kMinRetransmissionTimeMs))
+,one_way_delay_(PacketNumber(0),TimeDelta::Zero()){
     DCHECK(clock_);
 	int seed=std::time(nullptr);
     rand_.seed(seed+kRandSeedOffsert);
@@ -160,11 +161,28 @@ void SendPacketManager::OnAckRange(PacketNumber start,PacketNumber end){
         newly_acked_start=std::max(start,ack_packet_itor_->Max());
     }
     for(;acked>=newly_acked_start;acked--){
-        packets_acked_.push_back(AckedPacket(acked,0,0));
+        packets_acked_.push_back(AckedPacket(acked,0,ProtoTime::Zero()));
     }
 }
+void SendPacketManager::OnAckTimestamp(PacketNumber packet_number,ProtoTime timestamp){
+  last_ack_frame_.received_packet_times.push_back({packet_number, timestamp});
+  for (AckedPacket& packet : packets_acked_) {
+    if (packet.packet_number == packet_number) {
+      packet.receive_ts = timestamp;
+      return;
+    }
+  }
+}
 AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
-
+    
+    PacketNumber sent_seq=PacketNumber(0);
+    ProtoTime receive_time=ProtoTime::Zero();
+    if(!last_ack_frame_.received_packet_times.empty()){
+        auto it=last_ack_frame_.received_packet_times.begin();
+        sent_seq=it->first;
+        receive_time=it->second;
+    }
+	last_ack_frame_.received_packet_times.clear();
     ByteCount prior_bytes_in_flight = unacked_packets_.bytes_in_flight();
     std::reverse(packets_acked_.begin(),packets_acked_.end());
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
@@ -173,6 +191,10 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
         if(!info){
             DLOG(WARNING)<<"acked unsent packet "<<seq;
         }else{
+            if(seq==sent_seq){
+                one_way_delay_.first=seq;
+                one_way_delay_.second=receive_time-info->sent_time;
+            }
             if(info->inflight){
                 if(SPS_OUT==info->state){info->state=SPS_ACKED;}
                 if(acked_observer_){
@@ -315,13 +337,17 @@ void SendPacketManager::PostProcessNewlyAckedPackets(ProtoTime ack_receive_time,
 }
 void SendPacketManager::InvokeLossDetection(ProtoTime time){
     unacked_packets_.InvokeLossDetection(packets_acked_,packets_lost_);
-    for(auto it=packets_lost_.begin();
-    it!=packets_lost_.end();it++){
+    for(auto it=packets_lost_.begin();it!=packets_lost_.end();it++){
         MarkForRetrans(it->packet_number);
+        if(trace_lost_){
+            uint32_t rtt=rtt_stats_.smoothed_rtt().ToMilliseconds();
+            trace_lost_(it->packet_number,rtt);
+        }
     }
     // in repeat acked case;
     PacketNumber least_unacked=unacked_packets_.GetLeastUnacked();
     last_ack_frame_.packets.RemoveUpTo(least_unacked);
+    last_ack_frame_.received_packet_times.clear();
 }
 void SendPacketManager::MarkForRetrans(PacketNumber seq){
     DLOG(WARNING)<<"l "<<seq;

@@ -64,10 +64,11 @@ public:
                              ProtoPacketNumberLength length_length,
                              uint64_t length,
                              basic::DataWriter* writer);
-  bool AppendTimestampsToAckFrame (const AckFrame& frame,basic::DataWriter* writer);
+    bool AppendTimestampsToAckFrame (const AckFrame& frame,basic::DataWriter* writer);
     uint8_t GetStreamFrameTypeByte(const PacketStream& frame,
                                    bool last_frame_in_packet) const;
   // Allows enabling or disabling of timestamp processing and serialization.
+    
   void set_process_timestamps(bool process_timestamps) {
     process_timestamps_ = process_timestamps;
   }
@@ -82,10 +83,15 @@ private:
                             uint8_t frame_type,
                             PacketStream* frame);
     bool ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type);
+    bool ProcessTimestampsInAckFrame(uint8_t num_received_packets,
+                                   PacketNumber largest_acked,
+                                   basic::DataReader* reader);
+    TimeDelta CalculateTimestampFromWire(uint32_t time_delta_us);                               
     void set_detailed_error(const char* error) { detailed_error_ = error; }
     bool RaiseError(ProtoErrorCode error);
     bool process_timestamps_{false};
     ProtoTime creation_time_{ProtoTime::Zero()};
+    TimeDelta last_timestamp_{TimeDelta::Zero()};
     ProtoFrameVisitor *visitor_{nullptr};
     ProtoStreamDataProducer *data_producer_{nullptr};
     const char *detailed_error_{nullptr};

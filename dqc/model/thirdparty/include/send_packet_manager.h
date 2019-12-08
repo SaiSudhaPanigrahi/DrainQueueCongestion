@@ -7,7 +7,9 @@
 #include "rtt_stats.h"
 #include "proto_connection_stats.h"
 #include "random.h"
+#include <functional>
 namespace dqc{
+using TraceLossPacketDelay=std::function<void(PacketNumber,uint32_t)>;
 class SendPacketManager{
 public:
     SendPacketManager(ProtoClock *clock,QuicConnectionStats* stats,StreamAckedObserver *acked_observer);
@@ -58,6 +60,7 @@ public:
     int DeliverPacketsToPendingQueue(int n);
     void OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
+    void OnAckTimestamp(PacketNumber packet_number,ProtoTime timestamp);
     AckResult OnAckEnd(ProtoTime ack_receive_time);
     void MaybeInvokeCongestionEvent(bool rtt_updated,
                                   ByteCount prior_in_flight,
@@ -70,6 +73,8 @@ public:
     const TimeDelta GetRetransmissionDelay() const{
         return GetRetransmissionDelay(consecutive_rto_count_);
     }
+    void SetTraceLossPacketDelay(TraceLossPacketDelay cb){trace_lost_=std::move(cb);}
+    std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo() { return one_way_delay_;}
 private:
       // Update the RTT if the ack is for the largest acked packet number.
   // Returns true if the rtt was updated.
@@ -104,5 +109,7 @@ private:
     Random rand_;
     std::unique_ptr<SendAlgorithmInterface> send_algorithm_{nullptr};
     bool fast_retrans_flag_{false};
+    TraceLossPacketDelay trace_lost_;
+    std::pair<PacketNumber,TimeDelta> one_way_delay_;
 };
 }//namespace dqc;

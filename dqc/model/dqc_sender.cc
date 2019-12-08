@@ -46,6 +46,18 @@ void DqcSender::SetSentSeqTraceFuc(TraceSentSeq cb){
 		abort();
 	}
 }
+void DqcSender::SetTraceLossPacketDelay(TraceLossPacketDelay cb){
+    m_traceLossDelay=cb;
+    m_connection.SetTraceLossPacketDelay([this](PacketNumber seq,uint32_t rtt){
+        OnPacketLossInfo(seq,rtt);
+    });
+}
+void DqcSender::OnPacketLossInfo(dqc::PacketNumber seq,uint32_t rtt){
+    if(!m_traceLossDelay.IsNull()){
+        int32_t num=(int32_t)seq.ToUint64();
+        m_traceLossDelay(num,rtt);
+    }
+}
 void DqcSender::Bind(uint16_t port){
     if (m_socket== NULL) {
         m_socket = Socket::CreateSocket (GetNode (),UdpSocketFactory::GetTypeId ());
@@ -115,6 +127,7 @@ void DqcSender::RecvPacket(Ptr<Socket> socket){
     p->CopyData(buf,recv);
     ProtoReceivedPacket packet((char*)buf,recv,now);
     m_connection.ProcessUdpPacket(m_self,m_remote,packet);
+    PostProceeAfterReceiveFromPeer();
 }
 void DqcSender::SendToNetwork(Ptr<Packet> p){
 	uint32_t ms=Simulator::Now().GetMilliSeconds();
@@ -163,5 +176,9 @@ void DqcSender::Process(){
         Time next=MicroSeconds(m_packetInteval);
         m_processTimer=Simulator::Schedule(next,&DqcSender::Process,this);
     }
+}
+void DqcSender::PostProceeAfterReceiveFromPeer(){
+    //std::pair<PacketNumber,TimeDelta> delay=m_connection.GetOneWayDelayInfo();
+    //std::cout<<delay.first<<" "<<delay.second.ToMilliseconds()<<std::endl;
 }
 }

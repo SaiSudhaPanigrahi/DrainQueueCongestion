@@ -29,29 +29,32 @@ class DqcSender: public Application,
 public dqc::ProtoStream::StreamCanWriteVisitor,
 public dqc::ProtoCon::TraceSentSeq{
 public:
-	DqcSender();
-	DqcSender(dqc::CongestionControlType cc_type); 
+    DqcSender();
+    DqcSender(dqc::CongestionControlType cc_type); 
     ~DqcSender(){}
     void SetMaxBandwidth(uint32_t bps);
-	typedef Callback<void,int32_t> TraceBandwidth;
-	void SetBwTraceFuc(TraceBandwidth cb);
-	typedef Callback<void,int32_t> TraceSentSeq;
-	void SetSentSeqTraceFuc(TraceSentSeq cb);	
-	void Bind(uint16_t port);
-	InetSocketAddress GetLocalAddress();
-	void ConfigurePeer(Ipv4Address addr,uint16_t port);    
-	void OnCanWrite() override{
-		DataGenerator(2);
-	}
-	void SendToNetwork(Ptr<Packet> p);
-	void OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) override;
+    typedef Callback<void,int32_t> TraceBandwidth;
+    void SetBwTraceFuc(TraceBandwidth cb);
+    typedef Callback<void,int32_t> TraceSentSeq;
+    void SetSentSeqTraceFuc(TraceSentSeq cb);
+    typedef Callback<void,int32_t,uint32_t> TraceLossPacketDelay;
+    void SetTraceLossPacketDelay(TraceLossPacketDelay cb);
+    void Bind(uint16_t port);
+    InetSocketAddress GetLocalAddress();
+    void ConfigurePeer(Ipv4Address addr,uint16_t port);    
+    void OnCanWrite() override{
+        DataGenerator(2);
+    }
+    void SendToNetwork(Ptr<Packet> p);
+    void OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) override;
+    void OnPacketLossInfo(dqc::PacketNumber seq,uint32_t rtt);
 private:
-    
 	void DataGenerator(int times);
 	virtual void StartApplication() override;
 	virtual void StopApplication() override;
     void RecvPacket(Ptr<Socket> socket);
     void Process();
+    void PostProceeAfterReceiveFromPeer();
     FakePackeWriter m_writer;
     Ipv4Address m_peerIp;
     uint16_t m_peerPort;
@@ -66,12 +69,13 @@ private:
     dqc::ProtoCon m_connection;
     dqc::ProtoStream *m_stream{nullptr};
     EventId m_processTimer;
-    int64_t m_packetInteval{500};//0.5 ms
+    int64_t m_packetInteval{100};//0.5 ms
     int m_packetGenerated{0};
 	bool m_pakcetLimit{false};
     int m_packetAllowed{50000};
 	TraceBandwidth m_traceBwCb;
 	int64_t m_lastSentTs{0};
 	TraceSentSeq m_traceSentSeqCb;
+    TraceLossPacketDelay m_traceLossDelay;
 };   
 }

@@ -49,7 +49,7 @@ const TimeDelta kProbeRttTime = TimeDelta::FromMilliseconds(200);
 // If the bandwidth does not increase by the factor of |kStartupGrowthTarget|
 // within |kRoundTripsWithoutGrowthBeforeExitingStartup| rounds, the connection
 // will exit the STARTUP mode.
-const float kStartupGrowthTarget = 1.5;
+const float kStartupGrowthTarget = 1.25;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 // Coefficient of target congestion window to use when basing PROBE_RTT on BDP.
 const float kModerateProbeRttMultiplier = 0.75;

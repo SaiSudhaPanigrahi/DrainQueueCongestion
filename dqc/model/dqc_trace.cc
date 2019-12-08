@@ -19,6 +19,9 @@ void DqcTrace::Log(std::string name,uint8_t enable){
 	if(enable&E_DQC_SENTSEQ){
 		OpenTraceSentSeqFile(name);
 	}
+    if(enable&E_DQC_LOSS){
+        OpenTraceLossPacketInfo(name);
+    }
 }
 void DqcTrace::OpenTraceOwdFile(std::string name){
 	char buf[FILENAME_MAX];
@@ -47,6 +50,13 @@ void DqcTrace::OpenTraceSentSeqFile(std::string name){
 	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
 			+name+"_sent_seq.txt";
 	m_sentSeq.open(path.c_str(), std::fstream::out);  	
+}
+void DqcTrace::OpenTraceLossPacketInfo(std::string name){
+	char buf[FILENAME_MAX];
+	memset(buf,0,FILENAME_MAX);
+	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
+			+name+"_loss_seq.txt";
+	m_lossInfo.open(path.c_str(), std::fstream::out);    
 }
 void DqcTrace::OnOwd(uint32_t seq,uint32_t owd,uint32_t size){
 	char line [256];
@@ -91,11 +101,22 @@ void DqcTrace::OnSentSeq(int32_t seq){
 		m_sentSeq<<line<<std::endl;
 	}     	
 }
+void DqcTrace::OnLossPacketInfo(int32_t seq,uint32_t rtt){
+	char line [256];
+	memset(line,0,256);
+	if(m_lossInfo.is_open()){
+		float now=Simulator::Now().GetSeconds();
+		sprintf (line, "%f %16d %16d",
+				now,seq,rtt);
+		m_lossInfo<<line<<std::endl;
+	}    
+}
 void DqcTrace::Close(){
     CloseTraceOwdFile();
     CloseTraceRttFile();
     CloseTraceBandwidthFile();
 	CloseTraceSentSeqFile();
+    CloseTraceLossPacketInfo();
 }
 void DqcTrace::CloseTraceOwdFile(){
 	if(m_owd.is_open()){
@@ -116,5 +137,10 @@ void DqcTrace::CloseTraceSentSeqFile(){
     if(m_sentSeq.is_open()){
         m_sentSeq.close();
     }	
+}
+void DqcTrace::CloseTraceLossPacketInfo(){
+    if(m_lossInfo.is_open()){
+        m_lossInfo.close();
+    }
 }
 }

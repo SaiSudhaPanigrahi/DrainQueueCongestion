@@ -1,8 +1,13 @@
 #include "received_packet_manager.h"
+#include "logging.h"
 namespace dqc{
 ReceivdPacketManager::ReceivdPacketManager()
 :time_largest_observed_(ProtoTime::Zero()){}
 void ReceivdPacketManager::RecordPacketReceived(PacketNumber seq,ProtoTime receive_time){
+    if(!ack_frame_updated_){
+        ack_frame_.received_packet_times.clear();
+    }
+    ack_frame_updated_=true;
     if(time_largest_observed_==ProtoTime::Zero()){
         ack_frame_.largest_acked=seq;
         ack_frame_.packets.Add(seq);
@@ -14,6 +19,16 @@ void ReceivdPacketManager::RecordPacketReceived(PacketNumber seq,ProtoTime recei
             time_largest_observed_=receive_time;
         }
     }
+ if (save_timestamps_) {
+    // The timestamp format only handles packets in time order.
+    if (!ack_frame_.received_packet_times.empty() &&
+        ack_frame_.received_packet_times.back().second > receive_time) {
+      LOG(WARNING)<< "Receive time went backwards";
+    } else {
+      ack_frame_.received_packet_times.push_back(
+          std::make_pair(seq, receive_time));
+    }
+  }
 }
 const AckFrame &ReceivdPacketManager::GetUpdateAckFrame(ProtoTime &now){
     if(time_largest_observed_==ProtoTime::Zero()){
@@ -22,6 +37,9 @@ const AckFrame &ReceivdPacketManager::GetUpdateAckFrame(ProtoTime &now){
         ack_frame_.ack_delay_time=now-time_largest_observed_;
     }
     return ack_frame_;
+}
+void ReceivdPacketManager::ResetAckStates(){
+	ack_frame_updated_ = false;
 }
 void ReceivdPacketManager::DontWaitForPacketsBefore(PacketNumber least_unacked){
     bool update_stop_waiting=false;

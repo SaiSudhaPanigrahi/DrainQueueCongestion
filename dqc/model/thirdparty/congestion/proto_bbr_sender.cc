@@ -45,7 +45,7 @@ const TimeDelta kProbeRttTime = TimeDelta::FromMilliseconds(200);
 // If the bandwidth does not increase by the factor of |kStartupGrowthTarget|
 // within |kRoundTripsWithoutGrowthBeforeExitingStartup| rounds, the connection
 // will exit the STARTUP mode.
-const float kStartupGrowthTarget = 1.5;
+const float kStartupGrowthTarget = 1.25;//1.5; //do no figure out why I set it 1.5
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 // Coefficient of target congestion window to use when basing PROBE_RTT on BDP.
 const float kModerateProbeRttMultiplier = 0.75;
@@ -126,7 +126,7 @@ BbrSender::BbrSender(ProtoTime now,
       startup_bytes_lost_(0),
       enable_ack_aggregation_during_startup_(false),
       expire_ack_aggregation_in_startup_(false),
-      drain_to_target_(true),
+      drain_to_target_(false),
       probe_rtt_based_on_bdp_(false),
       probe_rtt_skipped_if_similar_rtt_(false),
       probe_rtt_disabled_if_app_limited_(false),
@@ -159,10 +159,6 @@ void BbrSender::OnPacketSent(ProtoTime sent_time,
                              QuicPacketNumber packet_number,
                              QuicByteCount bytes,
                              HasRetransmittableData is_retransmittable) {
-  /*if (stats_ && InSlowStart()) {
-    ++stats_->slowstart_packets_sent;
-    stats_->slowstart_bytes_sent += bytes;
-  }*/
 
   last_sent_packet_ = packet_number;
 
@@ -374,11 +370,6 @@ QuicByteCount BbrSender::ProbeRttCongestionWindow() const {
 }
 
 void BbrSender::EnterStartupMode(ProtoTime now) {
-  /*if (stats_) {
-    ++stats_->slowstart_count;
-    DCHECK_EQ(stats_->slowstart_start_time, QuicTime::Zero()) << mode_;
-    stats_->slowstart_start_time = now;
-  }*/
   mode_ = STARTUP;
   pacing_gain_ = high_gain_;
   congestion_window_gain_ = high_cwnd_gain_;

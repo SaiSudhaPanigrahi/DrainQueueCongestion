@@ -18,6 +18,8 @@ private:
 };*/
 DqcReceiver::DqcReceiver()
 {
+	m_recvManager.set_save_timestamps(true);
+	m_frameEncoder.set_process_timestamps(true);
 	m_frameDecoder.set_visitor(this);
 }
 void DqcReceiver::Bind(uint16_t port){
@@ -90,6 +92,7 @@ void DqcReceiver::SendAckFrame(){
     m_frameEncoder.AppendAckFrameAndTypeByte(ack_frame,&w);
     Ptr<Packet> p=Create<Packet>((uint8_t*)buf,w.length());
 	SendToNetwork(p);
+	m_recvManager.ResetAckStates();
 }
 void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	if(!m_running){return;}

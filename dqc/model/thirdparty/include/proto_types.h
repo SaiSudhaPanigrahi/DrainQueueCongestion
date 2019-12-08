@@ -16,6 +16,7 @@
 //copy from razor project;
 #include "cf_platform.h"
 #include "packet_number.h"
+#include "proto_time.h"
 namespace dqc{
 typedef uint64_t StreamOffset;
 typedef StreamOffset QuicStreamOffset;
@@ -40,11 +41,11 @@ struct LostPacket {
 typedef std::vector<LostPacket> LostPacketVector;
 typedef std::vector<AckedPacket> AckedPacketVector;
 struct AckedPacket{
-AckedPacket(PacketNumber seq,PacketLength len,uint64_t ts)
+AckedPacket(PacketNumber seq,PacketLength len,ProtoTime ts)
 :packet_number(seq),bytes_acked(len),receive_ts(ts){}
 PacketNumber packet_number;
 PacketLength bytes_acked;
-uint64_t receive_ts;
+ProtoTime receive_ts;
 };
 #if defined WIN_32
 struct iovec{
@@ -105,7 +106,7 @@ enum AckResult {
 // QUIC. Note that this is separate from the congestion feedback type -
 // some congestion control algorithms may use the same feedback type
 // (Reno and Cubic are the classic example for that).
-enum CongestionControlType { kCubicBytes, kRenoBytes,kBBR_DELAY,kQueueLimit,kShadow, kBBR,kBBRPlus,kBBRRand,kTsunami,kHighSpeedRail,kGoogCC,kPOTEN,kBBRv2};
+enum CongestionControlType { kCubicBytes, kRenoBytes,kBBR_DELAY,kQueueLimit,kShadow, kBBR,kBBRPlus,kBBRRand,kTsunami,kHighSpeedRail,kGoogCC,kPOTEN,kBBRv2,kCubicPlus};
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
 ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq);

@@ -37,6 +37,7 @@ ProtoCon::ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionContr
 	//pthread_mutex_init(&que_lock,NULL);
     frame_encoder_.set_data_producer(this);
     //to decode ack frame;
+	frame_decoder_.set_process_timestamps(true);
     frame_decoder_.set_visitor(this);
     sent_manager_.SetSendAlgorithm(cc);
     std::unique_ptr<SendAlarmDelegate> send_delegate(new SendAlarmDelegate(this));
@@ -166,6 +167,7 @@ bool ProtoCon::OnAckRange(PacketNumber start, PacketNumber end){
 }
 bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
                                 ProtoTime timestamp){
+	sent_manager_.OnAckTimestamp(packet_number, timestamp);
     return true;
 }
 bool ProtoCon::OnAckFrameEnd(PacketNumber start){

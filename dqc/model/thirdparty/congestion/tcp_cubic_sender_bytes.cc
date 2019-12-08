@@ -8,6 +8,8 @@
 namespace dqc{
 
 namespace {
+// Maximum window to allow when doing bandwidth resumption.
+const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
 const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.

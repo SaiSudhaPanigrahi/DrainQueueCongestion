@@ -6,14 +6,6 @@
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
-
-// Maximum window to allow when doing bandwidth resumption.
-const QuicPacketCount kMaxResumptionCongestionWindow = 200;
-
-//namespace test {
-//class TcpCubicSenderBytesPeer;
-//}  // namespace test
-
 class TcpCubicSenderBytes : public SendAlgorithmInterface {
  public:
   TcpCubicSenderBytes(const ProtoClock* clock,
