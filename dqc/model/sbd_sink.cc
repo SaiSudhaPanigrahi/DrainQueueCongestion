@@ -223,7 +223,7 @@ void SSCDetectionAlgorithm::SBDDecision(){
     double skew=fabs(m_info[0].skew_est-m_info[1].skew_est);
     double var=fabs(m_info[0].var_est-m_info[1].var_est);
     double freq=fabs(m_info[0].freq_est-m_info[1].freq_est);
-	NS_LOG_INFO("decision "<<skew<<" "<<var<<" "<<freq);
+	//NS_LOG_INFO("decision "<<skew<<" "<<var<<" "<<freq);
     if(skew<k_p_s&&var<k_p_mad&&freq<k_p_f){
         m_sbd=true;
         if(m_visitor){
@@ -281,21 +281,12 @@ ShareBottleneckDetectionSink::ShareBottleneckDetectionSink(std::string &prefix,b
     if(m_enableTrace){
         OpenSBDTraceFile(prefix);
     }
-    m_fp[0]=nullptr;
-    m_fp[1]=nullptr;
     OneWayDelaySinkManager::Instance()->RegisterSink(this);
-    
     m_ssc.set_visitor(this);
 }
 ShareBottleneckDetectionSink::~ShareBottleneckDetectionSink(){
     m_sources.clear();
     size_t i=0;
-    for(i=0;i<sizeof(m_fp)/sizeof(m_fp[0]);i++){
-        if(m_fp[i]){
-            m_fp[i]->close();
-            m_fp[i]=nullptr;
-        }
-    }
     CloseSBDTraceFile();
 }
 void ShareBottleneckDetectionSink::RegisterDataSource(uint32_t id){
@@ -313,22 +304,6 @@ void ShareBottleneckDetectionSink::RegisterDataSource(uint32_t id){
         std::shared_ptr<TrendlineSampleGroup> tr(new TrendlineSampleGroup(20));
         m_sources.insert(std::make_pair(id,tr));
         m_ssc.RegisterID(id);
-        if(m_enableTrace){
-            size_t i=0;
-            for(i=0;i<sizeof(m_fp)/sizeof(m_fp[0]);i++){
-                if(m_fp[i]==nullptr){
-                    break;
-                }
-            }
-            if(i<2){
-                char buf[FILENAME_MAX];
-                memset(buf,0,FILENAME_MAX);
-                std::string path=std::string(getcwd(buf, FILENAME_MAX)) + "/traces/"+m_prefix+"_"
-                +std::to_string(id)+"_sbd_send_owd.txt";
-                m_fp[i]=new std::fstream();
-                m_fp[i]->open(path.c_str(),std::fstream::out);
-            }
-        }
     }
 }
 bool ShareBottleneckDetectionSink::NeedRegisterToSender(uint32_t id){
@@ -352,9 +327,6 @@ void ShareBottleneckDetectionSink::OnOneWayDelaySample(uint32_t id,uint32_t seq,
     int i=0;
     for(auto it=m_sources.begin();it!=m_sources.end();it++){
         if(it->first==id){
-            if(m_enableTrace){
-                WriteDelayToTrace(i,seq,owd);
-            }
             it->second->OnNewSample(event_time,owd);
         }
         i++;
@@ -383,7 +355,9 @@ void ShareBottleneckDetectionSink::OnOneWayDelaySample(uint32_t id,uint32_t seq,
             if(is_sbd){
                 PrintTrendLineInfo();
                 if(m_traceTrResult.is_open()){
-                    m_traceTrResult<<event_time<<"\tyes"<<std::endl;
+                    float now=Simulator::Now().GetSeconds();
+                    m_traceTrYes<<now<<"\tyes"<<std::endl;
+                    m_traceTrResult<<now<<"\tyes"<<std::endl;
                 }
             }
             m_trendlineInfos.clear();
@@ -397,8 +371,8 @@ void ShareBottleneckDetectionSink::OnOneWayDelaySample(uint32_t id,uint32_t seq,
 }
 void ShareBottleneckDetectionSink::SSCDetectionSharedBottleneck(){
     if(m_traceSscResult.is_open()){
-        uint32_t event_time=Simulator::Now().GetMilliSeconds();
-        m_traceSscResult<<event_time<<"\tyes"<<std::endl;        
+        float now=Simulator::Now().GetSeconds();
+        m_traceSscResult<<now<<"\tyes"<<std::endl;        
     }
 
 }
@@ -427,20 +401,14 @@ void ShareBottleneckDetectionSink::PrintTrendLineInfo(){
 
     
 }
-void ShareBottleneckDetectionSink::WriteDelayToTrace(int i,uint32_t seq,uint32_t owd){
-    if(m_fp[i]->is_open()){
-        char line [256];
-        memset(line,0,256);
-        float now=Simulator::Now().GetSeconds();
-        sprintf (line, "%f %16d %16d",now,seq,owd);
-        m_fp[i]->write(line,strlen(line));
-        m_fp[i]->write("\n",1);
-    }
-}
 void ShareBottleneckDetectionSink::OpenSBDTraceFile(std::string &prefix){
     char buf[FILENAME_MAX];
     memset(buf,0,FILENAME_MAX);
     std::string common=std::string(getcwd(buf, FILENAME_MAX))+"/traces/"+prefix;
+    {
+        std::string path=common+"_sbd_tr_yes.txt";
+        m_traceTrYes.open(path.c_str(),std::fstream::out);
+    }
     {
         std::string path=common+"_sbd_tr.txt";
         m_traceTrResult.open(path.c_str(),std::fstream::out);
@@ -451,6 +419,9 @@ void ShareBottleneckDetectionSink::OpenSBDTraceFile(std::string &prefix){
     }
 }
 void ShareBottleneckDetectionSink::CloseSBDTraceFile(){
+    if(m_traceTrYes.is_open()){
+        m_traceTrYes.close();
+    }
     if(m_traceTrResult.is_open()){
         m_traceTrResult.close();
     }

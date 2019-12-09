@@ -53,6 +53,9 @@ void DqcSender::SetTraceLossPacketDelay(TraceLossPacketDelay cb){
         OnPacketLossInfo(seq,rtt);
     });
 }
+void DqcSender::SetTraceOwdAtSender(TraceOwdAtSender cb){
+	 m_traceOwd=cb;
+}
 void DqcSender::OnPacketLossInfo(dqc::PacketNumber seq,uint32_t rtt){
     if(!m_traceLossDelay.IsNull()){
         int32_t num=(int32_t)seq.ToUint64();
@@ -216,6 +219,9 @@ void DqcSender::PostProceeAfterReceiveFromPeer(){
         m_lastAckedSeq=delay.first;
         uint32_t seq=(uint32_t)m_lastAckedSeq.ToUint64();
         uint32_t owd=(uint32_t)delay.second.ToMilliseconds();
+        if(!m_traceOwd.IsNull()){
+            m_traceOwd(seq,owd);
+        }
         for(auto it=m_sinks.begin();it!=m_sinks.end();it++){
             (*it)->OnOneWayDelaySample(m_id,seq,owd);
         }

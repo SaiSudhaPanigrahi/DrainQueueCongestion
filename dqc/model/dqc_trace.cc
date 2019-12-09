@@ -22,6 +22,9 @@ void DqcTrace::Log(std::string name,uint8_t enable){
     if(enable&E_DQC_LOSS){
         OpenTraceLossPacketInfo(name);
     }
+    if(enable&E_DQC_SEND_OWD){
+        OpenTraceOwdBySenderFile(name);
+    }
 }
 void DqcTrace::OpenTraceOwdFile(std::string name){
 	char buf[FILENAME_MAX];
@@ -58,57 +61,49 @@ void DqcTrace::OpenTraceLossPacketInfo(std::string name){
 			+name+"_loss_seq.txt";
 	m_lossInfo.open(path.c_str(), std::fstream::out);    
 }
+void DqcTrace::OpenTraceOwdBySenderFile(std::string name){
+	char buf[FILENAME_MAX];
+	memset(buf,0,FILENAME_MAX);
+	std::string path = std::string (getcwd(buf, FILENAME_MAX)) + "/traces/"
+			+name+"_send_owd.txt";
+	m_owdBySender.open(path.c_str(), std::fstream::out);     
+}
 void DqcTrace::OnOwd(uint32_t seq,uint32_t owd,uint32_t size){
-	char line [256];
-	memset(line,0,256);
 	if(m_owd.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d %16d %16d",
-				now,seq,owd,size);
-		m_owd<<line<<std::endl;
+		m_owd<<now<<"\t"<<seq<<"\t"<<owd<<"\t"<<size<<std::endl;
 		m_owd.flush();
 	}    
 }
 void DqcTrace::OnRtt(uint32_t seq,uint32_t rtt){
-	char line [256];
-	memset(line,0,256);
 	if(m_rtt.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d %16d",
-				now,seq,rtt);
-		m_rtt<<line<<std::endl;
+		m_rtt<<now<<"\t"<<seq<<"\t"<<rtt<<std::endl;
 	}    
 }
 void DqcTrace::OnBw(int32_t kbps){
-	char line [256];
-	memset(line,0,256);
 	if(m_bw.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d",
-				now,kbps);
-		m_bw<<line<<std::endl;
-		m_bw.flush();
+		m_bw<<now<<"\t"<<kbps<<std::endl;
 	}       
     
 }
 void DqcTrace::OnSentSeq(int32_t seq){
-	char line [256];
-	memset(line,0,256);
 	if(m_sentSeq.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d",
-				now,seq);
-		m_sentSeq<<line<<std::endl;
+        m_sentSeq<<now<<"\t"<<seq<<std::endl;
 	}     	
 }
-void DqcTrace::OnLossPacketInfo(int32_t seq,uint32_t rtt){
-	char line [256];
-	memset(line,0,256);
+void DqcTrace::OnLossPacketInfo(uint32_t seq,uint32_t rtt){
 	if(m_lossInfo.is_open()){
 		float now=Simulator::Now().GetSeconds();
-		sprintf (line, "%f %16d %16d",
-				now,seq,rtt);
-		m_lossInfo<<line<<std::endl;
+		m_lossInfo<<now<<"\t"<<seq<<"\t"<<rtt<<std::endl;
+	}    
+}
+void DqcTrace::OnOwdBySender(uint32_t seq,uint32_t owd){
+	if(m_owdBySender.is_open()){
+		float now=Simulator::Now().GetSeconds();
+		m_owdBySender<<now<<"\t"<<seq<<"\t"<<owd<<std::endl;
 	}    
 }
 void DqcTrace::Close(){
@@ -117,6 +112,7 @@ void DqcTrace::Close(){
     CloseTraceBandwidthFile();
 	CloseTraceSentSeqFile();
     CloseTraceLossPacketInfo();
+    CloseTraceOwdBySenderFile();
 }
 void DqcTrace::CloseTraceOwdFile(){
 	if(m_owd.is_open()){
@@ -141,6 +137,11 @@ void DqcTrace::CloseTraceSentSeqFile(){
 void DqcTrace::CloseTraceLossPacketInfo(){
     if(m_lossInfo.is_open()){
         m_lossInfo.close();
+    }
+}
+void DqcTrace::CloseTraceOwdBySenderFile(){
+    if(m_owdBySender.is_open()){
+        m_owdBySender.close();
     }
 }
 }

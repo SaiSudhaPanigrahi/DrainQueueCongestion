@@ -44,8 +44,10 @@ public:
     void SetBwTraceFuc(TraceBandwidth cb);
     typedef Callback<void,int32_t> TraceSentSeq;
     void SetSentSeqTraceFuc(TraceSentSeq cb);
-    typedef Callback<void,int32_t,uint32_t> TraceLossPacketDelay;
+    typedef Callback<void,uint32_t,uint32_t> TraceLossPacketDelay;
     void SetTraceLossPacketDelay(TraceLossPacketDelay cb);
+    typedef Callback<void,uint32_t,uint32_t> TraceOwdAtSender;
+    void SetTraceOwdAtSender(TraceOwdAtSender cb);
     void Bind(uint16_t port);
     InetSocketAddress GetLocalAddress();
     void ConfigurePeer(Ipv4Address addr,uint16_t port);    
@@ -91,5 +93,6 @@ private:
     dqc::PacketNumber m_lastAckedSeq{dqc::PacketNumber(0)};
 	TraceSentSeq m_traceSentSeqCb;
     TraceLossPacketDelay m_traceLossDelay;
+    TraceOwdAtSender m_traceOwd;
 };   
 }
