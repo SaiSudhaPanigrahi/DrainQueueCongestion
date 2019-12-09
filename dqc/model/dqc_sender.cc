@@ -5,6 +5,7 @@
 #include "ns3/time_tag.h"
 #include "byte_codec.h"
 #include "proto_utils.h"
+#include "sink_manager.h"
 using namespace dqc;
 namespace ns3{
 NS_LOG_COMPONENT_DEFINE("dqcsender");
@@ -113,12 +114,16 @@ void DqcSender::DataGenerator(int times){
     }
 }
 void DqcSender::StartApplication(){
+    m_running=true;
 	m_processTimer=Simulator::ScheduleNow(&DqcSender::Process,this);
 }
 void DqcSender::StopApplication(){
+    m_running=false;
 	m_processTimer.Cancel();
+    m_sinks.clear();
 }
 void DqcSender::RecvPacket(Ptr<Socket> socket){
+    if(!m_running){return;}
 	Address remoteAddr;
 	auto p = socket->RecvFrom (remoteAddr);
 	uint32_t recv=p->GetSize ();
@@ -149,6 +154,7 @@ void DqcSender::OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) {
 	}
 }
 void DqcSender::Process(){
+    if(!m_running){return ;}
     if(m_processTimer.IsExpired()){
 		int64_t now_ms=Simulator::Now().GetMilliSeconds();
 		//NS_LOG_INFO("now "<<std::to_string(Simulator::Now().GetMicroSeconds()));
@@ -177,8 +183,42 @@ void DqcSender::Process(){
         m_processTimer=Simulator::Schedule(next,&DqcSender::Process,this);
     }
 }
+void DqcSender::SetSenderId(uint32_t id){
+    if(m_id!=0){
+        return;
+    }
+    m_id=id;
+    OneWayDelaySinkManager::Instance()->OnNewCreateSender(this);
+}
+void DqcSender::RegisterOnewayDelaySink(OneWayDelaySink *sink){
+    bool existed=false;
+    for(auto it=m_sinks.begin();it!=m_sinks.end();it++){
+        if(sink==(*it)){
+            existed=true;
+            break;
+        }
+    }
+    if(!existed){
+        m_sinks.push_back(sink);
+    }
+}
 void DqcSender::PostProceeAfterReceiveFromPeer(){
-    //std::pair<PacketNumber,TimeDelta> delay=m_connection.GetOneWayDelayInfo();
-    //std::cout<<delay.first<<" "<<delay.second.ToMilliseconds()<<std::endl;
+    std::pair<PacketNumber,TimeDelta> delay=m_connection.GetOneWayDelayInfo();
+    bool newSample=false;
+    if(m_lastAckedSeq==PacketNumber(0)){
+        newSample=true;
+    }else{
+        if(delay.first>m_lastAckedSeq){
+            newSample=true;
+        }
+    }
+    if(newSample){
+        m_lastAckedSeq=delay.first;
+        uint32_t seq=(uint32_t)m_lastAckedSeq.ToUint64();
+        uint32_t owd=(uint32_t)delay.second.ToMilliseconds();
+        for(auto it=m_sinks.begin();it!=m_sinks.end();it++){
+            (*it)->OnOneWayDelaySample(m_id,seq,owd);
+        }
+    }
 }
 }

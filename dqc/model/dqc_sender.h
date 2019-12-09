@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <vector>
 #include "ns3/event-id.h"
 #include "ns3/callback.h"
 #include "ns3/application.h"
@@ -17,6 +18,12 @@
 #include "proto_con.h"
 namespace ns3{
 class DqcSender;
+class OneWayDelaySink{
+public:
+    virtual ~OneWayDelaySink(){}
+    virtual bool NeedRegisterToSender(uint32_t id){ return false;}
+    virtual void OnOneWayDelaySample(uint32_t id,uint32_t seq,uint32_t owd){}
+};
 class FakePackeWriter:public dqc::Socket{
 public:
 	FakePackeWriter(DqcSender *sender):m_sender(sender){}
@@ -48,6 +55,9 @@ public:
     void SendToNetwork(Ptr<Packet> p);
     void OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) override;
     void OnPacketLossInfo(dqc::PacketNumber seq,uint32_t rtt);
+    uint32_t GetId() const {return m_id;}
+    void SetSenderId(uint32_t id);
+    void RegisterOnewayDelaySink(OneWayDelaySink *sink);
 private:
 	void DataGenerator(int times);
 	virtual void StartApplication() override;
@@ -55,6 +65,8 @@ private:
     void RecvPacket(Ptr<Socket> socket);
     void Process();
     void PostProceeAfterReceiveFromPeer();
+    bool m_running{false};
+    uint32_t m_id{0};
     FakePackeWriter m_writer;
     Ipv4Address m_peerIp;
     uint16_t m_peerPort;
@@ -73,8 +85,10 @@ private:
     int m_packetGenerated{0};
 	bool m_pakcetLimit{false};
     int m_packetAllowed{50000};
+    std::vector<OneWayDelaySink*> m_sinks;
 	TraceBandwidth m_traceBwCb;
 	int64_t m_lastSentTs{0};
+    dqc::PacketNumber m_lastAckedSeq{dqc::PacketNumber(0)};
 	TraceSentSeq m_traceSentSeqCb;
     TraceLossPacketDelay m_traceLossDelay;
 };   

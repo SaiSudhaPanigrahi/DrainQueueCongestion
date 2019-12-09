@@ -9,6 +9,7 @@
 #include "ns3/dqc-module.h"
 #include <string>
 #include <iostream>
+#include <memory>
 using namespace ns3;
 using namespace dqc;
 const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 3Mbps
@@ -63,10 +64,11 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
                         float startTime,
                         float stopTime,
 						DqcTrace *trace,
-                        uint32_t max_bps=0
+                        uint32_t max_bps=0,uint32_t id=0
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
+	sendApp->SetSenderId(id);
     //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
@@ -85,6 +87,7 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
     }
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
+		sendApp->SetTraceLossPacketDelay(MakeCallback(&DqcTrace::OnLossPacketInfo,trace));
 		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
@@ -117,15 +120,15 @@ static void InstallTcp(
     serverApps.Stop (Seconds (stopTime));	
 	
 }
-static double simDuration=400;
+static double simDuration=300;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main(int argc, char *argv[]){
 	CommandLine cmd;
-    std::string instance=std::string("10");
-    std::string cc_tmp("bbrplus");
+    std::string instance=std::string("3");
+    std::string cc_tmp("bbr");
 	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
@@ -144,6 +147,7 @@ int main(int argc, char *argv[]){
     //std::ios::openmode filemode=std::ios_base::out;
     //GlobalStream::Create(filename,filemode);
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+	LogComponentEnable("sbd-sink",LOG_LEVEL_ALL);
 	//LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
@@ -236,6 +240,9 @@ int main(int argc, char *argv[]){
 	}else if(cc_tmp==std::string("cubic")){
 		cc=kCubicBytes;
 		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("cubicplus")){
+		cc=kCubicPlus;
+		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
 		std::cout<<cc_tmp<<std::endl;
@@ -251,29 +258,38 @@ int main(int argc, char *argv[]){
 		enable_random_loss=true;
 	}
 	NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay,enable_random_loss);
+	std::string prefix=instance+cc_name+std::string("1");
+    std::shared_ptr<ShareBottleneckDetectionSink> sbd(new ShareBottleneckDetectionSink(prefix,true));
+    sbd->RegisterDataSource(1);
+	sbd->RegisterDataSource(2);
+    uint32_t sender_id=1;
 	int test_pair=1;
 	DqcTrace trace1;
 	std::string log=instance+cc_name+std::to_string(test_pair);
-	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
+	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW|DqcTraceEnable::E_DQC_LOSS);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,sender_id);
+    sender_id++;
 	DqcTrace trace2;
 	log=instance+cc_name+std::to_string(test_pair);
-	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
+	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW|DqcTraceEnable::E_DQC_LOSS);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
-
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps,sender_id);
+    sender_id++;
+    
 	DqcTrace trace3;
 	log=instance+cc_name+std::to_string(test_pair);
-	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
+	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW|DqcTraceEnable::E_DQC_LOSS);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
-
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart,appStop,&trace3,max_bps,sender_id);
+    sender_id++;
 	/*DqcTrace trace4;
 	log=instance+cc_name+std::to_string(test_pair);
-	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
+	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW|DqcTraceEnable::E_DQC_LOSS);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+80,appStop,&trace4,max_bps);*/
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+80,appStop,&trace4,max_bps,sender_id);
+    sender_id++;
+    */
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	
