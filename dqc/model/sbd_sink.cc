@@ -5,6 +5,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <math.h>
+#include <algorithm>
 namespace ns3{
 NS_LOG_COMPONENT_DEFINE("sbd-sink");
 namespace{
@@ -17,6 +18,9 @@ namespace{
     const size_t kGroups=50+1;
     const uint32_t kSSCStartDetectionTime=0;
     const uint32_t kSSCDetectionInterval=1000;//1s
+}
+namespace{
+    const uint32_t kContinueCongestionTh=10;
 }
 HarmonicMean::~HarmonicMean(){
     m_samples.clear();
@@ -286,7 +290,6 @@ ShareBottleneckDetectionSink::ShareBottleneckDetectionSink(std::string &prefix,b
 }
 ShareBottleneckDetectionSink::~ShareBottleneckDetectionSink(){
     m_sources.clear();
-    size_t i=0;
     CloseSBDTraceFile();
 }
 void ShareBottleneckDetectionSink::RegisterDataSource(uint32_t id){
@@ -350,7 +353,7 @@ void ShareBottleneckDetectionSink::OnOneWayDelaySample(uint32_t id,uint32_t seq,
         }
         if(m_group>m_notCountInSlowStart){
         error=CalculateError(k[0],k[1]);
-        if(error<0){
+        if(error<0||m_trendlineInfos.size()>50){
             bool is_sbd=TrendlineSBD();
             if(is_sbd){
                 PrintTrendLineInfo();
@@ -362,7 +365,7 @@ void ShareBottleneckDetectionSink::OnOneWayDelaySample(uint32_t id,uint32_t seq,
             }
             m_trendlineInfos.clear();
         }
-        if(error>0){
+        if((error>0)&&(k[0]>10.0)&&(k[1]>10.0)){
             m_trendlineInfos.emplace_back(m_group,k[0],c[0],k[1],c[1],error);
         }         
         }
@@ -376,9 +379,14 @@ void ShareBottleneckDetectionSink::SSCDetectionSharedBottleneck(){
     }
 
 }
+bool TrendlineInfoCmp(TrendlineInfo &i,TrendlineInfo &j){
+    return i.k1>j.k1;
+}
 bool ShareBottleneckDetectionSink::TrendlineSBD(){
     bool ret=false;
-    if(m_trendlineInfos.size()>m_congestionTh){
+    if(m_trendlineInfos.size()>=kContinueCongestionTh){
+        ret=true;
+    }else{
         uint32_t underErrorCount=0;
         for(auto it=m_trendlineInfos.begin();it!=m_trendlineInfos.end();it++){
             if(it->error<m_trendlineErrorTh){
@@ -387,15 +395,35 @@ bool ShareBottleneckDetectionSink::TrendlineSBD(){
             if(underErrorCount>=m_underErrorTh){
                 ret=true;
                 break;
-            }
+            }            
         }
     }
+    /*if(m_trendlineInfos.size()>=kContinueCongestionTh){
+        std::sort(m_trendlineInfos.begin(),m_trendlineInfos.end(),TrendlineInfoCmp);
+        uint32_t underErrorCount=0;
+        size_t i=0;
+        for(auto it=m_trendlineInfos.begin();it!=m_trendlineInfos.end();it++){
+            if(it->error<m_trendlineErrorTh){
+                underErrorCount++;
+            }
+            if(underErrorCount>=m_underErrorTh){
+                ret=true;
+                break;
+            } 
+            if(i>10){
+                break;
+            }
+			i++;
+        }
+    }*/
+
     return ret;
 }
 void ShareBottleneckDetectionSink::PrintTrendLineInfo(){
     if(m_traceTrResult.is_open()){
         for(auto it=m_trendlineInfos.begin();it!=m_trendlineInfos.end();it++){
-            m_traceTrResult<<it->group<<" "<<it->k1<<" "<<it->c1<<" "<<it->k2<<" "<<it->c2<<" "<<it->error<<std::endl;
+            m_traceTrResult<<it->group<<" "<<it->k1<<" "<<it->c1<<" "
+            <<it->k2<<" "<<it->c2<<" "<<it->error<<std::endl;
         }        
     }
 

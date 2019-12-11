@@ -126,10 +126,10 @@ public:
 private:
     bool TrendlineSBD();
     void PrintTrendLineInfo();
-    std::map<uint32_t,std::shared_ptr<TrendlineSampleGroup>> m_sources;
-    std::vector<TrendlineInfo> m_trendlineInfos;
     void OpenSBDTraceFile(std::string &prefix);
     void CloseSBDTraceFile();
+    std::map<uint32_t,std::shared_ptr<TrendlineSampleGroup>> m_sources;
+    std::vector<TrendlineInfo> m_trendlineInfos;
     std::string m_prefix;
     bool m_enableTrace{false};
     uint32_t m_group{0};
@@ -137,9 +137,8 @@ private:
     uint32_t m_trendlineUpdateTime{0};
     uint32_t m_updataTimeLength{100}; //100 milliseconds
     uint32_t m_notCountInSlowStart{10};// avoid self inflict queue delay in slow start,about 1 second;
-    double m_trendlineErrorTh{10.0};
-    uint32_t m_congestionTh{5};
-    uint32_t m_underErrorTh{2};
+    double m_trendlineErrorTh{15.0};
+    uint32_t m_underErrorTh{3};
     std::fstream m_traceTrYes;
     std::fstream m_traceTrResult;
     std::fstream m_traceSscResult;
