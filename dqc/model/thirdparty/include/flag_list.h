@@ -70,3 +70,8 @@ PROTO_FLAG(
     bool,
     FLAG_quic_reloadable_flag_quic_donot_reset_ideal_next_packet_send_time,
     false)
+// Max time that QUIC can pace packets into the future in ms.
+PROTO_FLAG(int32_t, FLAGS_quic_max_pace_time_into_future_ms, 10)
+
+// Smoothed RTT fraction that a connection can pace packets into the future.
+PROTO_FLAG(double, FLAGS_quic_pace_time_into_future_srtt_fraction, 0.125f)

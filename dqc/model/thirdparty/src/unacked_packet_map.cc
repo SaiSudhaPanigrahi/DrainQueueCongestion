@@ -106,8 +106,8 @@ void UnackedPacketMap::RemoveLossFromInflight(PacketNumber seq){
 }
 void UnackedPacketMap::RemoveObsolete(){
     while(!unacked_packets_.empty()){
-        auto it=unacked_packets_.begin();
-        if(it->inflight&&(it->state==SPS_OUT)){
+		const TransmissionInfo& info=unacked_packets_.front();
+        if(info.inflight&&(info.state==SPS_OUT)){
             break;
         }
         unacked_packets_.pop_front();

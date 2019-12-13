@@ -2,10 +2,14 @@
 #include "proto_con.h"
 #include "proto_utils.h"
 #include "byte_codec.h"
+#include "flag_impl.h"
 #include "ns3/log.h"
 NS_LOG_COMPONENT_DEFINE("proto_connection");
 using namespace ns3;
 namespace dqc{
+namespace {
+    const int kMinReleaseTimeIntoFutureMs = 1;
+}
 class SendAlarmDelegate:public Alarm::Delegate{
 public:
     SendAlarmDelegate(ProtoCon *connection)
@@ -85,7 +89,7 @@ void ProtoCon::Process(){
         return;
     }
     //only send one packet out at a time
-    if(CanWrite(HAS_RETRANSMITTABLE_DATA)){
+    /*if(CanWrite(HAS_RETRANSMITTABLE_DATA)){
     bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
     if(!packet_send){
         if(waiting_info_.empty()){
@@ -93,7 +97,8 @@ void ProtoCon::Process(){
         }
         Send();
     }
-    }
+    }*/
+    MaybeSendBulkData();
 }
 bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
     if(NO_RETRANSMITTABLE_DATA==has_retrans){
@@ -103,23 +108,24 @@ bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
         return false;
     }
     ProtoTime now=clock_->Now();
-    TimeDelta delta=sent_manager_.TimeUntilSend(now);
-    if(delta.IsInfinite()){
+    TimeDelta delay=sent_manager_.TimeUntilSend(now);
+    if(delay.IsInfinite()){
         send_alarm_->Cancel();
         return false;
-    }else{
-        if(!delta.IsZero()){
-            send_alarm_->Update(now+delta,TimeDelta::FromMilliseconds(1));
-            return false;
+    }
+    if(!delay.IsZero()){
+        if(delay<=release_time_into_future_){
+            return true;
         }
+        send_alarm_->Update(now+delay,TimeDelta::FromMilliseconds(1));
+        return false;
     }
     return true;
 }
-void ProtoCon::OnRetransmissionTimeOut(){
-    sent_manager_.OnRetransmissionTimeOut();
-    SendRetransPending(TT_RTO_RETRANS);
+void ProtoCon::MaybeSendBulkData(){
+    WriteNewData();
 }
-void ProtoCon::OnCanWrite(){
+void ProtoCon::OnCanWriteSession(){
     bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
     if(!packet_send){
         if(waiting_info_.empty()){
@@ -127,6 +133,22 @@ void ProtoCon::OnCanWrite(){
         }
         Send();
     }
+}
+void ProtoCon::WriteNewData(){
+    if(!CanWrite(HAS_RETRANSMITTABLE_DATA)){
+        return;
+    }
+    OnCanWriteSession();
+    if(!send_alarm_->IsSet()&&CanWrite(HAS_RETRANSMITTABLE_DATA)){
+        send_alarm_->Set(clock_->ApproximateNow());
+    }
+}
+void ProtoCon::OnRetransmissionTimeOut(){
+    sent_manager_.OnRetransmissionTimeOut();
+    SendRetransPending(TT_RTO_RETRANS);
+}
+void ProtoCon::OnCanWrite(){
+    WriteNewData();
 }
 void ProtoCon::WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin){
     struct PacketStream info(id,offset,len,fin);
@@ -176,6 +198,9 @@ bool ProtoCon::OnAckFrameEnd(PacketNumber start){
 	TimeDelta max_rtt=CalculateFastRetranTime();
 	ProtoTime next=new_ack_received_time_+max_rtt;
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
+    if(supports_release_time_){
+        UpdateReleaseTimeIntoFuture();
+    }
     return true;
 }
 bool ProtoCon::WriteStreamData(uint32_t id,
@@ -189,7 +214,7 @@ bool ProtoCon::WriteStreamData(uint32_t id,
     return stream->WriteStreamData(offset,len,writer);
 }
 TimeDelta ProtoCon::CalculateFastRetranTime(){
-	RttStats *rtt_stats=sent_manager_.GetRttStats();
+	const RttStats *rtt_stats=sent_manager_.GetRttStats();
 	TimeDelta max_rtt=rtt_stats->smoothed_rtt();
 	max_rtt=std::max(max_rtt,rtt_stats->latest_rtt());
 	max_rtt=max_rtt+rtt_stats->mean_deviation();
@@ -200,7 +225,7 @@ void ProtoCon::OnFastRetransmit(){
 	sent_manager_.FastRetransmit();
 	TimeDelta max_rtt=CalculateFastRetranTime();
 	ProtoTime next=clock_->Now()+max_rtt;
-	bool packet_send=SendRetransPending(TT_FAST_RETRANS);
+	SendRetransPending(TT_FAST_RETRANS);
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
 	NS_LOG_INFO("fast retrans");
 }
@@ -334,5 +359,14 @@ void ProtoCon::SendStopWaitingFrame(){
     serialized.retransble_frames.push_back(frame);
     sent_manager_.OnSentPacket(&serialized,QuicPacketNumber(0),NO_RETRANSMITTABLE_DATA,clock_->Now());
     packet_writer_->SendTo(src,writer.length(),peer_);
+}
+void ProtoCon::UpdateReleaseTimeIntoFuture(){
+  release_time_into_future_ = std::max(
+      TimeDelta::FromMilliseconds(kMinReleaseTimeIntoFutureMs),
+      std::min(
+          TimeDelta::FromMilliseconds(
+              GetQuicFlag(FLAGS_quic_max_pace_time_into_future_ms)),
+          sent_manager_.GetRttStats()->SmoothedOrInitialRtt() *
+              GetQuicFlag(FLAGS_quic_pace_time_into_future_srtt_fraction)));
 }
 }//namespace dqc;

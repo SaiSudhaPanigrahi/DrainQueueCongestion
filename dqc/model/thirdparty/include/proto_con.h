@@ -38,16 +38,8 @@ public:
     }
     void set_peer(SocketAddress &peer){peer_=peer;}
     void Process();
-    bool CanWrite(HasRetransmittableData has_retrans);
-	PacketNumber GetMaxSentSeq() const { return seq_;}
-    PacketNumber AllocSeq(){
-        return seq_++;
-    }
-    const TimeDelta GetRetransmissionDelay() const{
-        return sent_manager_.GetRetransmissionDelay();
-    }
-    void OnRetransmissionTimeOut();
-    void OnCanWrite();
+    
+
     virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
     //framevisitor
@@ -65,9 +57,22 @@ public:
                                  ByteCount len,
                                  basic::DataWriter *writer) override;
 	TimeDelta CalculateFastRetranTime();
+    void OnCanWrite();
     void OnFastRetransmit();
+    void OnRetransmissionTimeOut();
+    const TimeDelta GetRetransmissionDelay() const{
+        return sent_manager_.GetRetransmissionDelay();
+    }
+    PacketNumber GetMaxSentSeq() const { return seq_;}
 	std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo(){return sent_manager_.GetOneWayDelayInfo();}
 private:
+    PacketNumber AllocSeq(){
+        return seq_++;
+    }
+    void MaybeSendBulkData();
+    void OnCanWriteSession();
+    void WriteNewData();
+    bool CanWrite(HasRetransmittableData has_retrans);
     ProtoStream *CreateStream();
     ProtoStream *GetStream(uint32_t id);
     void NotifyCanSendToStreams();
@@ -75,6 +80,7 @@ private:
     bool SendRetransPending(TransType tt);
     void Retransmit(uint32_t id,StreamOffset off,ByteCount len,bool fin,TransType tt);
     void SendStopWaitingFrame();
+    void UpdateReleaseTimeIntoFuture();
     ProtoClock *clock_{nullptr};
     std::map<uint32_t,ProtoStream*> streams_;
     std::deque<PacketStream> waiting_info_;
@@ -93,5 +99,8 @@ private:
 	 std::shared_ptr<Alarm> fast_retrans_alarm_;
     TraceSentSeq *trace_sent_{nullptr};
 	QuicConnectionStats con_stats_;
+    bool supports_release_time_{false};
+    TimeDelta release_time_into_future_{TimeDelta::Zero()};
+    
 };
 }//namespace dqc;
