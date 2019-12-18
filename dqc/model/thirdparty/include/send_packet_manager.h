@@ -75,6 +75,8 @@ public:
     }
     void SetTraceLossPacketDelay(TraceLossPacketDelay cb){trace_lost_=std::move(cb);}
     std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo() { return one_way_delay_;}
+    void SetCongestionId(uint32_t cid);
+	void SetNumEmulatedConnections(int num_connections);
 private:
       // Update the RTT if the ack is for the largest acked packet number.
   // Returns true if the rtt was updated.

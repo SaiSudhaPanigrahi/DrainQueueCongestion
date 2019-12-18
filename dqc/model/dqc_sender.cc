@@ -187,7 +187,7 @@ void DqcSender::Process(){
     }
 }
 void DqcSender::SetSenderId(uint32_t id){
-    if(m_id!=0){
+    if(m_id!=0||id==0){
         return;
     }
     m_id=id;
@@ -204,6 +204,14 @@ void DqcSender::RegisterOnewayDelaySink(OneWayDelaySink *sink){
     if(!existed){
         m_sinks.push_back(sink);
     }
+}
+void DqcSender::SetCongestionId(uint32_t cid){
+    dqc::SendPacketManager *manager=m_connection.GetSentPacketManager();
+    manager->SetCongestionId(cid);
+}
+void DqcSender::SetNumEmulatedConnections(int num_connections){
+	dqc::SendPacketManager *manager=m_connection.GetSentPacketManager();
+	manager->SetNumEmulatedConnections(num_connections);
 }
 void DqcSender::PostProceeAfterReceiveFromPeer(){
     std::pair<PacketNumber,TimeDelta> delay=m_connection.GetOneWayDelayInfo();

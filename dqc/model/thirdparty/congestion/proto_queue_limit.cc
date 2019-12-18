@@ -58,7 +58,7 @@ const float kModerateProbeRttMultiplier = 0.75;
 const float kSimilarMinRttThreshold = 1.125;
 
 //add by zsy for testing new congestion control algorithm
-const TimeDelta kMaxQueueBacklog=TimeDelta::FromMilliseconds(10);//if above,in congestion status;
+const TimeDelta kMaxQueueBacklog=TimeDelta::FromMilliseconds(20);//if above,in congestion status;
 }  // namespace
 
 static int DQC_COUNT=0;

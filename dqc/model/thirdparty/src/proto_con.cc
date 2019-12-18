@@ -227,7 +227,7 @@ void ProtoCon::OnFastRetransmit(){
 	ProtoTime next=clock_->Now()+max_rtt;
 	SendRetransPending(TT_FAST_RETRANS);
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
-	NS_LOG_INFO("fast retrans");
+	//NS_LOG_INFO("fast retrans");
 }
 ProtoStream *ProtoCon::CreateStream(){
     uint32_t id=stream_id_;

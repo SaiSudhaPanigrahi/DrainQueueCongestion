@@ -3,7 +3,6 @@
 #include "proto_send_algorithm_interface.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_windowed_filter.h"
-#include "kalman_bw.h"
 #include "logging.h"
 #include "optional.h"
 #include "unknow_random.h"
@@ -387,7 +386,6 @@ class BbrRandSender : public SendAlgorithmInterface {
   int cycle_len_{0};
   ProtoTime cycle_mstamp_{ProtoTime::Zero()};
   int probe_bw_state_{-1};
-  KalmanFilter kalman_;
   nonstd::optional<QuicByteCount> bdp_before_drain_;
   int cycles_{0};
   int cycles_counter_{0};

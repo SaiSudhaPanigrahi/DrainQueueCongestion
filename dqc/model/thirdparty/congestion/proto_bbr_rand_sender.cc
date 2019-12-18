@@ -473,12 +473,6 @@ bool BbrRandSender::UpdateBandwidthAndMinRtt(
 
     if (!bandwidth_sample.state_at_send.is_app_limited ||
         bandwidth_sample.bandwidth > BandwidthEstimate()) {
-	  int64_t bps=bandwidth_sample.bandwidth.ToBitsPerSecond();
-	  int64_t est=kalman_.Update(0,bps);
-	  QuicBandwidth bw=QuicBandwidth::FromBitsPerSecond(est);
-	  if(mode_==STARTUP||mode_==DRAIN){
-		bw=bandwidth_sample.bandwidth;
-	  }
       max_bandwidth_.Update(bandwidth_sample.bandwidth, round_trip_count_);
     }
   }

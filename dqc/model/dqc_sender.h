@@ -60,6 +60,8 @@ public:
     uint32_t GetId() const {return m_id;}
     void SetSenderId(uint32_t id);
     void RegisterOnewayDelaySink(OneWayDelaySink *sink);
+    void SetCongestionId(uint32_t cid);
+	void SetNumEmulatedConnections(int num_connections);
 private:
 	void DataGenerator(int times);
 	virtual void StartApplication() override;

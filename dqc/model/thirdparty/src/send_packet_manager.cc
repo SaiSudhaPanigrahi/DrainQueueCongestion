@@ -396,4 +396,14 @@ const TimeDelta SendPacketManager::GetRetransmissionDelay(size_t consecutive_rto
   }
   return retransmission_delay;
 }
+void SendPacketManager::SetCongestionId(uint32_t cid){
+    if(send_algorithm_){
+        send_algorithm_->SetCongestionId(cid);
+    }
+}
+void SendPacketManager::SetNumEmulatedConnections(int num_connections){
+    if(send_algorithm_){
+        send_algorithm_->SetNumEmulatedConnections(num_connections);
+    }
+}
 }//namespace dqc;
