@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <string>
 #include "couple_cc_manager.h"
-#include "random.h"
 namespace dqc{
 
 namespace {
@@ -18,6 +17,7 @@ const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
 const float kRenoBeta = 0.7f;  // Reno backoff factor.
+const float kRandomLossBeta =0.9f;
 // The time after which the current min_rtt value expires.
 const TimeDelta kMinRttBaseDuration=TimeDelta::FromMilliseconds(2500);
 const TimeDelta kMinRttRandDuration=TimeDelta::FromMilliseconds(500);
@@ -26,17 +26,45 @@ const TimeDelta kMinRttExpiry = TimeDelta::FromMilliseconds(3000);
 const TimeDelta kProbeRttTime = TimeDelta::FromMilliseconds(200);
 const QuicByteCount kDefaultMinimumCongestionWindow =4* kDefaultTCPMSS ;//2 * kDefaultTCPMSS;
 const float kDerivedHighCWNDGain = 2.0f;
-const QuicRoundTripCount kBandwidthWindowSize=10;
+const QuicRoundTripCount kBandwidthWindowSize=20;
 const float kStartupGrowthTarget = 1.25;
 const float kStartupAfterLossGain = 1.5f;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
-const float kModerateProbeRttMultiplier = 0.5;
+const float kModerateProbeRttMultiplier = 0.75;
 const float kSimilarMinRttThreshold = 1.125;
 const size_t kGainCycleLength=8;
 static const uint32_t kCycleRand = 7;
 static const int alpha_scale_den = 10;
 static const int alpha_scale_num = 32;
 static const int alpha_scale = 12;
+const int kRandomLossThNum=66;
+const int kRandomLossThDen=100;
+
+}
+TokenBucket::TokenBucket(int capacity){
+	token_=0;
+	counter_=0;
+	capacity_=capacity;
+	lossRate_=1.0/((float)capacity_);
+	random_.seedTime();
+}
+void TokenBucket::Add(){
+	counter_++;
+	if(counter_>capacity_){
+		random_.seedTime();
+		counter_=0;
+	}
+	if(random_.nextRealOpen()<lossRate_){
+		token_++;
+	}
+}
+bool TokenBucket::Consume(){
+	bool ret=false;
+	if(token_>0){
+		token_--;
+		ret=true;
+	}
+	return ret;
 }
 static inline uint64_t mptcp_ccc_scale(uint32_t val, int scale)
 {
@@ -51,70 +79,71 @@ LiaPlusSender::LiaPlusSender(
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats,
 	Random* random)
-    : rtt_stats_(rtt_stats),
-      stats_(stats),
-	  unacked_packets_(unacked_packets),
-	  random_(random),
-	  mode_(STARTUP),
-	  round_trip_count_(0),
-	  max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),
-      max_ack_height_(kBandwidthWindowSize, 0, 0),
-      max_window_height_(kBandwidthWindowSize, 0, 0),
-      aggregation_epoch_start_time_(ProtoTime::Zero()),
-      aggregation_epoch_bytes_(0),
-      enable_ack_aggregation_during_startup_(false),
-      expire_ack_aggregation_in_startup_(false),
-	  probe_rtt_based_on_bdp_(true),
-      slower_startup_(false),
-      rate_based_startup_(false),
-      startup_rate_reduction_multiplier_(0),
-      startup_bytes_lost_(0),
-	  min_rtt_(TimeDelta::Zero()),
-      min_rtt_timestamp_(ProtoTime::Zero()),
-      high_gain_(kDerivedHighCWNDGain/*kDefaultHighGain*/),
-      high_cwnd_gain_(kDerivedHighCWNDGain/*kDefaultHighGain*/),
-      drain_gain_(1.f /kDerivedHighCWNDGain/*kDefaultHighGain*/),
-	  pacing_rate_(QuicBandwidth::Zero()),
-	  num_startup_rtts_(kRoundTripsWithoutGrowthBeforeExitingStartup),
-      exit_startup_on_loss_(false),
-      cycle_current_offset_(0),
-      last_cycle_start_(ProtoTime::Zero()),
-      is_at_full_bandwidth_(false),
-      rounds_without_bandwidth_gain_(0),
-      bandwidth_at_last_round_(QuicBandwidth::Zero()),
-      exiting_quiescence_(false),
-      exit_probe_rtt_at_(ProtoTime::Zero()),
-      probe_rtt_round_passed_(false),
-      last_sample_is_app_limited_(false),
-      has_non_app_limited_sample_(false),
-      flexible_app_limited_(false),
-	  reno_(true),
-      num_connections_(kDefaultNumConnections),
-      min4_mode_(false),
-      last_cutback_exited_slowstart_(false),
-      slow_start_large_reduction_(false),
-      no_prr_(false),
-      num_acked_packets_(0),
-      congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
-	  initial_congestion_window_(initial_tcp_congestion_window *
-	                                   kDefaultTCPMSS),
-	  min_congestion_window_(kDefaultMinimumCongestionWindow),
-      max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
-      slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
-      initial_tcp_congestion_window_(initial_tcp_congestion_window *
-                                     kDefaultTCPMSS),
-      initial_max_tcp_congestion_window_(max_congestion_window *
-                                         kDefaultTCPMSS),
-      min_slow_start_exit_window_(min_congestion_window_),
-      probe_rtt_skipped_if_similar_rtt_(false),
-      probe_rtt_disabled_if_app_limited_(false),
-      app_limited_since_last_probe_rtt_(false),
-      min_rtt_since_last_probe_rtt_(TimeDelta::Infinite()),
-      always_get_bw_sample_when_acked_(
-          GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)){
+    :rtt_stats_(rtt_stats),
+    stats_(stats),
+	unacked_packets_(unacked_packets),
+	random_(random),
+	mode_(STARTUP),
+	round_trip_count_(0),
+	max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),
+    max_ack_height_(kBandwidthWindowSize, 0, 0),
+    max_window_height_(kBandwidthWindowSize, 0, 0),
+    aggregation_epoch_start_time_(ProtoTime::Zero()),
+    aggregation_epoch_bytes_(0),
+    enable_ack_aggregation_during_startup_(false),
+    expire_ack_aggregation_in_startup_(false),
+	probe_rtt_based_on_bdp_(true),
+    slower_startup_(false),
+    rate_based_startup_(false),
+    startup_rate_reduction_multiplier_(0),
+    startup_bytes_lost_(0),
+	min_rtt_(TimeDelta::Zero()),
+    min_rtt_timestamp_(ProtoTime::Zero()),
+    high_gain_(kDerivedHighCWNDGain/*kDefaultHighGain*/),
+    high_cwnd_gain_(kDerivedHighCWNDGain/*kDefaultHighGain*/),
+    drain_gain_(1.f /kDerivedHighCWNDGain/*kDefaultHighGain*/),
+	pacing_rate_(QuicBandwidth::Zero()),
+	num_startup_rtts_(kRoundTripsWithoutGrowthBeforeExitingStartup),
+    exit_startup_on_loss_(false),
+    cycle_current_offset_(0),
+    last_cycle_start_(ProtoTime::Zero()),
+    is_at_full_bandwidth_(false),
+    rounds_without_bandwidth_gain_(0),
+    bandwidth_at_last_round_(QuicBandwidth::Zero()),
+    exiting_quiescence_(false),
+    exit_probe_rtt_at_(ProtoTime::Zero()),
+    probe_rtt_round_passed_(false),
+    last_sample_is_app_limited_(false),
+    has_non_app_limited_sample_(false),
+    flexible_app_limited_(false),
+	reno_(true),
+    num_connections_(kDefaultNumConnections),
+    min4_mode_(false),
+    last_cutback_exited_slowstart_(false),
+    slow_start_large_reduction_(false),
+    no_prr_(false),
+    num_acked_packets_(0),
+    congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
+	initial_congestion_window_(initial_tcp_congestion_window *
+	                                 kDefaultTCPMSS),
+	min_congestion_window_(kDefaultMinimumCongestionWindow),
+    max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
+    slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
+    initial_tcp_congestion_window_(initial_tcp_congestion_window *
+                                   kDefaultTCPMSS),
+    initial_max_tcp_congestion_window_(max_congestion_window *
+                                       kDefaultTCPMSS),
+    min_slow_start_exit_window_(min_congestion_window_),
+    probe_rtt_skipped_if_similar_rtt_(false),
+    probe_rtt_disabled_if_app_limited_(false),
+    app_limited_since_last_probe_rtt_(false),
+    min_rtt_since_last_probe_rtt_(TimeDelta::Infinite()),
+    always_get_bw_sample_when_acked_(
+    GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)),
+    token_(100){
         min_rtt_expiration_=kMinRttBaseDuration+
         TimeDelta::FromMilliseconds(random_->nextInt(0,kMinRttRandDuration.ToMilliseconds()));
-		EnterStartupMode(clock->Now());
+        EnterStartupMode(clock->Now());
 }
 
 LiaPlusSender::~LiaPlusSender() {
@@ -191,7 +220,9 @@ float LiaPlusSender::RenoBeta() const {
   // computed as:
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
-
+float LiaPlusSender::RandomLossBeta() const {
+    return (num_connections_ - 1 + kRandomLossBeta) / num_connections_;
+}
 void LiaPlusSender::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
@@ -217,20 +248,26 @@ void LiaPlusSender::OnCongestionEvent(
 
 	    excess_acked = UpdateAckAggregationBytes(event_time, bytes_acked);
 	  }
-	  if(mode_==PROBE_BW){
-		for (const LostPacket& lost_packet : lost_packets) {
-		   OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
-		                prior_in_flight);
-		 }
-		 for (const AckedPacket acked_packet : acked_packets) {
-		   OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
-		                 prior_in_flight, event_time);
-		 }
-         if(mode_==PROBE_BW){
-            UpdateGainCyclePhase(event_time, prior_in_flight, !lost_packets.empty());
-            max_window_height_.Update(congestion_window_,round_trip_count_);             
-         }
-	  }
+	uint64_t srtt=get_srtt_us();
+	if(srtt>max_srtt_monitor_){
+		max_srtt_monitor_=srtt;
+	}
+    if(mode_==PROBE_BW){
+        bool  congestion=true;//=srtt>(max_srtt_monitor_*kRandomLossThNum/kRandomLossThDen);
+        //bool  congestion=token_.Consume();
+        for (const LostPacket& lost_packet : lost_packets) {
+            OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
+                    prior_in_flight,congestion);
+        }            
+        for (const AckedPacket acked_packet : acked_packets) {
+        OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
+                        prior_in_flight, event_time);
+        }
+        if(mode_==PROBE_BW){
+           UpdateGainCyclePhase(event_time, prior_in_flight, !lost_packets.empty());
+           max_window_height_.Update(congestion_window_,round_trip_count_);             
+        }
+	}
 	  // Handle logic specific to STARTUP and DRAIN modes.
 	  if (is_round_start && !is_at_full_bandwidth_) {
 	    CheckIfFullBandwidthReached();
@@ -301,6 +338,7 @@ void LiaPlusSender::OnPacketSent(
   }
   sampler_.OnPacketSent(sent_time, packet_number, bytes, bytes_in_flight,
                         is_retransmittable);
+  token_.Add();
 }
 
 bool LiaPlusSender::CanSend(QuicByteCount bytes_in_flight) {
@@ -408,7 +446,7 @@ void LiaPlusSender::ExitSlowstart() {
 
 void LiaPlusSender::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
-                                       QuicByteCount prior_in_flight) {
+                                       QuicByteCount prior_in_flight,bool congestion) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
   // already sent should be treated as a single loss event, since it's expected.
   if (largest_sent_at_last_cutback_.IsInitialized() &&
@@ -444,8 +482,16 @@ void LiaPlusSender::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-	QuicByteCount target=GetTargetCongestionWindow(1.0)*RenoBeta();
-	QuicByteCount reduce=congestion_window_ * RenoBeta();
+	QuicByteCount target=(GetTargetCongestionWindow(1.0)/kDefaultTCPMSS)*RenoBeta();
+    target=target*kDefaultTCPMSS;
+	QuicByteCount reduce;
+    if(congestion){
+        reduce=(congestion_window_/kDefaultTCPMSS)* RenoBeta();
+        reduce=reduce*kDefaultTCPMSS;
+    }else{
+        reduce=(congestion_window_/kDefaultTCPMSS)*RandomLossBeta();
+        reduce=reduce*kDefaultTCPMSS;
+    }
 	congestion_window_=std::max(target,reduce);
   }
   if (congestion_window_ < min_congestion_window_) {

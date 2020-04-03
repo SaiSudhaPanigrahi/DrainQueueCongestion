@@ -43,7 +43,9 @@ private:
     friend inline bool operator==(TimeDelta lhs, TimeDelta rhs);
     friend inline bool operator!=(TimeDelta lhs, TimeDelta rhs);
     friend inline bool operator<(TimeDelta lhs, TimeDelta rhs);
-    friend inline bool operator>(TimeDelta lhs, TimeDelta rhs);    friend inline bool operator>=(TimeDelta lhs, TimeDelta rhs);
+    friend inline bool operator<=(TimeDelta lhs, TimeDelta rhs);
+    friend inline bool operator>(TimeDelta lhs, TimeDelta rhs);
+    friend inline bool operator>=(TimeDelta lhs, TimeDelta rhs);
     friend inline TimeDelta operator>>(TimeDelta lhs, size_t rhs);
     friend inline TimeDelta operator+(TimeDelta lhs, TimeDelta rhs);
     friend inline TimeDelta operator-(TimeDelta lhs, TimeDelta rhs);

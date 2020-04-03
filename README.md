@@ -39,7 +39,11 @@ bandwidth fairness:
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_bw.png)  
 one way delay  
 ![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/cubic_1_delay.png)  
-
-
+The paper on copa: Copa: Practical Delay-Based Congestion Control for the Internet.  
+Copa simulation results:  
+bandwidth fairness:  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/copa-1-bw-ability.png)  
+one way delay  
+![avatar](https://github.com/SoonyangZhang/DrainQueueCongestion/blob/master/result/copa-1-delay-ability.png)  
 There is a review papar to evaluate the performance of these algorithms(https://arxiv.org/abs/1909.03673).  
 

@@ -32,7 +32,6 @@ const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 const float kModerateProbeRttMultiplier = 0.5;
 const float kSimilarMinRttThreshold = 1.125;
 const size_t kGainCycleLength=8;
-static const uint32_t kCycleRand = 7;
 }
 
 CubicPlusSender::CubicPlusSender(

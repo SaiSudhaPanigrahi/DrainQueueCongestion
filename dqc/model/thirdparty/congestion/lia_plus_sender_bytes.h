@@ -6,7 +6,20 @@
 #include "proto_bandwidth_sampler.h"
 #include "proto_windowed_filter.h"
 #include "proto_send_algorithm_interface.h"
+#include "random.h"
 namespace dqc{
+class TokenBucket{
+public:
+	TokenBucket(int capacity);
+	void Add();
+	bool Consume();
+private:
+	int token_{0};
+	int counter_{0};
+	int capacity_{0};
+	float lossRate_;
+	Random random_;
+};
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
 class LiaPlusSender : public SendAlgorithmInterface {
@@ -80,7 +93,7 @@ class LiaPlusSender : public SendAlgorithmInterface {
  protected:
   // Compute the TCP Reno beta based on the current number of connections.
   float RenoBeta() const;
-
+  float RandomLossBeta() const;
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
   // TODO(ianswett): Remove these and migrate to OnCongestionEvent.
@@ -94,7 +107,7 @@ class LiaPlusSender : public SendAlgorithmInterface {
   void ExitSlowstart();
   void OnPacketLost(QuicPacketNumber largest_loss,
                     QuicByteCount lost_bytes,
-                    QuicByteCount prior_in_flight);
+                    QuicByteCount prior_in_flight,bool congestion);
   void MaybeIncreaseCwnd(QuicPacketNumber acked_packet_number,
                          QuicByteCount acked_bytes,
                          QuicByteCount prior_in_flight,
@@ -297,6 +310,8 @@ class LiaPlusSender : public SendAlgorithmInterface {
   TimeDelta min_rtt_expiration_{TimeDelta::FromMilliseconds(2500)};
   // Latched value of --quic_always_get_bw_sample_when_acked.
   const bool always_get_bw_sample_when_acked_;
+  uint64_t max_srtt_monitor_{0};
+  TokenBucket token_;
   uint32_t congestion_id_{0};
   std::list<SendAlgorithmInterface*> other_ccs_;
   uint64_t alpha_;

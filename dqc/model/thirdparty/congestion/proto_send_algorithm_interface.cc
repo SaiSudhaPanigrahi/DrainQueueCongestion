@@ -2,7 +2,6 @@
 #include "rtt_stats.h"
 #include "proto_bbr_plus_sender.h"
 #include "proto_bbr_sender.h"
-#include "proto_queue_limit.h"
 #include "proto_delay_bbr_sender.h"
 #include "proto_highrail_sender.h"
 #include "proto_bbr_rand_sender.h"
@@ -12,6 +11,8 @@
 #include "cubic_plus_sender_bytes.h"
 #include "lia_sender_bytes.h"
 #include "lia_plus_sender_bytes.h"
+#include "aimd_bbr_sender.h"
+#include "proto_copa_sender.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -80,6 +81,26 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats,random
                                );
         }
+        case kBBRReno:{
+            return new AimdBbrSender(clock,
+                               rtt_stats,
+							   unacked_packets,
+                       		   true,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
+        case kBBRCubic:{
+            return new AimdBbrSender(clock,
+                               rtt_stats,
+							   unacked_packets,
+                       		   false,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
         case kBBR_DELAY:{
             return new DelayBbrSender(clock->Now(),
                                rtt_stats,
@@ -88,14 +109,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                max_congestion_window,
                                random
                                );
-        }
-        case kQueueLimit:{
-            return new DelayBbrSender(clock->Now(),
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               random);
         }
         case kBBR:{
             return new BbrSender(clock->Now(),
@@ -151,7 +164,16 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                random,
 							   stats
                                );
-        }	
+        }
+        case kCopa:{
+            return new CopaSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
         default:{
             return new BbrSender(clock->Now(),
                                rtt_stats,
