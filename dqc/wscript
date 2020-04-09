@@ -63,6 +63,7 @@ def build(bld):
     'model/thirdparty/congestion/proto_tsunami_sender.cc',
     'model/thirdparty/congestion/prr_sender.cc',
     'model/thirdparty/congestion/tcp_cubic_sender_bytes.cc',
+    'model/thirdparty/congestion/tcp_westwood_sender_bytes.cc',
     'model/dqc_delay_ack_receiver.cc',
     'model/dqc_sender.cc',
     'model/dqc_receiver.cc',

@@ -32,8 +32,6 @@ const float kDerivedHighCWNDGain = 2.0f;
 const float kStartupAfterLossGain = 1.5f;
 // The cycle of gains used during the PROBE_BW stage.
 const float kPacingGain[] = {1.1, 0.85, 1, 1, 1, 1, 1, 1};
-const float kFastProbePacingGain=1.25;
-const float kFastDrainPacingGain=0.75;
 const TimeDelta kFastProbeTime = TimeDelta::FromMilliseconds(500);
 // The length of the gain cycle.
 const size_t kGainCycleLength = sizeof(kPacingGain) / sizeof(kPacingGain[0]);
@@ -61,9 +59,7 @@ static double kRandProbe=0.25;
 enum bbr_pacing_gain_phase {
     BBR_BW_PROBE_UP     = 0,
     BBR_BW_PROBE_DOWN   = 1,
-	BBR_BW_PROBE_FAST= 2,
-	BBR_BW_PROBE_DRAIN=3,
-    BBR_BW_PROBE_CRUISE = 4,
+    BBR_BW_PROBE_CRUISE = 2,
 };
 }  // namespace
 
@@ -147,10 +143,6 @@ BbrRandSender::BbrRandSender(ProtoTime now,
       always_get_bw_sample_when_acked_(
           GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)),
 	humanoid_counter_(1,bbr_cycle_rand,1){
-  /*if (stats_) {
-    stats_->slowstart_count = 0;
-    stats_->slowstart_start_time = QuicTime::Zero();
-  }*/
   EnterStartupMode(now);
 }
 
@@ -538,11 +530,7 @@ void BbrRandSender::UpdateGainCyclePhase(ProtoTime now,
 	  cycle_mstamp_=now;
 	  cycle_len_=2+random_->nextInt(bbr_cycle_rand);
 	  humanoid_counter_++;
-	  /*if((now-enter_probe_time_)<kFastProbeTime){
-		SetProbeBwState(BBR_BW_PROBE_FAST);
-	  }else*/{
-		SetProbeBwState(BBR_BW_PROBE_UP);
-	  }  
+	  SetProbeBwState(BBR_BW_PROBE_UP);
 	  return;
   }
   if(pacing_gain_==kPacingGain[BBR_BW_PROBE_CRUISE]){
@@ -561,9 +549,7 @@ void BbrRandSender::UpdateGainCyclePhase(ProtoTime now,
       bdp_before_drain_=GetTargetCongestionWindow(1);
 	  if(probe_bw_state_==BBR_BW_PROBE_UP){
 		SetProbeBwState(BBR_BW_PROBE_DOWN);
-	  }/*else{
-		SetProbeBwState(BBR_BW_PROBE_DRAIN);
-	  }*/
+	  }
 	  return;
   }
 }
@@ -891,12 +877,6 @@ void BbrRandSender::SetProbeBwState(int state){
     probe_bw_state_=state;
 	cycle_current_offset_=state;
 	pacing_gain_ = kPacingGain[cycle_current_offset_];
-	if(probe_bw_state_==BBR_BW_PROBE_FAST){
-		pacing_gain_=kFastProbePacingGain;
-	}
-	if(probe_bw_state_==BBR_BW_PROBE_DRAIN){
-		pacing_gain_=kFastDrainPacingGain;
-	}
 }
 BbrRandSender::DebugState BbrRandSender::ExportDebugState() const {
   return DebugState(*this);

@@ -7,6 +7,7 @@
 #include "proto_bbr_rand_sender.h"
 #include "proto_tsunami_sender.h"
 #include "tcp_cubic_sender_bytes.h"
+#include "tcp_westwood_sender_bytes.h"
 #include "bbr2_sender.h"
 #include "cubic_plus_sender_bytes.h"
 #include "lia_sender_bytes.h"
@@ -35,6 +36,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kRenoBytes:{
             return new TcpCubicSenderBytes(clock,
+                               rtt_stats,
+                               true,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kWestwood:{
+            return new TcpWestwoodSenderBytes(clock,
                                rtt_stats,
                                true,
                                initial_congestion_window,

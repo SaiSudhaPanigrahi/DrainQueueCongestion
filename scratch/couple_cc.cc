@@ -7,6 +7,8 @@
 #include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/traffic-control-module.h"
 #include "ns3/dqc-module.h"
+#include "couple_cc_manager.h"
+#include "couple_cc_source.h"
 #include <string>
 #include <iostream>
 #include <memory>
@@ -60,13 +62,16 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
                         float startTime,
                         float stopTime,
 						DqcTrace *trace,
-                        uint32_t max_bps=0,uint32_t id=0
+                        uint32_t max_bps=0,uint32_t cid=0,uint32_t emucons=1
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
-	sendApp->SetSenderId(id);
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
+	if(cid){
+		sendApp->SetCongestionId(cid);
+	}
+	sendApp->SetNumEmulatedConnections(emucons);
     receiver->AddApplication (recvApp);
     Ptr<Ipv4> ipv4 = receiver->GetObject<Ipv4> ();
 	Ipv4Address receiverIp = ipv4->GetAddress (1, 0).GetLocal ();
@@ -82,48 +87,16 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
     }
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
-		//sendApp->SetTraceLossPacketDelay(MakeCallback(&DqcTrace::OnLossPacketInfo,trace));
-		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
-static void InstallTcp(
-                         Ptr<Node> sender,
-                         Ptr<Node> receiver,
-                         uint16_t port,
-                         float startTime,
-                         float stopTime
-)
-{
-    // configure TCP source/sender/client
-    auto serverAddr = receiver->GetObject<Ipv4> ()->GetAddress (1,0).GetLocal ();
-    BulkSendHelper source{"ns3::TcpSocketFactory",
-                           InetSocketAddress{serverAddr, port}};
-    // Set the amount of data to send in bytes. Zero is unlimited.
-    source.SetAttribute ("MaxBytes", UintegerValue (0));
-    source.SetAttribute ("SendSize", UintegerValue (DEFAULT_PACKET_SIZE));
-
-    auto clientApps = source.Install (sender);
-    clientApps.Start (Seconds (startTime));
-    clientApps.Stop (Seconds (stopTime));
-
-    // configure TCP sink/receiver/server
-    PacketSinkHelper sink{"ns3::TcpSocketFactory",
-                           InetSocketAddress{Ipv4Address::GetAny (), port}};
-    auto serverApps = sink.Install (receiver);
-    serverApps.Start (Seconds (startTime));
-    serverApps.Stop (Seconds (stopTime));	
-	
-}
 static double simDuration=300;
-uint16_t sendPort=5432;
-uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main(int argc, char *argv[]){
 	CommandLine cmd;
     std::string instance=std::string("3");
-    std::string cc_tmp("bbr");
+    std::string cc_tmp("liaplus");
 	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
@@ -138,11 +111,16 @@ int main(int argc, char *argv[]){
 	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
 	}
-    LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
-    LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
-	uint64_t linkBw   = TOPO_DEFAULT_BW;
-    uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
-    uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
+	uint16_t sendPort=6000;
+	uint16_t recvPort=5000;
+	uint64_t linkBw1   = TOPO_DEFAULT_BW;
+    uint32_t msDelay1 = TOPO_DEFAULT_PDELAY;
+    uint32_t msQDelay1 = TOPO_DEFAULT_QDELAY;
+
+	uint64_t linkBw2   = TOPO_DEFAULT_BW;
+    uint32_t msDelay2 = TOPO_DEFAULT_PDELAY;
+    uint32_t msQDelay2 = TOPO_DEFAULT_QDELAY;
+
     uint32_t max_bps=0;
 	std::string cc_name;
 	if(loss_integer>0){
@@ -152,145 +130,89 @@ int main(int argc, char *argv[]){
 	}
 	
     if(instance==std::string("1")){
-    	linkBw=3000000;
-    	msDelay=100;
-    	msQDelay=300;
-        /*linkBw=5000000;
-        msDelay=50;
-        msQDelay=100;*/
+        linkBw1=6000000;
+        msDelay1=50;
+        msQDelay1=150;
+        linkBw2=1500000;
+        msDelay2=100;
+        msQDelay2=200;
     }else if(instance==std::string("2")){
-        linkBw=5000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("3")){
-        linkBw=5000000;
-        msDelay=50;
-        msQDelay=200;        
-    }else if(instance==std::string("4")){
-        linkBw=6000000;
-        msDelay=50;
-        msQDelay=100;
-    }else if(instance==std::string("5")){
-        linkBw=6000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("6")){
-        linkBw=7000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("7")){
-        linkBw=7000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("8")){
-        linkBw=8000000;
-        msDelay=50;
-        msQDelay=200;        
-    }else if(instance==std::string("9")){
-        linkBw=8000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("10")){
-        linkBw=10000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("11")){
-        linkBw=10000000;
-        msDelay=50;
-        msQDelay=200;        
-    }else if(instance==std::string("12")){
-        linkBw=12000000;
-        msDelay=100;
-        msQDelay=200;        
-    }else if(instance==std::string("13")){
-        linkBw=12000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("14")){
-        linkBw=15000000;
-        msDelay=50;
-        msQDelay=150;        
+        linkBw1=4000000;
+        msDelay1=50;
+        msQDelay1=200;
+        linkBw2=3000000;
+        msDelay2=50;
+        msQDelay2=200;     
     }
-    dqc::CongestionControlType cc=kBBR;/*kQueueLimit kCubicBytes kBBRv2 kBBRPlus kTsunami kHighSpeedRail*/
-	if(cc_tmp==std::string("bbr")){
-		cc=kBBR;
+    dqc::CongestionControlType cc=kLiaBytes;
+	if(cc_tmp==std::string("lia")){
+		cc=kLiaBytes;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrd")){
-		cc=kBBR; //drain to target
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrplus")){
-		cc=kBBRPlus;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrrand")){
-		cc=kBBRRand;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrv2")){
-		cc=kBBRv2;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("cubic")){
-		cc=kCubicBytes;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("westwood")){
-		cc=kWestwood;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("cubicplus")){
-		cc=kCubicPlus;
+	}else if(cc_tmp==std::string("liaplus")){
+		cc=kLiaPlus;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("renoplus")){
-		cc=kRenoPlus;
+	}else if(cc_tmp==std::string("bbrreno")){
+		cc=kBBRReno;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("hsr")){
-		cc=kHighSpeedRail;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("tsu")){
-		cc=kTsunami;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("copa")){
-		cc=kCopa;
+	}else if(cc_tmp==std::string("bbrcubic")){
+		cc=kBBRCubic;
 		std::cout<<cc_tmp<<std::endl;
 	}
 	bool enable_random_loss=false;
 	if(loss_integer>0){
 		enable_random_loss=true;
 	}
-	NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay,enable_random_loss);
+	NodeContainer nodes1 = BuildExampleTopo (linkBw1, msDelay1, msQDelay1,enable_random_loss);
+    NodeContainer nodes2 = BuildExampleTopo (linkBw2, msDelay2, msQDelay2,enable_random_loss);
+	dqc::CoupleSource *source=new dqc::CoupleSource();
+	source->RegsterMonitorCongestionId(1);
+	source->RegsterMonitorCongestionId(4);
+	dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
+	manager->RegisterSource(source);
 	std::string prefix=instance+cc_name;
-    //std::shared_ptr<ShareBottleneckDetectionSink> sbd(new ShareBottleneckDetectionSink(prefix,true));
-    //sbd->RegisterDataSource(1);
-	//sbd->RegisterDataSource(2);
-    uint32_t sender_id=1;
+    uint32_t cc_id=1;
 	int test_pair=1;
 	DqcTrace trace1;
 	std::string log=prefix+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,sender_id);
-    sender_id++;
+	InstallDqc(cc,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,cc_id);
+	sendPort++;
+	recvPort++;
+    cc_id++;
 	DqcTrace trace2;
 	log=prefix+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps,sender_id);
-    sender_id++;
+	InstallDqc(cc,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart+40,appStop,&trace2,max_bps,cc_id,1);
+    sendPort++;
+	recvPort++;
+	cc_id++;
     
 	DqcTrace trace3;
 	log=prefix+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps,sender_id);
-    sender_id++;
-	/*DqcTrace trace4;
+	InstallDqc(cc,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id,1);
+    sendPort++;
+	recvPort++;
+    cc_id++;
+
+	sendPort=6000;
+	recvPort=5000;
+	DqcTrace trace4;
 	log=prefix+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+80,appStop,&trace4,max_bps,sender_id);
-    sender_id++;
-    */
+	InstallDqc(cc,nodes2.Get(0),nodes2.Get(1),sendPort,recvPort,appStart,appStop,&trace4,max_bps,cc_id,1);
+    cc_id++;
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
-    Simulator::Destroy();	
+    Simulator::Destroy();
+	manager->Destructor();
+	delete source;	
     return 0;
 }

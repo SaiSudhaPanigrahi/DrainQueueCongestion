@@ -132,20 +132,24 @@ int main(int argc, char *argv[]){
     //std::string filename("error.log");
     //std::ios::openmode filemode=std::ios_base::out;
     //GlobalStream::Create(filename,filemode);
-    LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
+    //LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
 	//LogComponentEnable("queue_limit",LOG_LEVEL_ALL);
-    LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
+    //LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
 	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
-    uint32_t max_bps=6000000;
+    uint32_t max_bps=0;
+	std::string cc_tmp("bbr");
+	std::string cc_name;
 	CommandLine cmd;
-    std::string instance=std::string("10");
+    std::string instance=std::string("1");
     cmd.AddValue ("it", "instacne", instance);
+	cmd.AddValue ("cc", "cctype", cc_tmp);
     cmd.Parse (argc, argv);
+	cc_name="_"+cc_tmp+"_";
     if(instance==std::string("1")){
         linkBw=3000000;
         msDelay=50;
@@ -199,24 +203,34 @@ int main(int argc, char *argv[]){
         msDelay=50;
         msQDelay=150;        
     }
+ 	dqc::CongestionControlType cc=kQueueLimit;
+	if(cc_tmp==std::string("bbr")){
+		cc=kBBR;
+	}else if(cc_tmp==std::string("cubic")){
+		cc=kCubicBytes;
+	}else if(cc_tmp==std::string("reno")){
+		cc=kRenoBytes;
+	}else{
+		cc=kQueueLimit;
+	}
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;
 	DqcTrace trace1;
-	std::string log=instance+"_dqc_"+std::to_string(test_pair);
+	std::string log=instance+"_dqc"+cc_name+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
 	DqcTrace trace2;
-	log=instance+"_dqc_"+std::to_string(test_pair);
+	log=instance+"_dqc"+cc_name+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
-	log=instance+"_dqc_"+std::to_string(test_pair);
+	log=instance+"_dqc"+cc_name+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail/*kRenoBytes kQueueLimit kCubicBytes kBBRPlus kTsunami kHighSpeedRail*/,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

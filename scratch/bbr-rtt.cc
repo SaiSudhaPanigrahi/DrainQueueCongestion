@@ -90,7 +90,6 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
 )
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
-    //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
@@ -108,7 +107,6 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
     }
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
-		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
@@ -122,7 +120,7 @@ int main (int argc, char *argv[]){
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
 	CommandLine cmd;
     std::string instance=std::string("1");
-    std::string cc_tmp("bbrplus");
+    std::string cc_tmp("cubicplus");
 	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
@@ -130,7 +128,7 @@ int main (int argc, char *argv[]){
     uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     std::string cc_name;
-    cc_name="_"+cc_tmp+"_rtt_";
+    cc_name="_"+cc_tmp+"rtt_";
     if(instance==std::string("1")){
         linkBw=4000000;
         msDelay=10;
@@ -262,32 +260,31 @@ int main (int argc, char *argv[]){
   dqc::CongestionControlType cc=kBBRPlus;
 	if(cc_tmp==std::string("bbr")){
 		cc=kBBR;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrd")){
 		cc=kBBR; //drain to target
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrplus")){
 		cc=kBBRPlus;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrrand")){
 		cc=kBBRRand;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("bbrv2")){
 		cc=kBBRv2;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("cubic")){
 		cc=kCubicBytes;
+	}else if(cc_tmp==std::string("westwood")){
+		cc=kWestwood;
 		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("cubicplus")){
+		cc=kCubicPlus;
 	}else if(cc_tmp==std::string("reno")){
-		cc=kRenoBytes;
-		std::cout<<cc_tmp<<std::endl;
+		cc=kRenoBytes;	
 	}else if(cc_tmp==std::string("hsr")){
 		cc=kHighSpeedRail;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("tsu")){
 		cc=kTsunami;
-		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("bbrcubic")){
+		cc=kBBRCubic;
 	}
+	std::cout<<cc_tmp<<std::endl;
   uint32_t max_bps=0;
 	int test_pair=1;
 	DqcTrace trace1;
