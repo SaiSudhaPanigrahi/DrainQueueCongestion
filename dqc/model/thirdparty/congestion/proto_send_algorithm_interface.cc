@@ -8,6 +8,7 @@
 #include "proto_tsunami_sender.h"
 #include "tcp_cubic_sender_bytes.h"
 #include "tcp_westwood_sender_bytes.h"
+#include "tcp_westwood_sender_enhance.h"
 #include "bbr2_sender.h"
 #include "cubic_plus_sender_bytes.h"
 #include "lia_sender_bytes.h"
@@ -47,6 +48,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
             return new TcpWestwoodSenderBytes(clock,
                                rtt_stats,
                                true,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kWestwoodEnhance:{
+            return new TcpWestwoodSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
                                initial_congestion_window,
                                max_congestion_window,
                                stats

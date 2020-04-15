@@ -170,8 +170,8 @@ void DqcSender::Process(){
 				ByteCount in_flight=0;
 				ByteCount cwnd=0;
 				sent_manager->InFlight(&in_flight,&cwnd);
-				NS_LOG_INFO(std::to_string(largest_sent)<<" "<<std::to_string(largest_acked));
-				NS_LOG_INFO(std::to_string(buffer)
+				NS_LOG_ERROR(__FILE__<<std::to_string(largest_sent)<<" "<<std::to_string(largest_acked));
+				NS_LOG_ERROR(std::to_string(buffer)
 				<<" "<<std::to_string(m_stream->get_send_buffer_len())
 				<<" "<<sent_manager->CheckCanSend()
 				<<" "<<std::to_string(in_flight)
