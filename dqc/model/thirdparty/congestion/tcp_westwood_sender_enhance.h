@@ -74,7 +74,7 @@ public:
   void SetCongestionWindowFromBandwidthAndRtt(QuicBandwidth bandwidth,
                                               TimeDelta rtt);
   void SetMinCongestionWindowInPackets(QuicPacketCount congestion_window);
-  void CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight);
+  void CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain);
   void OnPacketLost(QuicPacketNumber largest_loss,
                     QuicByteCount lost_bytes,
                     QuicByteCount prior_in_flight);
@@ -160,13 +160,11 @@ private:
     bool first_ack_{true};
     bool first_round_{true};
     bool reset_rtt_min_{true};
-
-
- typedef WindowedFilter<QuicBandwidth,
+    bool reno_mode_{true};
+    typedef WindowedFilter<QuicBandwidth,
                          MaxFilter<QuicBandwidth>,
                          QuicRoundTripCount,
-                         QuicRoundTripCount>
-      MaxBandwidthFilter;
+                         QuicRoundTripCount> MaxBandwidthFilter;
     Mode mode_;
     BandwidthSampler sampler_;
     // The number of the round trips that have occurred during the connection.

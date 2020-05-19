@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-
+#include <iostream>
 namespace dqc{
 
 namespace {
@@ -15,7 +15,7 @@ namespace {
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kWestwoodDelayBeta = 0.9f;
+const float kWestwoodDelayBeta = 0.8f;
 const float kWestwoodLossBeta = 0.9f;  // add to reduce loss for westwood
 const float kRenoBeta = 0.7f;
 const TimeDelta kMinRttExpiry = TimeDelta::FromMilliseconds(2500);
@@ -25,11 +25,13 @@ const TimeDelta kWestwoodRttMin=TimeDelta::FromMilliseconds(50);
 const QuicByteCount kDefaultMinimumCongestionWindow = 4* kDefaultTCPMSS;
 const float kDerivedHighCWNDGain = 2.0f;
 const float kBandwidthWestwoodAlpha = 0.125f;
-const QuicRoundTripCount kBandwidthWindowSize=10;
+const QuicRoundTripCount kBandwidthWindowSize=5;//10;
 const float kSimilarMinRttThreshold = 1.125;
 const float kStartupGrowthTarget = 1.25;
 const float kStartupAfterLossGain = 1.5f;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
+const float kSendRateTooLarge=1.2;
+const float kLatencyFactor=0.5;
 static const int alpha_scale_den = 3;
 static const int alpha_scale_num = 32;
 static const int alpha_scale = 12;
@@ -64,6 +66,7 @@ TcpWestwoodSenderEnhance::TcpWestwoodSenderEnhance(
     bw_est_(QuicBandwidth::Zero()),
     rtt_win_sx_(ProtoTime::Zero()),
     reset_rtt_min_(true),
+    reno_mode_(true),
     mode_(STARTUP),
     round_trip_count_(0),
     max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),
@@ -122,9 +125,23 @@ void TcpWestwoodSenderEnhance::OnCongestionEvent(
         if(min_rtt_expired){
             if(!acked_packets.empty()){
                 QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
-                CongestionWindowBackoff(last_acked_packet,prior_in_flight);
+                CongestionWindowBackoff(last_acked_packet,prior_in_flight,kWestwoodDelayBeta);
             }
         }
+        //inspired from copa, to achieve low latency
+        /*if(!acked_packets.empty()&&!reset_rtt_min_){
+            QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
+            TimeDelta srtt = rtt_stats_->smoothed_rtt();
+            int64_t delayInMicroSec =srtt.ToMicroseconds()- min_rtt_.ToMicroseconds();
+            if(delayInMicroSec>0){
+                int64_t targetRate = (1.0 * kDefaultTCPMSS * 1000000) /
+                (kLatencyFactor * delayInMicroSec);
+                int64_t currentRate = (1.0 * GetCongestionWindow() * 1000000) /srtt.ToMicroseconds();
+                if(currentRate>targetRate){
+                    CongestionWindowBackoff(last_acked_packet,prior_in_flight,0.9);
+                }
+            }
+        }*/
         for (const LostPacket& lost_packet : lost_packets) {
         OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
                     prior_in_flight);
@@ -298,7 +315,7 @@ void TcpWestwoodSenderEnhance::SetMinCongestionWindowInPackets(
 void TcpWestwoodSenderEnhance::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
-void TcpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight){
+void TcpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
   if (largest_sent_at_last_cutback_.IsInitialized() &&
       packet_number <= largest_sent_at_last_cutback_) {
           return ;
@@ -309,7 +326,7 @@ void TcpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_n
   if(bw_est_.IsZero()){
       congestion_window_=congestion_window_*RenoBeta();
   }else{
-      congestion_window_=kWestwoodDelayBeta*bw_est_*min_rtt_;
+      congestion_window_=gain*bw_est_*min_rtt_;
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
@@ -409,7 +426,7 @@ void TcpWestwoodSenderEnhance::MaybeIncreaseCwnd(
     return;
   }
   // Congestion avoidance.
-  if (true) {
+  if (reno_mode_) {
     // Classic Reno congestion avoidance.
     ++num_acked_packets_;
     // Divide by num_connections to smoothly increase the CWND at a faster rate
@@ -420,9 +437,12 @@ void TcpWestwoodSenderEnhance::MaybeIncreaseCwnd(
       num_acked_packets_ = 0;
     }
 
-    /*QUIC_DVLOG(1) */DLOG(INFO)<< "Reno; congestion window: " << congestion_window_
+    DLOG(INFO)<< "Reno; congestion window: " << congestion_window_
                   << " slowstart threshold: " << slowstart_threshold_
                   << " congestion window count: " << num_acked_packets_;
+  }else{
+      //exponential search
+      congestion_window_ += kDefaultTCPMSS;
   }
 }
 

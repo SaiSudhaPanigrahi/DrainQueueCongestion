@@ -2,6 +2,7 @@
 #include "rtt_stats.h"
 #include "proto_bbr_plus_sender.h"
 #include "proto_bbr_sender.h"
+#include "proto_bbrd_sender.h"
 #include "proto_delay_bbr_sender.h"
 #include "proto_highrail_sender.h"
 #include "proto_bbr_rand_sender.h"
@@ -15,6 +16,7 @@
 #include "lia_plus_sender_bytes.h"
 #include "aimd_bbr_sender.h"
 #include "proto_copa_sender.h"
+#include "couple_bbr_sender.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -101,6 +103,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats,random
                                );
         }
+        case kCoupleBBR:{
+            return new CoupleBbrSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
         case kBBRReno:{
             return new AimdBbrSender(clock,
                                rtt_stats,
@@ -150,6 +161,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kBBRRand:{
             return new BbrRandSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random
+                               );
+        }
+        case kBBRD:{
+            return new BbrDrainSender(clock->Now(),
                                rtt_stats,
                                unacked_packets,
                                initial_congestion_window,

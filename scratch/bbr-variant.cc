@@ -115,152 +115,46 @@ static void InstallTcp(
     serverApps.Stop (Seconds (stopTime));	
 	
 }
-static double simDuration=400;
+static double simDuration=300;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main(int argc, char *argv[]){
 	CommandLine cmd;
-    std::string instance=std::string("3");
+    std::string instance=std::string("1");
     std::string cc_tmp("bbr");
 	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
-	cmd.AddValue ("cc", "cctype", cc_tmp);
-	cmd.AddValue ("lo", "loss",loss_str);
     cmd.Parse (argc, argv);
-    int loss_integer=std::stoi(loss_str);
-    double loss_rate=loss_integer*1.0/100;
-    std::cout<<"l "<<loss_integer<<std::endl;
-	if(loss_integer>0){
-	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (loss_rate));
-	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
-	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
-	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
-	}
+    int loss_integer=0;
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
     uint32_t max_bps=0;
-	std::string cc_name;
-	if(loss_integer>0){
-		cc_name="_"+cc_tmp+"_l"+std::to_string(loss_integer)+"_";
-	}else{
-		cc_name="_"+cc_tmp+"_";
-	}
-	
+	std::string cc_name("_all_");	
     if(instance==std::string("1")){
-        linkBw=5000000;
+        linkBw=8000000;
         msDelay=50;
         msQDelay=100;
     }else if(instance==std::string("2")){
-        linkBw=5000000;
+        linkBw=8000000;
         msDelay=50;
         msQDelay=150;        
-    }else if(instance==std::string("3")){
-        linkBw=5000000;
-        msDelay=50;
-        msQDelay=200;        
-    }else if(instance==std::string("4")){
-        linkBw=6000000;
-        msDelay=50;
-        msQDelay=100;
-    }else if(instance==std::string("5")){
-        linkBw=6000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("6")){
-        linkBw=7000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("7")){
-        linkBw=7000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("8")){
+    }else{
         linkBw=8000000;
         msDelay=50;
         msQDelay=200;        
-    }else if(instance==std::string("9")){
-        linkBw=8000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("10")){
-        linkBw=10000000;
-        msDelay=50;
-        msQDelay=150;        
-    }else if(instance==std::string("11")){
-        linkBw=10000000;
-        msDelay=50;
-        msQDelay=200;        
-    }else if(instance==std::string("12")){
-        linkBw=12000000;
-        msDelay=100;
-        msQDelay=200;        
-    }else if(instance==std::string("13")){
-        linkBw=12000000;
-        msDelay=100;
-        msQDelay=300;        
-    }else if(instance==std::string("14")){
-        linkBw=15000000;
-        msDelay=50;
-        msQDelay=150;        
     }
     dqc::CongestionControlType cc=kBBR;/*kQueueLimit kCubicBytes kBBRv2 kBBRPlus kTsunami kHighSpeedRail*/
-	if(cc_tmp==std::string("bbr")){
-		cc=kBBR;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrd")){
-		cc=kBBRD; //drain to target
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrplus")){
-		cc=kBBRPlus;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrrand")){
-		cc=kBBRRand;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrv2")){
-		cc=kBBRv2;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("cubic")){
-		cc=kCubicBytes;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("westwood")){
-		cc=kWestwood;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("westenhance")){
-		cc=kWestwoodEnhance;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("cubicplus")){
-		cc=kCubicPlus;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("reno")){
-		cc=kRenoBytes;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("renoplus")){
-		cc=kRenoPlus;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("hsr")){
-		cc=kHighSpeedRail;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("tsu")){
-		cc=kTsunami;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("copa")){
-		cc=kCopa;
-		std::cout<<cc_tmp<<std::endl;
-	}
 	bool enable_random_loss=false;
-	if(loss_integer>0){
-		enable_random_loss=true;
-	}
 	NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay,enable_random_loss);
 	std::string prefix=instance+cc_name;
-    //std::shared_ptr<ShareBottleneckDetectionSink> sbd(new ShareBottleneckDetectionSink(prefix,true));
-    //sbd->RegisterDataSource(1);
-	//sbd->RegisterDataSource(2);
+
+
+	cc=kBBR;
     uint32_t sender_id=1;
 	int test_pair=1;
 	DqcTrace trace1;
@@ -270,33 +164,46 @@ int main(int argc, char *argv[]){
 	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,sender_id);
     sender_id++;
 
-
+	cc=kBBRD;
 	DqcTrace trace2;
 	log=prefix+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps,sender_id);
     sender_id++;
-    
+
+	cc=kBBRPlus;  
 	DqcTrace trace3;
 	log=prefix+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,200,&trace3,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart,appStop,&trace3,max_bps,sender_id);
     sender_id++;
 
+	cc=kBBRv2;
 	DqcTrace trace4;
 	log=prefix+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+120,300,&trace4,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart,appStop,&trace4,max_bps,sender_id);
     sender_id++;
 
+
+	cc=kHighSpeedRail;
 	DqcTrace trace5;
 	log=prefix+std::to_string(test_pair);
 	trace5.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+4,recvPort+4,appStart+200,appStop,&trace5,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+4,recvPort+4,appStart,appStop,&trace5,max_bps,sender_id);
+    sender_id++;
+
+
+	cc=kTsunami;
+	DqcTrace trace6;
+	log=prefix+std::to_string(test_pair);
+	trace6.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
+	test_pair++;
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+5,recvPort+5,appStart,appStop,&trace6,max_bps,sender_id);
     sender_id++;
 
     Simulator::Stop (Seconds(simDuration));
