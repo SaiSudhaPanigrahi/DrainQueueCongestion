@@ -159,46 +159,50 @@ int main(int argc, char *argv[]){
         msDelay=50;
         msQDelay=200;        
     }else if(instance==std::string("3")){
-        linkBw=4000000;
-        msDelay=50;
-        msQDelay=100;
+        linkBw=3000000;
+        msDelay=100;
+        msQDelay=300;        
     }else if(instance==std::string("4")){
         linkBw=4000000;
         msDelay=50;
-        msQDelay=200;        
+        msQDelay=100;
     }else if(instance==std::string("5")){
-        linkBw=6000000;
+        linkBw=4000000;
         msDelay=50;
         msQDelay=200;        
     }else if(instance==std::string("6")){
         linkBw=6000000;
+        msDelay=50;
+        msQDelay=200;        
+    }else if(instance==std::string("7")){
+        linkBw=6000000;
         msDelay=100;
         msQDelay=300;        
-    }else if(instance==std::string("7")){
-        linkBw=8000000;
-        msDelay=100;
-        msQDelay=200;        
     }else if(instance==std::string("8")){
         linkBw=8000000;
         msDelay=100;
-        msQDelay=300;        
+        msQDelay=200;        
     }else if(instance==std::string("9")){
-        linkBw=10000000;
-        msDelay=50;
-        msQDelay=100;        
+        linkBw=8000000;
+        msDelay=100;
+        msQDelay=300;        
     }else if(instance==std::string("10")){
         linkBw=10000000;
         msDelay=50;
-        msQDelay=150;        
+        msQDelay=100;        
     }else if(instance==std::string("11")){
-        linkBw=12000000;
-        msDelay=100;
-        msQDelay=200;        
+        linkBw=10000000;
+        msDelay=50;
+        msQDelay=150;        
     }else if(instance==std::string("12")){
         linkBw=12000000;
         msDelay=100;
-        msQDelay=300;        
+        msQDelay=200;        
     }else if(instance==std::string("13")){
+        linkBw=12000000;
+        msDelay=100;
+        msQDelay=300;        
+    }else if(instance==std::string("14")){
         linkBw=15000000;
         msDelay=50;
         msQDelay=150;        
@@ -210,24 +214,37 @@ int main(int argc, char *argv[]){
 		cc=kCubicBytes;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
+	}else if(cc_tmp==std::string("copa")){
+		cc=kCopa;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("pcc")){
+		cc=kPCC;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("viva")){
+		cc=kVivace;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("webviva")){
+		cc=kWebRTCVivace;
+		std::cout<<cc_tmp<<std::endl;
 	}else{
 		cc=kQueueLimit;
 	}
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;
 	DqcTrace trace1;
-	std::string log=instance+"_dqc"+cc_name+std::to_string(test_pair);
+	std::string log_common="dqc_"+instance+cc_name;
+	std::string log=log_common+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
 	DqcTrace trace2;
-	log=instance+"_dqc"+cc_name+std::to_string(test_pair);
+	log=log_common+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kHighSpeedRail,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
-	log=instance+"_dqc"+cc_name+std::to_string(test_pair);
+	log=log_common+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);

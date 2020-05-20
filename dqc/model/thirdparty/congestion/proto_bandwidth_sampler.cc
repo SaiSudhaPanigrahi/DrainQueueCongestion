@@ -134,6 +134,7 @@ BandwidthSample BandwidthSampler::OnPacketAcknowledgedInner(
   // means that the RTT measurements here can be artificially high, especially
   // on low bandwidth connections.
   sample.rtt = ack_time - sent_packet.sent_time;
+  sample.sent_time=sent_packet.sent_time;
   SentPacketToSendTimeState(sent_packet, &sample.state_at_send);
   return sample;
 }

@@ -73,7 +73,7 @@ class BbrSender : public SendAlgorithmInterface {
             const UnackedPacketMapInfoInterface* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
-            Random* random);
+            Random* random,bool drain_to_target);
   BbrSender(const BbrSender&) = delete;
   BbrSender& operator=(const BbrSender&) = delete;
   ~BbrSender() override;
