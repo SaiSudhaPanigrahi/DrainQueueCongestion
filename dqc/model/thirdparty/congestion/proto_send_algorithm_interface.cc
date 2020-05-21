@@ -11,6 +11,7 @@
 #include "tcp_westwood_sender_enhance.h"
 #include "bbr2_sender.h"
 #include "cubic_plus_sender_bytes.h"
+#include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
 #include "lia_plus_sender_bytes.h"
 #include "pcc_sender.h"
@@ -101,6 +102,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats,random
+                               );
+        }
+        case kDwcBytes:{
+            return new DwcSender(clock,
+                               rtt_stats,
+                       		   true,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
                                );
         }
         case kCoupleBBR:{

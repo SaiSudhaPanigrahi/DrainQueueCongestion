@@ -71,6 +71,20 @@ n0--L0--n2--L1--n3--L2--n4
 n1--L3--n2--L1--n3--L4--n5
 */
 link_config_t p4pLinks1[]={
+[0]={100*1000000,20,100},
+[1]={5*1000000,10,100},
+[2]={100*1000000,20,100},
+[3]={100*1000000,20,100},
+[4]={100*1000000,20,100},
+};
+link_config_t p4pLinks2[]={
+[0]={100*1000000,20,150},
+[1]={5*1000000,10,150},
+[2]={100*1000000,20,150},
+[3]={100*1000000,20,150},
+[4]={100*1000000,20,150},
+};
+link_config_t p4pLinks3[]={
 [0]={100*1000000,20,200},
 [1]={5*1000000,10,200},
 [2]={100*1000000,20,200},
@@ -137,8 +151,12 @@ int main (int argc, char *argv[]){
 	link_config_t *p4p=p4pLinks1;
     if(instance==std::string("1")){
 		p4p=p4pLinks1;
+    }else if(instance==std::string("2")){
+		p4p=p4pLinks2;      
+    }else if(instance==std::string("3")){
+        p4p=p4pLinks3;
     }else{
-		p4p=p4pLinks1;      
+        p4p=p4pLinks1;
     }
 
     /*uint32_t owd1=p4p[0].msDelay+p4p[1].msDelay+p4p[2].msDelay;
@@ -246,6 +264,8 @@ int main (int argc, char *argv[]){
   dqc::CongestionControlType cc=kBBR;
 	if(cc_tmp==std::string("mbbr")){
 		cc=kCoupleBBR;
+	}else if(cc_tmp==std::string("dwc")){
+		cc=kDwcBytes;
 	}else{
 		cc=kBBR;
 	}

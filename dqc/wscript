@@ -48,6 +48,7 @@ def build(bld):
     'model/thirdparty/congestion/cubic_bytes.cc',
     'model/thirdparty/congestion/cubic_plus_bytes.cc',
     'model/thirdparty/congestion/cubic_plus_sender_bytes.cc',
+    'model/thirdparty/congestion/dwc_sender_bytes.cc',
     'model/thirdparty/congestion/hybrid_slow_start.cc',
     'model/thirdparty/congestion/lia_sender_bytes.cc',
     'model/thirdparty/congestion/lia_plus_sender_bytes.cc',
