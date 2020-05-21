@@ -86,7 +86,8 @@ CoupleBbrSender::CoupleBbrSender(ProtoTime now,
       random_(random),
       mode_(STARTUP),
       round_trip_count_(0),
-      max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),
+      /*max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),*/
+	  max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero()),
       max_ack_height_(kBandwidthWindowSize, 0, 0),
       aggregation_epoch_start_time_(ProtoTime::Zero()),
       aggregation_epoch_bytes_(0),
@@ -184,6 +185,9 @@ QuicBandwidth CoupleBbrSender::PacingRate(QuicByteCount bytes_in_flight) const {
 }
 
 QuicBandwidth CoupleBbrSender::BandwidthEstimate() const {
+  if(round_trip_count_>2){
+	CHECK(!max_bandwidth_.GetBest().IsZero());
+  }
   return max_bandwidth_.GetBest();
 }
 
@@ -914,7 +918,7 @@ void CoupleBbrSender::CalculateAlphaPacingGain(){
     }
     double alpha=1.0,beta=1.0;
     beta=selfbps/accBandwidthSquare;
-    alpha=beta;//(4*beta-1)/3;
+    alpha=(4*beta-1)/3;
 	//std::cout<<congestion_id_<<" "<<other_ccs_.size()<<" "<<alpha<<" "<<beta<<" "<<selfbps<<" "<<accBandwidthSquare<<std::endl;
     if(alpha<=0){
         alpha_gain_is_negative_=true;
@@ -925,7 +929,7 @@ void CoupleBbrSender::CalculateAlphaPacingGain(){
 bool CoupleBbrSender::ShouldBehaveFriendlyToSinglepath() const{
     bool supress_pacing_gain=false;
     if(mode_==PROBE_BW){
-        if(cycle_current_offset_==3||cycle_current_offset_==5){
+        if(cycle_current_offset_>1/*cycle_current_offset_==3||cycle_current_offset_==5*/){
             supress_pacing_gain=true;
         }
     }

@@ -4,6 +4,7 @@
 #include "proto_send_algorithm_interface.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_windowed_filter.h"
+#include "proto_length_filter.h"
 #include "logging.h"
 namespace dqc{
 class RttStats;
@@ -160,7 +161,7 @@ class CoupleBbrSender : public SendAlgorithmInterface {
                          QuicRoundTripCount,
                          QuicRoundTripCount>
       MaxAckHeightFilter;
-
+  typedef LengthFilter<QuicBandwidth,MaxFilter<QuicBandwidth>> MaxLengthBandwidthFilter;
   // Returns whether the connection has achieved full bandwidth required to exit
   // the slow start.
   bool IsAtFullBandwidth() const;
@@ -251,8 +252,8 @@ class CoupleBbrSender : public SendAlgorithmInterface {
 
   // The filter that tracks the maximum bandwidth over the multiple recent
   // round-trips.
-  MaxBandwidthFilter max_bandwidth_;
-
+  //MaxBandwidthFilter max_bandwidth_;
+  MaxLengthBandwidthFilter max_bandwidth_;
   // Tracks the maximum number of bytes acked faster than the sending rate.
   MaxAckHeightFilter max_ack_height_;
 
