@@ -169,7 +169,6 @@ private:
     BandwidthSampler sampler_;
     // The number of the round trips that have occurred during the connection.
     QuicRoundTripCount round_trip_count_;
-    QuicPacketNumber last_sent_packet_;
     QuicPacketNumber current_round_trip_end_;
     MaxBandwidthFilter max_bandwidth_;
     float high_gain_;

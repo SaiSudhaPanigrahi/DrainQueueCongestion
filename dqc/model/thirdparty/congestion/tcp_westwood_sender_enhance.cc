@@ -27,7 +27,7 @@ const float kDerivedHighCWNDGain = 2.0f;
 const float kBandwidthWestwoodAlpha = 0.125f;
 const QuicRoundTripCount kBandwidthWindowSize=5;//10;
 const float kSimilarMinRttThreshold = 1.125;
-const float kStartupGrowthTarget = 1.25;
+const float kStartupGrowthTarget = 1.5;
 const float kStartupAfterLossGain = 1.5f;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 const float kSendRateTooLarge=1.2;
@@ -129,7 +129,7 @@ void TcpWestwoodSenderEnhance::OnCongestionEvent(
             }
         }
         //inspired from copa, to achieve low latency
-        /*if(!acked_packets.empty()&&!reset_rtt_min_){
+        if(!acked_packets.empty()&&!reset_rtt_min_){
             QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
             TimeDelta srtt = rtt_stats_->smoothed_rtt();
             int64_t delayInMicroSec =srtt.ToMicroseconds()- min_rtt_.ToMicroseconds();
@@ -141,7 +141,7 @@ void TcpWestwoodSenderEnhance::OnCongestionEvent(
                     CongestionWindowBackoff(last_acked_packet,prior_in_flight,0.9);
                 }
             }
-        }*/
+        }
         for (const LostPacket& lost_packet : lost_packets) {
         OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
                     prior_in_flight);
@@ -193,7 +193,6 @@ void TcpWestwoodSenderEnhance::OnPacketSent(
     QuicPacketNumber packet_number,
     QuicByteCount bytes,
     HasRetransmittableData is_retransmittable){
-    last_sent_packet_ = packet_number;
   if (InSlowStart()) {
     ++(stats_->slowstart_packets_sent);
   }
@@ -475,7 +474,7 @@ bool TcpWestwoodSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acke
   if (!current_round_trip_end_.IsInitialized()||
       last_acked_packet > current_round_trip_end_) {
     round_trip_count_++;
-    current_round_trip_end_ = last_sent_packet_;
+    current_round_trip_end_ =largest_sent_packet_number_;
     return true;
   }
   return false;

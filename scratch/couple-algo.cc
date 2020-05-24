@@ -266,6 +266,8 @@ int main (int argc, char *argv[]){
 		cc=kCoupleBBR;
 	}else if(cc_tmp==std::string("dwc")){
 		cc=kDwcBytes;
+	}else if(cc_tmp==std::string("wvegas")){
+		cc=kWvegas;
 	}else{
 		cc=kBBR;
 	}
@@ -287,7 +289,7 @@ int main (int argc, char *argv[]){
 	DqcTrace trace2;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
-    InstallDqc(kBBRD,c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace2,max_bps,cc_id);
+    InstallDqc(cc,c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace2,max_bps,cc_id);
 	test_pair++;
 	sendPort++;
 	recvPort++;
@@ -297,7 +299,7 @@ int main (int argc, char *argv[]){
 	DqcTrace trace3;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
-	InstallDqc(kBBRD,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id);
+	InstallDqc(cc,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id);
 	test_pair++;
 	sendPort++;
 	recvPort++;

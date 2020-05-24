@@ -18,6 +18,7 @@
 #include "aimd_bbr_sender.h"
 #include "proto_copa_sender.h"
 #include "couple_bbr_sender.h"
+#include "wvegas_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -103,6 +104,14 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                max_congestion_window,
                                stats,random
                                );
+        }
+        case kWvegas:{
+            return new WvegasSender(clock,
+                               rtt_stats,
+							   unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats);
         }
         case kDwcBytes:{
             return new DwcSender(clock,
