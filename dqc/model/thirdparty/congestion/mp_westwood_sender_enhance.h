@@ -4,25 +4,26 @@
 #include "proto_windowed_filter.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_send_algorithm_interface.h"
+#include <list>
 namespace dqc{
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
-class TcpWestwoodSenderEnhance : public SendAlgorithmInterface {
+class MpWestwoodSenderEnhance : public SendAlgorithmInterface {
 public:
     enum Mode {
         STARTUP,
         DRAIN,
         AIMD,
     };
-  TcpWestwoodSenderEnhance(const ProtoClock* clock,
+  MpWestwoodSenderEnhance(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       const UnackedPacketMapInfoInterface* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  TcpWestwoodSenderEnhance(const TcpWestwoodSenderEnhance&) = delete;
-  TcpWestwoodSenderEnhance& operator=(const TcpWestwoodSenderEnhance&) = delete;
-  ~TcpWestwoodSenderEnhance() override;
+  MpWestwoodSenderEnhance(const MpWestwoodSenderEnhance&) = delete;
+  MpWestwoodSenderEnhance& operator=(const MpWestwoodSenderEnhance&) = delete;
+  ~MpWestwoodSenderEnhance() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -56,9 +57,15 @@ public:
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
+  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
+  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
-
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
+  uint64_t get_srtt_us() const;
+  void set_alpha(uint64_t alpha){alpha_=alpha;}
+  bool IsInAimdState(){return mode_==AIMD;}
   protected:
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
@@ -84,7 +91,7 @@ public:
   void DiscardLostPackets(const LostPacketVector& lost_packets);
   bool UpdateRoundTripCounter(QuicPacketNumber last_acked_packet);
   bool UpdateBandwidthAndMinRtt(ProtoTime now,
-    const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth);
+  const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth);
   void UpdateWindowBandwidth(QuicBandwidth &bandwidth);
   void UpdateWindowBandwidth(ProtoTime event_time,QuicBandwidth &bandwidth);
   bool ShouldExtendMinRttExpiry() const;
@@ -96,6 +103,7 @@ public:
   TimeDelta GetMinRtt() const;
   QuicByteCount GetTargetCongestionWindow(float gain) const;
   float RenoBeta() const;
+  void mptcp_ccc_recalc_alpha();
 private:
     PrrSender prr_;
     const RttStats* rtt_stats_;
@@ -156,7 +164,6 @@ private:
     bool first_ack_{true};
     bool first_round_{true};
     bool reset_rtt_min_{true};
-    bool reno_mode_{true};
     typedef WindowedFilter<QuicBandwidth,
                          MaxFilter<QuicBandwidth>,
                          QuicRoundTripCount,
@@ -190,5 +197,8 @@ private:
     ProtoTime min_rtt_timestamp_;
     bool probe_rtt_skipped_if_similar_rtt_;
     bool exit_startup_on_loss_;
+    uint32_t congestion_id_{0};
+    std::list<MpWestwoodSenderEnhance*> other_ccs_;
+    uint64_t alpha_;
 };
 }

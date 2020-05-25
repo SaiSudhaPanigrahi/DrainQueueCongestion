@@ -55,6 +55,7 @@ WvegasSender::WvegasSender(
                                        kDefaultTCPMSS),
     min_slow_start_exit_window_(min_congestion_window_),
     sample_rtt_(TimeDelta::Zero()),
+    min_rtt_(TimeDelta::Infinite()),
     base_rtt_(TimeDelta::Infinite()),
     alpha_(initial_alpha),
     queue_delay_(TimeDelta::Zero()){
@@ -82,6 +83,9 @@ void WvegasSender::OnCongestionEvent(
     auto vrtt=rtt_stats_->latest_rtt()+TimeDelta::FromMicroseconds(1);
     sample_rtt_=sample_rtt_+vrtt;
     count_rtt_++;
+    if(min_rtt_>vrtt){
+        min_rtt_=vrtt;
+    }
     if(base_rtt_>vrtt){
         base_rtt_=vrtt;
     }
@@ -108,12 +112,15 @@ void WvegasSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
             MaybeIncreaseCwnd(acked_packet_number,acked_bytes,prior_in_flight,event_time);
         }else{
             num_acked_packets_=0;
-            TimeDelta rtt=TimeDelta::FromMicroseconds(sample_rtt_.ToMicroseconds()/count_rtt_);
+            //TimeDelta rtt=TimeDelta::FromMicroseconds(sample_rtt_.ToMicroseconds()/count_rtt_);
+            TimeDelta rtt=min_rtt_;
             uint64_t send_cwnd=congestion_window_/kDefaultTCPMSS;
             uint64_t target_cwnd=send_cwnd*base_rtt_.ToMicroseconds()/rtt.ToMicroseconds();
-            CHECK(rtt>base_rtt_);
+            CHECK(rtt>=base_rtt_);
             TimeDelta q_delay=rtt-base_rtt_;
-            uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/rtt.ToMicroseconds();
+            //wvegas implementation
+            //uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/rtt.ToMicroseconds();
+            uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/base_rtt_.ToMicroseconds();
             if(diff>gamma&&InSlowStart()){
                 congestion_window_=std::min(send_cwnd*kDefaultTCPMSS,(target_cwnd+1)*kDefaultTCPMSS);
                 ExitSlowstart();
@@ -145,6 +152,7 @@ void WvegasSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
         }
         count_rtt_=0;
         sample_rtt_=TimeDelta::Zero();
+        min_rtt_=TimeDelta::Infinite();
     }else if(InSlowStart()){
         congestion_window_ += kDefaultTCPMSS;
     }

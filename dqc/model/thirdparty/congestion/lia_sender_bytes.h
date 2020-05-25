@@ -145,7 +145,7 @@ class LiaSender : public SendAlgorithmInterface {
   // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
   uint32_t congestion_id_{0};
-  std::list<SendAlgorithmInterface*> other_ccs_;
+  std::list<LiaSender*> other_ccs_;
   uint64_t alpha_;
 };
 }

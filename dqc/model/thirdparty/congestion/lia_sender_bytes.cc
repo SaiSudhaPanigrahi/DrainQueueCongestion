@@ -52,56 +52,6 @@ LiaSender::LiaSender(
       min_slow_start_exit_window_(min_congestion_window_) {}
 
 LiaSender::~LiaSender() {}
-
-/*void LiaSender::SetFromConfig(const QuicConfig& config,
-                                        Perspective perspective) {
-  if (perspective == Perspective::IS_SERVER) {
-    if (!GetQuicReloadableFlag(quic_unified_iw_options)) {
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW03)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(3);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW10)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(10);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW20)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(20);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW50)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(50);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kMIN1)) {
-        // Min CWND experiment.
-        SetMinCongestionWindowInPackets(1);
-      }
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kMIN4)) {
-      // Min CWND of 4 experiment.
-      min4_mode_ = true;
-      SetMinCongestionWindowInPackets(1);
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kSSLR)) {
-      // Slow Start Fast Exit experiment.
-      slow_start_large_reduction_ = true;
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kNPRR)) {
-      // Use unity pacing instead of PRR.
-      no_prr_ = true;
-    }
-  }
-}
-*/
 void LiaSender::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
@@ -377,8 +327,8 @@ void LiaSender::MaybeIncreaseCwnd(
   if(!other_ccs_.empty()){
 	  bool subflows_exit_slow_start=true;
 	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		  SendAlgorithmInterface *cc=(*it);
-		  if(cc->InSlowStart()){
+		  LiaSender *sender=(*it);
+		  if(sender->InSlowStart()){
 			  subflows_exit_slow_start=false;
 			  break;
 		  }
@@ -444,20 +394,22 @@ void LiaSender::SetCongestionId(uint32_t cid){
 }
 void LiaSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
 	bool exist=false;
-	std::cout<<"lia cc"<<std::endl;
+    LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+    if(this==sender) {return ;}
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		if(cc==(*it)){
+		if(sender==(*it)){
 			exist=true;
 			break;
 		}
 	}
 	if(!exist){
-		other_ccs_.push_back(cc);
+		other_ccs_.push_back(sender);
 	}
 }
 void LiaSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    LiaSender *sender=dynamic_cast<LiaSender*>(cc);
 	if(!other_ccs_.empty()){
-		other_ccs_.remove(cc);
+		other_ccs_.remove(sender);
 	}
 }
 uint64_t LiaSender::get_srtt_us() const{
@@ -474,8 +426,7 @@ void LiaSender::mptcp_ccc_recalc_alpha(){
 	max_numerator=mptcp_ccc_scale(send_cwnd,
 			alpha_scale_num)/(srtt*srtt);
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		SendAlgorithmInterface *cc=(*it);
-		LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+		LiaSender *sender=(*it);
 		send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
 		srtt=sender->get_srtt_us();
 		uint64_t tmp=mptcp_ccc_scale(send_cwnd,
@@ -491,8 +442,7 @@ void LiaSender::mptcp_ccc_recalc_alpha(){
 	sum_denominator+=mptcp_ccc_scale(send_cwnd,
 			alpha_scale_den) * best_rtt/srtt;
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-			SendAlgorithmInterface *cc=(*it);
-			LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+			LiaSender *sender=(*it);
 			send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
 			srtt=sender->get_srtt_us();
 			sum_denominator+=mptcp_ccc_scale(send_cwnd,
@@ -504,8 +454,7 @@ void LiaSender::mptcp_ccc_recalc_alpha(){
 	CHECK(alpha>=1);
 	alpha_=alpha;
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		SendAlgorithmInterface *cc=(*it);
-		LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+		LiaSender *sender=(*it);
 		sender->set_alpha(alpha);
 	}
 }

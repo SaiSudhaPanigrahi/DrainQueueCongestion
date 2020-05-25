@@ -13,7 +13,7 @@
 #include "cubic_plus_sender_bytes.h"
 #include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
-#include "lia_plus_sender_bytes.h"
+#include "mp_westwood_sender_enhance.h"
 #include "pcc_sender.h"
 #include "aimd_bbr_sender.h"
 #include "proto_copa_sender.h"
@@ -67,6 +67,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats
                                );
         }
+        case kMpWestwood:{
+            return new MpWestwoodSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
         case kCubicPlus:{
             return new CubicPlusSender(clock,
                                rtt_stats,
@@ -94,16 +103,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats
-                               );
-        }
-        case kLiaPlus:{
-            return new LiaPlusSender(clock,
-                               rtt_stats,
-							   unacked_packets,
-                       		   true,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               stats,random
                                );
         }
         case kWvegas:{

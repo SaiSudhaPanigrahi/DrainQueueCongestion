@@ -131,6 +131,7 @@ class WvegasSender : public SendAlgorithmInterface {
   uint32_t congestion_id_{0};
   uint16_t count_rtt_{0};
   TimeDelta sample_rtt_;
+  TimeDelta min_rtt_;
   TimeDelta base_rtt_;
   uint64_t instant_rate_{0};
   uint32_t alpha_;
