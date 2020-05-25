@@ -64,14 +64,14 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
                         float startTime,
                         float stopTime,
 						DqcTrace *trace,
-                        uint32_t max_bps=0
-)
+                        uint32_t max_bps=0,uint32_t emucons=1)
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
     //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
+	sendApp->SetNumEmulatedConnections(emucons);
     Ptr<Ipv4> ipv4 = receiver->GetObject<Ipv4> ();
 	Ipv4Address receiverIp = ipv4->GetAddress (1, 0).GetLocal ();
 	recvApp->Bind(recv_port);
@@ -214,6 +214,8 @@ int main(int argc, char *argv[]){
 		cc=kCubicBytes;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
+	}else if(cc_tmp==std::string("vegas")){
+		cc=kVegas;
 	}else if(cc_tmp==std::string("copa")){
 		cc=kCopa;
 		std::cout<<cc_tmp<<std::endl;
@@ -241,13 +243,13 @@ int main(int argc, char *argv[]){
 	log=log_common+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps);
 
 	DqcTrace trace3;
 	log=log_common+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+	InstallDqc(kRenoBytes,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart,appStop,&trace3,max_bps);
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

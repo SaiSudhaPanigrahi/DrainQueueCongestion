@@ -70,6 +70,7 @@ def build(bld):
     'model/thirdparty/congestion/tcp_cubic_sender_bytes.cc',
     'model/thirdparty/congestion/tcp_westwood_sender_bytes.cc',
     'model/thirdparty/congestion/tcp_westwood_sender_enhance.cc',
+    'model/thirdparty/congestion/vegas_sender_bytes.cc',
     'model/thirdparty/congestion/wvegas_sender_bytes.cc',
     'model/dqc_delay_ack_receiver.cc',
     'model/dqc_sender.cc',

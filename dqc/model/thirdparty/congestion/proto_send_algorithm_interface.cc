@@ -18,6 +18,7 @@
 #include "aimd_bbr_sender.h"
 #include "proto_copa_sender.h"
 #include "couple_bbr_sender.h"
+#include "vegas_sender_bytes.h"
 #include "wvegas_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
@@ -256,6 +257,14 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                max_congestion_window,
                                random,kModifyVivaceUtility
                                );
+        }
+        case kVegas:{
+            return new VegasSender(clock,
+                               rtt_stats,
+							   unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats);
         }
         default:{
             return new BbrSender(clock->Now(),

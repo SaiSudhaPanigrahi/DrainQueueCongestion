@@ -268,6 +268,8 @@ int main (int argc, char *argv[]){
 		cc=kDwcBytes;
 	}else if(cc_tmp==std::string("wvegas")){
 		cc=kWvegas;
+	}else if(cc_tmp==std::string("vegas")){
+		cc=kVegas;
 	}else{
 		cc=kBBR;
 	}
@@ -309,7 +311,7 @@ int main (int argc, char *argv[]){
 	DqcTrace trace4;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
-	InstallDqc(cc,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace4,max_bps,cc_id);
+	InstallDqc(kRenoBytes,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace4,max_bps,cc_id);
 	test_pair++;
 	sendPort++;
 	recvPort++;
