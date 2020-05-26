@@ -96,7 +96,7 @@ float appStop=simDuration;
 int main(int argc, char *argv[]){
 	CommandLine cmd;
     std::string instance=std::string("3");
-    std::string cc_tmp("liaplus");
+    std::string cc_tmp("lia");
 	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
@@ -147,9 +147,6 @@ int main(int argc, char *argv[]){
     dqc::CongestionControlType cc=kLiaBytes;
 	if(cc_tmp==std::string("lia")){
 		cc=kLiaBytes;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("liaplus")){
-		cc=kLiaPlus;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;

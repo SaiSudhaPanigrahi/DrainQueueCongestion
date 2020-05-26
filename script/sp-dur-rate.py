@@ -13,21 +13,21 @@ def ReafByteInfo(fileName,left,right):
         if time>=left:
             bytes=bytes+int(lineArr[3])
     return bytes
-algo="westenhance"
+algo="viva"
+data_dir=algo+"/"
 flows=3
 fileName="%s_"+algo+"_%s_owd.txt"
 fileOutName="%s_"+algo+"_%s_dur_bw"
-duration=300.0
+duration=400.0
 gap=5.0
 total=int(duration/gap);
 instance=1
-out_path=algo+"_data/"
-mkdir(out_path)
+mkdir(data_dir)
 for case in range(instance):
     for f in range(flows):
         strTemp=fileOutName%(str(case+1),str(f+1))
         fileOut=strTemp+".txt"
-        fout=open(out_path+fileOut,'w')
+        fout=open(data_dir+fileOut,'w')
         for i in range(total):
             left=i*gap
             right=(i+1)*gap
