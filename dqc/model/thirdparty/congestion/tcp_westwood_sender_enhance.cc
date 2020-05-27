@@ -45,6 +45,7 @@ TcpWestwoodSenderEnhance::TcpWestwoodSenderEnhance(
     unacked_packets_(unacked_packets),
     stats_(stats),
     num_connections_(kDefaultNumConnections),
+    initial_num_connections_(kDefaultNumConnections),
     min4_mode_(false),
     last_cutback_exited_slowstart_(false),
     slow_start_large_reduction_(false),
@@ -85,9 +86,10 @@ TcpWestwoodSenderEnhance::TcpWestwoodSenderEnhance(
     min_rtt_(TimeDelta::Zero()),
     min_rtt_timestamp_(ProtoTime::Zero()),
     probe_rtt_skipped_if_similar_rtt_(false),
-    exit_startup_on_loss_(false){
-        EnterStartupMode(clock->Now());
-    }
+    exit_startup_on_loss_(false),
+    enable_acceleration_(true),
+    rounds_to_accelerate_(3){
+        EnterStartupMode(clock->Now());}
 
 TcpWestwoodSenderEnhance::~TcpWestwoodSenderEnhance() {}
 void TcpWestwoodSenderEnhance::AdjustNetworkParameters(
@@ -119,10 +121,14 @@ void TcpWestwoodSenderEnhance::OnCongestionEvent(
 	    min_rtt_expired = UpdateBandwidthAndMinRtt(event_time, acked_packets,bandwidth);
     }
     if(mode_==AIMD){
+        if(enable_acceleration_){
+            MaybeAccelerate();
+        }
         if(min_rtt_expired){
             if(!acked_packets.empty()){
                 QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
                 CongestionWindowBackoff(last_acked_packet,prior_in_flight,kWestwoodDelayBeta);
+                ResetAccelerationFactor();
             }
         }
         //inspired from copa, to achieve low latency
@@ -139,9 +145,9 @@ void TcpWestwoodSenderEnhance::OnCongestionEvent(
                 }
             }
         }
-        for (const LostPacket& lost_packet : lost_packets) {
-        OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
-                    prior_in_flight);
+        for (const LostPacket& lost_packet : lost_packets){
+            OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,prior_in_flight);
+            ResetAccelerationFactor();
         }
         for (const AckedPacket acked_packet : acked_packets) {
         OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
@@ -310,6 +316,7 @@ void TcpWestwoodSenderEnhance::SetMinCongestionWindowInPackets(
 
 void TcpWestwoodSenderEnhance::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
+  initial_num_connections_=num_connections_;
 }
 void TcpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
   if (largest_sent_at_last_cutback_.IsInitialized() &&
@@ -456,6 +463,7 @@ void TcpWestwoodSenderEnhance::EnterAIMDMode(ProtoTime now) {
   mode_ = AIMD;
   congestion_window_gain_ =1.0;
   congestion_window_=GetTargetCongestionWindow(congestion_window_gain_);
+  ResetAccelerationFactor();
 }
 void TcpWestwoodSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_packets) {
   for (const LostPacket& packet : lost_packets) {
@@ -472,6 +480,9 @@ bool TcpWestwoodSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acke
       last_acked_packet > current_round_trip_end_) {
     round_trip_count_++;
     current_round_trip_end_ =largest_sent_packet_number_;
+    if(mode_==AIMD&&last_update_round_==0){
+        last_update_round_=round_trip_count_;
+    }
     return true;
   }
   return false;
@@ -624,7 +635,17 @@ void TcpWestwoodSenderEnhance::CalculateCongestionWindow(){
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);
 }
 float TcpWestwoodSenderEnhance::RenoBeta() const {
-  return (num_connections_ - 1 + kRenoBeta) / num_connections_;
+  return (initial_num_connections_ - 1 + kRenoBeta) / initial_num_connections_;
+}
+void TcpWestwoodSenderEnhance::MaybeAccelerate(){
+    if(last_update_round_>0&&(round_trip_count_-last_update_round_>rounds_to_accelerate_)){
+        last_update_round_=0;
+        num_connections_++;
+    }
+}
+void TcpWestwoodSenderEnhance::ResetAccelerationFactor(){
+    num_connections_=initial_num_connections_;
+    last_update_round_=0;
 }
 TimeDelta TcpWestwoodSenderEnhance::GetMinRtt() const {
   return !min_rtt_.IsZero() ? min_rtt_ : rtt_stats_->initial_rtt();

@@ -59,7 +59,7 @@ const size_t kNumIntervalGroupsInProbing = 2;
 const size_t kBitsPerByte = 8;
 // Bandwidth filter window size in round trips.
 const QuicRoundTripCount kBandwidthWindowSize = 6;
-
+const QuicByteCount kDefaultMinimumCongestionWindow = 4 * kMaxSegmentSize;
 //from webrtc 
 const double kDelayGradientCoefficient = 900;
 const double kLossCoefficient = 11.35;
@@ -115,6 +115,7 @@ PccSender::PccSender(const RttStats* rtt_stats,
       interval_queue_(rtt_stats,/*delegate=*/this),
       rtt_on_inflation_start_(TimeDelta::Zero()),
       max_cwnd_bytes_(max_congestion_window * kDefaultTCPMSS),
+      min_cwnd_bytes_(kDefaultMinimumCongestionWindow),
       rtt_stats_(rtt_stats),
       unacked_packets_(unacked_packets),
       random_(random),
@@ -212,8 +213,9 @@ bool PccSender::CanSend(QuicByteCount bytes_in_flight) {
     // may impact throughput.
     return true;
   }
-
-  return bytes_in_flight < FLAGS_bytes_in_flight_gain * GetCongestionWindow();
+  QuicByteCount target=FLAGS_bytes_in_flight_gain * GetCongestionWindow();
+  target=std::max(min_cwnd_bytes_,target);
+  return bytes_in_flight <target;
 }
 
 QuicBandwidth PccSender::PacingRate(QuicByteCount bytes_in_flight) const {
@@ -226,7 +228,8 @@ QuicBandwidth PccSender::BandwidthEstimateInner() const {
                                                    : QuicBandwidth::Zero();
 }
 QuicBandwidth PccSender::BandwidthEstimate() const {
-   return PacingRate(0);
+  return interval_queue_.empty() ? sending_rate_
+                                 : interval_queue_.current().sending_rate;
 }
 QuicByteCount PccSender::GetCongestionWindow() const {
   // Use min rtt to calculate expected congestion window except when it equals
@@ -269,7 +272,12 @@ std::string PccSender::GetDebugState() const {
 PccSender::DebugState PccSender::ExportDebugState() const {
   return DebugState(*this);
 }
-
+QuicBandwidth PccSender::GetMinRate(){
+    TimeDelta rtt=(rtt_stats_->smoothed_rtt().IsZero()
+                              ? rtt_stats_->initial_rtt()
+                              : rtt_stats_->smoothed_rtt());
+    return QuicBandwidth::FromBytesAndTimeDelta(min_cwnd_bytes_,rtt);
+}
 void PccSender::UpdateBandwidthSampler(ProtoTime event_time,
                                        const AckedPacketVector& acked_packets,
                                        const LostPacketVector& lost_packets,
@@ -453,6 +461,7 @@ void PccSender::MaybeSetSendingRate() {
   } else {
     sending_rate_ = sending_rate_ * (1 - kProbingStepSize);
   }
+  sending_rate_=std::max(sending_rate_,GetMinRate());
 }
 
 float PccSender::GetMaxRttFluctuationTolerance() const {
@@ -558,7 +567,7 @@ void PccSender::EnterDecisionMade() {
     sending_rate_ = sending_rate_ * (1 - kProbingStepSize) *
                     (1 - kDecisionMadeStepSize);
   }
-
+  sending_rate_=std::max(sending_rate_,GetMinRate());
   mode_ = DECISION_MADE;
   rounds_ = 1;
 }

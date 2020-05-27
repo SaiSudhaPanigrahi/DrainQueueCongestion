@@ -137,7 +137,7 @@ int main(int argc, char *argv[]){
     //LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
-	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
+	//ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
@@ -207,7 +207,7 @@ int main(int argc, char *argv[]){
         msDelay=50;
         msQDelay=150;        
     }
- 	dqc::CongestionControlType cc=kQueueLimit;
+ 	dqc::CongestionControlType cc=kRenoBytes;
 	if(cc_tmp==std::string("bbr")){
 		cc=kBBR;
 	}else if(cc_tmp==std::string("bbrd")){
@@ -218,8 +218,13 @@ int main(int argc, char *argv[]){
 		cc=kRenoBytes;
 	}else if(cc_tmp==std::string("vegas")){
 		cc=kVegas;
+	}else if(cc_tmp==std::string("ledbat")){
+		cc=kLedbat;
 	}else if(cc_tmp==std::string("copa")){
 		cc=kCopa;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("westen")){
+		cc=kWestwoodEnhance;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("pcc")){
 		cc=kPCC;
@@ -231,12 +236,12 @@ int main(int argc, char *argv[]){
 		cc=kWebRTCVivace;
 		std::cout<<cc_tmp<<std::endl;
 	}else{
-		cc=kQueueLimit;
+		cc=kRenoBytes;
 	}
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 	int test_pair=1;
 	DqcTrace trace1;
-	std::string log_common="dqc_"+instance+cc_name;
+	std::string log_common=instance+cc_name;
 	std::string log=log_common+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;

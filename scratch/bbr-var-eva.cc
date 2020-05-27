@@ -60,11 +60,11 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
                         float startTime,
                         float stopTime,
 						DqcTrace *trace,
-                        uint32_t max_bps=0,uint32_t id=0
-)
+                        uint32_t max_bps=0,uint32_t id=0,uint32_t emucons=2)
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
 	sendApp->SetSenderId(id);
+	sendApp->SetNumEmulatedConnections(emucons);
 	Ptr<DqcReceiver> recvApp = CreateObject<DqcReceiver>();
    	sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]){
 	}else{
 		cc_name="_"+cc_tmp+"_";
 	}
-	
+	int emucons=2;
     if(instance==std::string("1")){
         linkBw=5000000;
         msDelay=50;
@@ -230,7 +230,7 @@ int main(int argc, char *argv[]){
 	}else if(cc_tmp==std::string("westwood")){
 		cc=kWestwood;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("westenhance")){
+	}else if(cc_tmp==std::string("westen")){
 		cc=kWestwoodEnhance;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("cubicplus")){
@@ -238,6 +238,7 @@ int main(int argc, char *argv[]){
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
+		emucons=1;
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("renoplus")){
 		cc=kRenoPlus;
@@ -250,6 +251,12 @@ int main(int argc, char *argv[]){
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("copa")){
 		cc=kCopa;
+		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("pcc")){
+		cc=kPCC;
+		std::cout<<cc_tmp<<std::endl;
+	}else{
+		cc=kBBR;
 		std::cout<<cc_tmp<<std::endl;
 	}
 	bool enable_random_loss=false;
@@ -267,7 +274,7 @@ int main(int argc, char *argv[]){
 	std::string log=prefix+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,sender_id,emucons);
     sender_id++;
 
 
@@ -275,28 +282,28 @@ int main(int argc, char *argv[]){
 	log=prefix+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps,sender_id,emucons);
     sender_id++;
     
 	DqcTrace trace3;
 	log=prefix+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,200,&trace3,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,200,&trace3,max_bps,sender_id,emucons);
     sender_id++;
 
 	DqcTrace trace4;
 	log=prefix+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+120,300,&trace4,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+3,recvPort+3,appStart+120,300,&trace4,max_bps,sender_id,emucons);
     sender_id++;
 
 	DqcTrace trace5;
 	log=prefix+std::to_string(test_pair);
 	trace5.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+4,recvPort+4,appStart+200,appStop,&trace5,max_bps,sender_id);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+4,recvPort+4,appStart+200,appStop,&trace5,max_bps,sender_id,emucons);
     sender_id++;
 
     Simulator::Stop (Seconds(simDuration));

@@ -2,9 +2,7 @@
 #include "logging.h"
 #include "flag_impl.h"
 #include "flag_util_impl.h"
-#include "ns3/log.h"
 namespace dqc{
-NS_LOG_COMPONENT_DEFINE("proto_pacing");
 namespace {
 // Configured maximum size of the burst coming out of quiescence.  The burst
 // is never larger than the current CWND in packets.
@@ -32,7 +30,9 @@ void PacingSender::set_sender(SendAlgorithmInterface* sender) {
   DCHECK(sender != nullptr);
   sender_ = sender;
 }
-
+void PacingSender::OnOneWayDelaySample(ProtoTime event_time,QuicPacketNumber seq,ProtoTime sent_time,ProtoTime recv_time){
+    sender_->OnOneWayDelaySample(event_time,seq,sent_time,recv_time);
+}
 void PacingSender::OnCongestionEvent(bool rtt_updated,
                                      QuicByteCount bytes_in_flight,
                                      ProtoTime event_time,
@@ -160,7 +160,6 @@ QuicBandwidth PacingSender::PacingRate(QuicByteCount bytes_in_flight) const {
                  sender_->PacingRate(bytes_in_flight).ToBitsPerSecond()));
   }
   QuicBandwidth pacing_rate=sender_->PacingRate(bytes_in_flight);
-  //NS_LOG_INFO(pacing_rate);
   return  pacing_rate;
 }
 }

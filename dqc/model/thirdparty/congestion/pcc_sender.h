@@ -137,7 +137,7 @@ class  PccSender
 
   // Generate PCC DebugState.
   DebugState ExportDebugState() const;
-
+  QuicBandwidth GetMinRate();
  private:
   //friend class test::PccSenderPeer;
   typedef WindowedFilter<QuicBandwidth,
@@ -196,7 +196,7 @@ class  PccSender
 
   // Maximum congestion window in bytes, used to cap sending rate.
   QuicByteCount max_cwnd_bytes_;
-
+  QuicByteCount min_cwnd_bytes_;
   const RttStats* rtt_stats_;
   const UnackedPacketMapInfoInterface* unacked_packets_;
   Random* random_;

@@ -191,9 +191,11 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
         if(!info){
             DLOG(WARNING)<<"acked unsent packet "<<seq;
         }else{
-            if(seq==sent_seq){
+            if(seq==sent_seq&&(receive_time>info->sent_time)){
                 one_way_delay_.first=seq;
                 one_way_delay_.second=receive_time-info->sent_time;
+                sent_time_=info->sent_time;
+                recv_time_=receive_time;
             }
             if(info->inflight){
                 if(SPS_OUT==info->state){info->state=SPS_ACKED;}
@@ -215,6 +217,8 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
     }
     const bool acked_new_packet = !packets_acked_.empty();
     PostProcessNewlyAckedPackets(ack_receive_time,rtt_updated_,prior_bytes_in_flight);
+    sent_time_=ProtoTime::Zero();
+    recv_time_=ProtoTime::Zero();
     return acked_new_packet? PACKETS_NEWLY_ACKED : NO_PACKETS_NEWLY_ACKED;
 }
 class PacketGenerator{
@@ -253,9 +257,15 @@ void SendPacketManager::MaybeInvokeCongestionEvent(bool rtt_updated,
     return;
   }
   if (using_pacing_) {
+    if(recv_time_>ProtoTime::Zero()){
+        pacing_sender_.OnOneWayDelaySample(event_time,one_way_delay_.first,sent_time_,recv_time_);
+    }
     pacing_sender_.OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
                                      packets_acked_, packets_lost_);
   } else {
+    if(recv_time_>ProtoTime::Zero()){
+        send_algorithm_->OnOneWayDelaySample(event_time,one_way_delay_.first,sent_time_,recv_time_);
+    }
     send_algorithm_->OnCongestionEvent(rtt_updated, prior_in_flight, event_time,
                                        packets_acked_, packets_lost_);
   }

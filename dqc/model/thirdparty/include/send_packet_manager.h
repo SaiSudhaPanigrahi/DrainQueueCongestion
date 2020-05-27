@@ -112,6 +112,8 @@ private:
     std::unique_ptr<SendAlgorithmInterface> send_algorithm_{nullptr};
     bool fast_retrans_flag_{false};
     TraceLossPacketDelay trace_lost_;
+    ProtoTime sent_time_{ProtoTime::Zero()};
+    ProtoTime recv_time_{ProtoTime::Zero()};
     std::pair<PacketNumber,TimeDelta> one_way_delay_;
 };
 }//namespace dqc;

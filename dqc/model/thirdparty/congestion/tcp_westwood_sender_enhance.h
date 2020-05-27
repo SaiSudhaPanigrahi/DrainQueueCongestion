@@ -96,6 +96,8 @@ public:
   TimeDelta GetMinRtt() const;
   QuicByteCount GetTargetCongestionWindow(float gain) const;
   float RenoBeta() const;
+  void MaybeAccelerate();
+  void ResetAccelerationFactor();
 private:
     PrrSender prr_;
     const RttStats* rtt_stats_;
@@ -103,7 +105,7 @@ private:
     QuicConnectionStats* stats_;
     // Number of connections to simulate.
     uint32_t num_connections_;
-    
+    uint32_t initial_num_connections_;
     // Track the largest packet that has been sent.
     QuicPacketNumber largest_sent_packet_number_;
     
@@ -190,5 +192,8 @@ private:
     ProtoTime min_rtt_timestamp_;
     bool probe_rtt_skipped_if_similar_rtt_;
     bool exit_startup_on_loss_;
+    bool enable_acceleration_;
+    uint32_t rounds_to_accelerate_;
+    QuicRoundTripCount last_update_round_{0};
 };
 }

@@ -22,7 +22,7 @@ class PacingSender {
   }
 
   QuicBandwidth max_pacing_rate() const { return max_pacing_rate_; }
-
+  void OnOneWayDelaySample(ProtoTime event_time,QuicPacketNumber seq,ProtoTime sent_time,ProtoTime recv_time);
   void OnCongestionEvent(bool rtt_updated,
                          QuicByteCount bytes_in_flight,
                          ProtoTime event_time,

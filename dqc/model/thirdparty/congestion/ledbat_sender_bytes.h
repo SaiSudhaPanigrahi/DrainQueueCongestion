@@ -1,19 +1,21 @@
 #pragma once
+#include <vector>
 #include "proto_types.h"
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
-class VegasSender : public SendAlgorithmInterface {
+class LedbatSender : public SendAlgorithmInterface {
  public:
-  VegasSender(const ProtoClock* clock,
+  LedbatSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       const UnackedPacketMapInfoInterface* unacked_packets,
+                      uint8_t do_ss,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  VegasSender(const VegasSender&) = delete;
-  VegasSender& operator=(const VegasSender&) = delete;
-  ~VegasSender() override;
+  LedbatSender(const LedbatSender&) = delete;
+  LedbatSender& operator=(const LedbatSender&) = delete;
+  ~LedbatSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -47,11 +49,14 @@ class VegasSender : public SendAlgorithmInterface {
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void OnOneWayDelaySample(ProtoTime event_time,QuicPacketNumber seq,
+            ProtoTime sent_time,ProtoTime recv_time) override;
   void SetCongestionId(uint32_t cid) override;
   uint32_t GetCongestionId() override{ return congestion_id_;}
   // End implementation of SendAlgorithmInterface.
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
  protected:
+  float RenoBeta() const;
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
   // TODO(ianswett): Remove these and migrate to OnCongestionEvent.
@@ -62,16 +67,36 @@ class VegasSender : public SendAlgorithmInterface {
   void OnPacketLost(QuicPacketNumber largest_loss,
                     QuicByteCount lost_bytes,
                     QuicByteCount prior_in_flight);
-  void MaybeIncreaseCwnd(QuicPacketNumber acked_packet_number,
-                         QuicByteCount acked_bytes,
-                         QuicByteCount prior_in_flight,
-                         ProtoTime event_time);
   void SetCongestionWindowFromBandwidthAndRtt(QuicBandwidth bandwidth,
                                               TimeDelta rtt);
   void SetMinCongestionWindowInPackets(QuicPacketCount congestion_window);
   void ExitSlowstart();
   void HandleRetransmissionTimeout();
  private:
+  enum SlowStartType:uint8_t
+  {
+    DO_NOT_SLOWSTART=0,           //!< Do not Slow Start
+    DO_SLOWSTART=1,               //!< Do NewReno Slow Start
+    DO_SLOWSTART_WITH_THRESHOLD=2,
+  };
+  enum State:uint32_t{
+	  LEDBAT_INVALID_FLAG=0,
+      LEDBAT_VALID_OWD = (1 << 1),
+      LEDBAT_INCREASING = (1 << 2),
+      LEDBAT_CAN_SS = (1 << 3),
+  };
+  struct OwdCircBuf
+  {
+    std::vector<TimeDelta> buffer; //!< Vector to store the delay
+    uint32_t min;  //!< The index of minimum value
+  };
+  void InitCircBuf (struct OwdCircBuf &buffer);
+  static TimeDelta MinCircBuf (struct OwdCircBuf &b);
+  typedef TimeDelta (*FilterFunction)(struct OwdCircBuf &);
+  TimeDelta CurrentDelay (FilterFunction filter);
+  TimeDelta BaseDelay (); 
+  void AddDelay (struct OwdCircBuf &cb, TimeDelta owd, uint32_t maxlen);
+  void UpdateBaseDelay (ProtoTime event_time,TimeDelta owd);  
   const RttStats* rtt_stats_;
   const UnackedPacketMapInfoInterface* unacked_packets_;
   QuicConnectionStats* stats_;
@@ -121,9 +146,17 @@ class VegasSender : public SendAlgorithmInterface {
   // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
   uint32_t congestion_id_{0};
-  uint16_t count_rtt_{0};
-  TimeDelta min_rtt_;
-  TimeDelta base_rtt_;
-  QuicPacketNumber beg_send_next_;
+  //Data for ledbat
+  TimeDelta target_;
+  double ledbat_gain_;
+  uint8_t doSs_;
+  uint32_t baseHistoLen_;
+  uint32_t noiseFilterLen_;
+  ProtoTime lastRollover_;
+  //uint32_t snd_cwnd_cnt_;
+  int32_t snd_cwnd_cnt_;
+  uint32_t ledbat_flag_;
+  OwdCircBuf baseHistory_;
+  OwdCircBuf noiseFilter_;
 };
 }

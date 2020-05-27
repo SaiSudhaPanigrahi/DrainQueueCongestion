@@ -151,12 +151,6 @@ int main(int argc, char *argv[]){
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrreno")){
-		cc=kBBRReno;
-		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("bbrcubic")){
-		cc=kBBRCubic;
-		std::cout<<cc_tmp<<std::endl;
 	}
 	bool enable_random_loss=false;
 	if(loss_integer>0){

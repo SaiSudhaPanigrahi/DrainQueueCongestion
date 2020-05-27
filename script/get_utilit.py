@@ -23,13 +23,13 @@ def CoutByteForFlows(ins,algo,flows):
     return bytes
 name="%s_util.txt"
 instance=1
-flows=3
-algo="viva"
-data_dir="../"
+flows=5
+algo="bbr"
+data_dir=algo+"/"
 mkdir(data_dir)
 fileout=name%algo
-caps=[3000000,3000000,3000000]
-duration=300;
+caps=[5000000,3000000,3000000]
+duration=400;
 fout=open(data_dir+fileout,'w')
 for case in range(instance):
     bytes=0

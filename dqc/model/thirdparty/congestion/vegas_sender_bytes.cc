@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include "couple_cc_manager.h"
 namespace dqc{
 
 namespace {
@@ -325,7 +324,5 @@ void VegasSender::SetCongestionId(uint32_t cid){
 	if(congestion_id_!=0||cid==0){
 		return;
 	}
-	congestion_id_=cid;
-	CoupleManager::Instance()->OnCongestionCreate(this);
 }
 }
