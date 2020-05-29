@@ -1,4 +1,4 @@
-#include "mp_westwood_sender_enhance.h"
+#include "mp_lia_sender_enhance.h"
 #include "rtt_stats.h"
 #include "unacked_packet_map.h"
 #include "flag_impl.h"
@@ -16,7 +16,7 @@ const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
 const float kWestwoodDelayBeta = 0.8f;
-const float kWestwoodLossBeta = 0.9f;  // add to reduce loss for westwood
+const float kWestwoodLossBeta = 0.8f;  // add to reduce loss for westwood
 const float kRenoBeta = 0.7f;
 const TimeDelta kMinRttExpiry = TimeDelta::FromMilliseconds(2500);
 const TimeDelta kWestwoodRttMin=TimeDelta::FromMilliseconds(50);
@@ -30,8 +30,15 @@ const float kSimilarMinRttThreshold = 1.125;
 const float kStartupGrowthTarget = 1.5;
 const float kStartupAfterLossGain = 1.5f;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
+static const int alpha_scale_den = 10;
+static const int alpha_scale_num = 32;
+static const int alpha_scale = 12;
 }  // namespace
-MpWestwoodSenderEnhance::MpWestwoodSenderEnhance(
+static inline uint64_t mptcp_ccc_scale(uint32_t val, int scale)
+{
+	return (uint64_t) val << scale;
+}
+MpLiaSenderEnhance::MpLiaSenderEnhance(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     const UnackedPacketMapInfoInterface* unacked_packets,
@@ -85,8 +92,8 @@ MpWestwoodSenderEnhance::MpWestwoodSenderEnhance(
         EnterStartupMode(clock->Now());
     }
 
-MpWestwoodSenderEnhance::~MpWestwoodSenderEnhance() {}
-void MpWestwoodSenderEnhance::AdjustNetworkParameters(
+MpLiaSenderEnhance::~MpLiaSenderEnhance() {}
+void MpLiaSenderEnhance::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -95,7 +102,7 @@ void MpWestwoodSenderEnhance::AdjustNetworkParameters(
   }
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
-void MpWestwoodSenderEnhance::OnCongestionEvent(
+void MpLiaSenderEnhance::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
@@ -142,15 +149,12 @@ void MpWestwoodSenderEnhance::OnCongestionEvent(
     if(is_round_start&&!bandwidth.IsZero()&&!first_round_){
         UpdateWindowBandwidth(bandwidth);
     }
-    /*if(!bandwidth.IsZero()&&!first_round_){
-        UpdateWindowBandwidth(event_time,bandwidth);
-    }*/
     if(is_round_start){
         first_round_=false;
     }
     sampler_.RemoveObsoletePackets(unacked_packets_->GetLeastUnacked());
 }
-void MpWestwoodSenderEnhance::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void MpLiaSenderEnhance::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
@@ -166,7 +170,7 @@ void MpWestwoodSenderEnhance::OnPacketAcked(QuicPacketNumber acked_packet_number
                     event_time);
 }
 
-void MpWestwoodSenderEnhance::OnPacketSent(
+void MpLiaSenderEnhance::OnPacketSent(
     ProtoTime sent_time,
     QuicByteCount bytes_in_flight,
     QuicPacketNumber packet_number,
@@ -190,7 +194,7 @@ void MpWestwoodSenderEnhance::OnPacketSent(
                         is_retransmittable);
 }
 
-bool MpWestwoodSenderEnhance::CanSend(QuicByteCount bytes_in_flight) {
+bool MpLiaSenderEnhance::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -205,7 +209,7 @@ bool MpWestwoodSenderEnhance::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth MpWestwoodSenderEnhance::PacingRate(
+QuicBandwidth MpLiaSenderEnhance::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   if (pacing_rate_.IsZero()) {
     return high_gain_ * QuicBandwidth::FromBytesAndTimeDelta(
@@ -220,21 +224,21 @@ QuicBandwidth MpWestwoodSenderEnhance::PacingRate(
       return pacing_rate_;
   }
 }
-QuicBandwidth MpWestwoodSenderEnhance::BandwidthEstimate() const {
+QuicBandwidth MpLiaSenderEnhance::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if(mode_==STARTUP||mode_==DRAIN){
       return BandwidthEstimateBest();
   }
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
-QuicBandwidth MpWestwoodSenderEnhance::BandwidthEstimateBest() const {
+QuicBandwidth MpLiaSenderEnhance::BandwidthEstimateBest() const {
     return max_bandwidth_.GetBest();
 }
-bool MpWestwoodSenderEnhance::InSlowStart() const {
+bool MpLiaSenderEnhance::InSlowStart() const {
   return mode_ == STARTUP||mode_==DRAIN;
 }
 
-bool MpWestwoodSenderEnhance::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool MpLiaSenderEnhance::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -245,17 +249,17 @@ bool MpWestwoodSenderEnhance::IsCwndLimited(QuicByteCount bytes_in_flight) const
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool MpWestwoodSenderEnhance::InRecovery() const {
+bool MpLiaSenderEnhance::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool MpWestwoodSenderEnhance::ShouldSendProbingPacket() const {
+bool MpLiaSenderEnhance::ShouldSendProbingPacket() const {
   return false;
 }
 
-void MpWestwoodSenderEnhance::OnRetransmissionTimeout(bool packets_retransmitted) {
+void MpLiaSenderEnhance::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -263,13 +267,13 @@ void MpWestwoodSenderEnhance::OnRetransmissionTimeout(bool packets_retransmitted
   HandleRetransmissionTimeout();
 }
 
-std::string MpWestwoodSenderEnhance::GetDebugState() const {
+std::string MpLiaSenderEnhance::GetDebugState() const {
   return "";
 }
 
-void MpWestwoodSenderEnhance::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void MpLiaSenderEnhance::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void MpWestwoodSenderEnhance::SetCongestionWindowFromBandwidthAndRtt(
+void MpLiaSenderEnhance::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -280,20 +284,20 @@ void MpWestwoodSenderEnhance::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void MpWestwoodSenderEnhance::SetInitialCongestionWindowInPackets(
+void MpLiaSenderEnhance::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void MpWestwoodSenderEnhance::SetMinCongestionWindowInPackets(
+void MpLiaSenderEnhance::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void MpWestwoodSenderEnhance::SetNumEmulatedConnections(int num_connections) {
+void MpLiaSenderEnhance::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
-void MpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
+void MpLiaSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
   if (largest_sent_at_last_cutback_.IsInitialized() &&
       packet_number <= largest_sent_at_last_cutback_) {
           return ;
@@ -301,10 +305,11 @@ void MpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_nu
   if (!no_prr_) {
     prr_.OnPacketLost(prior_in_flight);
   }
-  if(bw_est_.IsZero()){
+  QuicBandwidth rate=bw_est_;
+  if(rate.IsZero()){
       congestion_window_=congestion_window_*RenoBeta();
   }else{
-      congestion_window_=gain*bw_est_*min_rtt_;
+      congestion_window_=gain*rate*min_rtt_;
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
@@ -314,7 +319,7 @@ void MpWestwoodSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_nu
   reset_rtt_min_=true;
   num_acked_packets_ = 0;
 }
-void MpWestwoodSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
+void MpLiaSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -353,11 +358,11 @@ void MpWestwoodSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-      mptcp_ccc_recalc_alpha();
-      if(bw_est_.IsZero()){
+      QuicBandwidth  rate=BandwidthEstimateBest();
+      if(rate.IsZero()){
           congestion_window_=congestion_window_*RenoBeta();
       }else{
-          QuicBandwidth  rate=BandwidthEstimateBest()*alpha_;
+          QuicBandwidth  rate=BandwidthEstimateBest();
           congestion_window_=kWestwoodLossBeta*rate*min_rtt_;
       }
   }
@@ -374,17 +379,17 @@ void MpWestwoodSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
                 << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount MpWestwoodSenderEnhance::GetCongestionWindow() const {
+QuicByteCount MpLiaSenderEnhance::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount MpWestwoodSenderEnhance::GetSlowStartThreshold() const {
+QuicByteCount MpLiaSenderEnhance::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void MpWestwoodSenderEnhance::MaybeIncreaseCwnd(
+void MpLiaSenderEnhance::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -403,32 +408,61 @@ void MpWestwoodSenderEnhance::MaybeIncreaseCwnd(
     return;
   }
   ++num_acked_packets_;
-   if (num_acked_packets_ * num_connections_ >=
-    congestion_window_ / kDefaultTCPMSS) {
-    congestion_window_ += kDefaultTCPMSS;
-    num_acked_packets_ = 0;
+  if(!other_ccs_.empty()){
+	  bool subflows_in_aimd=true;
+	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		  MpLiaSenderEnhance *sender=(*it);
+		  if(!sender->IsInAimdState()){
+			  subflows_in_aimd=false;
+			  break;
+		  }
+	  }
+	  if(subflows_in_aimd){
+		  mptcp_ccc_recalc_alpha();
+		  int send_cwnd=0;
+		  send_cwnd =mptcp_ccc_scale(1, alpha_scale)/alpha_;
+		  if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
+			  send_cwnd=congestion_window_ / kDefaultTCPMSS;
+		  }
+		  if(num_acked_packets_*num_connections_>=send_cwnd){
+			  congestion_window_ += kDefaultTCPMSS;
+			  num_acked_packets_=0;
+		  }
+	  }else{
+		    if (num_acked_packets_ * num_connections_ >=
+		        congestion_window_ / kDefaultTCPMSS) {
+		      congestion_window_ += kDefaultTCPMSS;
+		      num_acked_packets_ = 0;
+		    }
+	  }
+  }else{
+	    if (num_acked_packets_ * num_connections_ >=
+	        congestion_window_ / kDefaultTCPMSS) {
+	      congestion_window_ += kDefaultTCPMSS;
+	      num_acked_packets_ = 0;
+	    }
   }
   DLOG(INFO)<< "Lia congestion window: " << congestion_window_
                 << " slowstart threshold: " << slowstart_threshold_
                 << " congestion window count: " << num_acked_packets_;
 }
 
-void MpWestwoodSenderEnhance::HandleRetransmissionTimeout() {
+void MpLiaSenderEnhance::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
-void MpWestwoodSenderEnhance::EnterStartupMode(ProtoTime now) {
+void MpLiaSenderEnhance::EnterStartupMode(ProtoTime now) {
   mode_ = STARTUP;
   pacing_gain_ = high_gain_;
   congestion_window_gain_ = high_cwnd_gain_;
 }
 
-void MpWestwoodSenderEnhance::EnterAIMDMode(ProtoTime now) {
+void MpLiaSenderEnhance::EnterAIMDMode(ProtoTime now) {
   mode_ = AIMD;
   congestion_window_gain_ =1.0;
   congestion_window_=GetTargetCongestionWindow(congestion_window_gain_);
 }
-void MpWestwoodSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_packets) {
+void MpLiaSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_packets) {
   for (const LostPacket& packet : lost_packets) {
     sampler_.OnPacketLost(packet.packet_number);
     if (mode_ == STARTUP) {
@@ -438,7 +472,7 @@ void MpWestwoodSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_pa
     }
   }
 }
-bool MpWestwoodSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet) {
+bool MpLiaSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet) {
   if (!current_round_trip_end_.IsInitialized()||
       last_acked_packet > current_round_trip_end_) {
     round_trip_count_++;
@@ -447,7 +481,7 @@ bool MpWestwoodSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acked
   }
   return false;
 }
-bool MpWestwoodSenderEnhance::UpdateBandwidthAndMinRtt(
+bool MpLiaSenderEnhance::UpdateBandwidthAndMinRtt(
     ProtoTime now,
     const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth) {
   TimeDelta sample_min_rtt = TimeDelta::Infinite();
@@ -502,7 +536,7 @@ bool MpWestwoodSenderEnhance::UpdateBandwidthAndMinRtt(
   }
   return min_rtt_expired;
 }
-bool MpWestwoodSenderEnhance::ShouldExtendMinRttExpiry() const {
+bool MpLiaSenderEnhance::ShouldExtendMinRttExpiry() const {
   const bool min_rtt_increased_since_last_probe =
       min_rtt_since_last_probe_rtt_ > min_rtt_ * kSimilarMinRttThreshold;
   if (probe_rtt_skipped_if_similar_rtt_ &&
@@ -514,7 +548,7 @@ bool MpWestwoodSenderEnhance::ShouldExtendMinRttExpiry() const {
   }
   return false;
 }
-void MpWestwoodSenderEnhance::UpdateWindowBandwidth(QuicBandwidth &bandwidth){
+void MpLiaSenderEnhance::UpdateWindowBandwidth(QuicBandwidth &bandwidth){
     QuicBandwidth bw=bandwidth;
     if(bw_ns_est_.IsZero()){
         bw_ns_est_=bw;
@@ -524,7 +558,7 @@ void MpWestwoodSenderEnhance::UpdateWindowBandwidth(QuicBandwidth &bandwidth){
         bw_est_=(1-kBandwidthWestwoodAlpha)*bw_est_+kBandwidthWestwoodAlpha*bw_ns_est_;
     }
 }
-void MpWestwoodSenderEnhance::UpdateWindowBandwidth(ProtoTime event_time,QuicBandwidth &bandwidth){
+void MpLiaSenderEnhance::UpdateWindowBandwidth(ProtoTime event_time,QuicBandwidth &bandwidth){
     if(bandwidth.IsZero()){
         return;
     }
@@ -546,7 +580,7 @@ void MpWestwoodSenderEnhance::UpdateWindowBandwidth(ProtoTime event_time,QuicBan
         rtt_win_sx_=event_time;
     }
 }
-void MpWestwoodSenderEnhance::CheckIfFullBandwidthReached(){
+void MpLiaSenderEnhance::CheckIfFullBandwidthReached(){
   QuicBandwidth target = bandwidth_at_last_round_ * kStartupGrowthTarget;
   if (BandwidthEstimateBest() >= target) {
     bandwidth_at_last_round_ = BandwidthEstimateBest();
@@ -559,7 +593,7 @@ void MpWestwoodSenderEnhance::CheckIfFullBandwidthReached(){
     is_at_full_bandwidth_ = true;
   }    
 }
-void MpWestwoodSenderEnhance::MaybeExitStartupOrDrain(ProtoTime now) {
+void MpLiaSenderEnhance::MaybeExitStartupOrDrain(ProtoTime now) {
   if (mode_ == STARTUP && is_at_full_bandwidth_) {
     mode_ = DRAIN;
     pacing_gain_ = drain_gain_;
@@ -570,7 +604,7 @@ void MpWestwoodSenderEnhance::MaybeExitStartupOrDrain(ProtoTime now) {
     EnterAIMDMode(now);
   }
 }
-void MpWestwoodSenderEnhance::CalculatePacingRate(){
+void MpLiaSenderEnhance::CalculatePacingRate(){
   if (BandwidthEstimateBest().IsZero()) {
     return;
   }
@@ -587,21 +621,21 @@ void MpWestwoodSenderEnhance::CalculatePacingRate(){
   }
   pacing_rate_ = std::max(pacing_rate_, target_rate);
 }
-void MpWestwoodSenderEnhance::CalculateCongestionWindow(){
+void MpLiaSenderEnhance::CalculateCongestionWindow(){
   QuicByteCount target_window =
       GetTargetCongestionWindow(congestion_window_gain_);
   congestion_window_=target_window;
   congestion_window_ = std::max(congestion_window_, min_congestion_window_);
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);
 }
-float MpWestwoodSenderEnhance::RenoBeta() const {
+float MpLiaSenderEnhance::RenoBeta() const {
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
-TimeDelta MpWestwoodSenderEnhance::GetMinRtt() const {
+TimeDelta MpLiaSenderEnhance::GetMinRtt() const {
   return !min_rtt_.IsZero() ? min_rtt_ : rtt_stats_->initial_rtt();
 }
 
-QuicByteCount MpWestwoodSenderEnhance::GetTargetCongestionWindow(float gain) const {
+QuicByteCount MpLiaSenderEnhance::GetTargetCongestionWindow(float gain) const {
   QuicByteCount bdp = GetMinRtt() * BandwidthEstimateBest();
   QuicByteCount congestion_window = gain * bdp;
 
@@ -612,7 +646,7 @@ QuicByteCount MpWestwoodSenderEnhance::GetTargetCongestionWindow(float gain) con
 
   return std::max(congestion_window, min_congestion_window_);
 }
-void MpWestwoodSenderEnhance::OnConnectionMigration() {
+void MpLiaSenderEnhance::OnConnectionMigration() {
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
   largest_acked_packet_number_.Clear();
@@ -624,19 +658,19 @@ void MpWestwoodSenderEnhance::OnConnectionMigration() {
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType MpWestwoodSenderEnhance::GetCongestionControlType() const {
-  return kMpWestwood;
+CongestionControlType MpLiaSenderEnhance::GetCongestionControlType() const {
+  return kLiaEnhance;
 }
-void MpWestwoodSenderEnhance::SetCongestionId(uint32_t cid){
+void MpLiaSenderEnhance::SetCongestionId(uint32_t cid){
 	if(congestion_id_!=0||cid==0){
 		return;
 	}
 	congestion_id_=cid;
 	CoupleManager::Instance()->OnCongestionCreate(this);
 }
-void MpWestwoodSenderEnhance::RegisterCoupleCC(SendAlgorithmInterface*cc){
+void MpLiaSenderEnhance::RegisterCoupleCC(SendAlgorithmInterface*cc){
 	bool exist=false;
-    MpWestwoodSenderEnhance *sender=dynamic_cast<MpWestwoodSenderEnhance*>(cc);
+    MpLiaSenderEnhance *sender=dynamic_cast<MpLiaSenderEnhance*>(cc);
     if(this==sender) {return ;}
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
 		if(sender==(*it)){
@@ -648,50 +682,56 @@ void MpWestwoodSenderEnhance::RegisterCoupleCC(SendAlgorithmInterface*cc){
 		other_ccs_.push_back(sender);
 	}
 }
-void MpWestwoodSenderEnhance::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
-    MpWestwoodSenderEnhance *sender=dynamic_cast<MpWestwoodSenderEnhance*>(cc);
+void MpLiaSenderEnhance::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    MpLiaSenderEnhance *sender=dynamic_cast<MpLiaSenderEnhance*>(cc);
 	if(!other_ccs_.empty()){
 		other_ccs_.remove(sender);
 	}
 }
-uint64_t MpWestwoodSenderEnhance::get_srtt_us() const{
+uint64_t MpLiaSenderEnhance::get_srtt_us() const{
 	return rtt_stats_->smoothed_rtt().ToMicroseconds();
 }
-void MpWestwoodSenderEnhance::mptcp_ccc_recalc_alpha(){
- if(!other_ccs_.empty()){
-    bool subflows_in_aimd=true;
-    QuicBandwidth selfBandwidth=BandwidthEstimate();
-    QuicBandwidth maxBandwidth=selfBandwidth;
-    double bps=selfBandwidth.ToBitsPerSecond();
-    double selfbps=bps;
-    double accBandwidthSquare=0.0;
-    std::vector<double> rate;
-    rate.push_back(bps);
-    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-        MpWestwoodSenderEnhance *sender=(*it);
-        QuicBandwidth bandwidth=sender->BandwidthEstimate();
-        bps=bandwidth.ToBitsPerSecond();
-        if(bandwidth>maxBandwidth){
-            maxBandwidth=bandwidth;
-        }
-        rate.push_back(bps);
-        if(!sender->IsInAimdState()&&subflows_in_aimd){
-            subflows_in_aimd=false;
-        }
-    }
-    if(subflows_in_aimd){
-        double max_bps=maxBandwidth.ToBitsPerSecond();
-        for(auto it=rate.begin();it!=rate.end();it++){
-            bps=*it;
-            accBandwidthSquare=accBandwidthSquare+(bps/max_bps)*bps;
-        }
-        double beta=selfbps/accBandwidthSquare;
-        alpha_=beta;
-    }else{
-        alpha_=1.0;
-    }
- }else{
-    alpha_=1.0;
- }
+void MpLiaSenderEnhance::mptcp_ccc_recalc_alpha(){
+	uint64_t max_numerator=0,sum_denominator = 0, alpha = 1;
+	uint32_t best_cwnd = 0;
+	uint64_t best_rtt = 0;
+	uint32_t send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
+	uint64_t srtt=get_srtt_us();
+	best_rtt=srtt;
+	best_cwnd=send_cwnd;
+	max_numerator=mptcp_ccc_scale(send_cwnd,
+			alpha_scale_num)/(srtt*srtt);
+	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		MpLiaSenderEnhance *sender=(*it);
+		send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
+		srtt=sender->get_srtt_us();
+		uint64_t tmp=mptcp_ccc_scale(send_cwnd,
+				alpha_scale_num)/(srtt*srtt);
+		if(tmp>max_numerator){
+			max_numerator=tmp;
+			best_rtt=srtt;
+			best_cwnd=send_cwnd;
+		}
+	}
+	send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
+	srtt=get_srtt_us();
+	sum_denominator+=mptcp_ccc_scale(send_cwnd,
+			alpha_scale_den) * best_rtt/srtt;
+	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+			MpLiaSenderEnhance *sender=(*it);
+			send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
+			srtt=sender->get_srtt_us();
+			sum_denominator+=mptcp_ccc_scale(send_cwnd,
+					alpha_scale_den) * best_rtt/srtt;
+	}
+	sum_denominator *= sum_denominator;
+	CHECK(sum_denominator>0);
+	alpha = mptcp_ccc_scale(best_cwnd, alpha_scale_num)/sum_denominator;
+	CHECK(alpha>=1);
+	alpha_=alpha;
+	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		MpLiaSenderEnhance *sender=(*it);
+		sender->set_alpha(alpha);
+	}
 }
 }

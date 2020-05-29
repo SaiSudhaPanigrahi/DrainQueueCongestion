@@ -13,6 +13,7 @@
 #include "cubic_plus_sender_bytes.h"
 #include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
+#include "mp_lia_sender_enhance.h"
 #include "mp_westwood_sender_enhance.h"
 #include "pcc_sender.h"
 #include "proto_copa_sender.h"
@@ -20,6 +21,8 @@
 #include "vegas_sender_bytes.h"
 #include "wvegas_sender_bytes.h"
 #include "ledbat_sender_bytes.h"
+#include "proto_lpbbr_sender.h"
+#include "lptcp_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -69,6 +72,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kMpWestwood:{
             return new MpWestwoodSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kLiaEnhance:{
+            return new MpLiaSenderEnhance(clock,
                                rtt_stats,
                                unacked_packets,
                                initial_congestion_window,
@@ -248,10 +260,27 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         case kLedbat:{
             return new LedbatSender(clock,
                                rtt_stats,
-							   unacked_packets,0,
+							   unacked_packets,1,
                                initial_congestion_window,
                                max_congestion_window,
                                stats);
+        }
+        case kLpTcp:{
+            return new LpTcpSender(clock,
+                               rtt_stats,
+							   unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats);
+        }
+        case kLpBBR:{
+            return new LpBbrSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random,false
+                               );
         }
         default:{
             return new BbrSender(clock->Now(),

@@ -8,22 +8,22 @@
 namespace dqc{
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
-class MpWestwoodSenderEnhance : public SendAlgorithmInterface {
+class MpLiaSenderEnhance : public SendAlgorithmInterface {
 public:
     enum Mode {
         STARTUP,
         DRAIN,
         AIMD,
     };
-  MpWestwoodSenderEnhance(const ProtoClock* clock,
+  MpLiaSenderEnhance(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       const UnackedPacketMapInfoInterface* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  MpWestwoodSenderEnhance(const MpWestwoodSenderEnhance&) = delete;
-  MpWestwoodSenderEnhance& operator=(const MpWestwoodSenderEnhance&) = delete;
-  ~MpWestwoodSenderEnhance() override;
+  MpLiaSenderEnhance(const MpLiaSenderEnhance&) = delete;
+  MpLiaSenderEnhance& operator=(const MpLiaSenderEnhance&) = delete;
+  ~MpLiaSenderEnhance() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -64,6 +64,7 @@ public:
   // End implementation of SendAlgorithmInterface.
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
   uint64_t get_srtt_us() const;
+  void set_alpha(uint64_t alpha){alpha_=alpha;}
   bool IsInAimdState(){return mode_==AIMD;}
   protected:
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
@@ -197,7 +198,7 @@ private:
     bool probe_rtt_skipped_if_similar_rtt_;
     bool exit_startup_on_loss_;
     uint32_t congestion_id_{0};
-    std::list<MpWestwoodSenderEnhance*> other_ccs_;
-    float alpha_{1.0};
+    std::list<MpLiaSenderEnhance*> other_ccs_;
+    uint64_t alpha_;
 };
 }

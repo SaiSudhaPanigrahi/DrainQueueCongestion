@@ -398,6 +398,7 @@ void BbrPlusSender::EnterProbeBandwidthMode(ProtoTime now) {
   }
   last_cycle_start_ = now;
   cycle_mstamp_=now;
+  cycle_len_=0;
   pacing_gain_ = kPacingGain[cycle_current_offset_];
 }
 
