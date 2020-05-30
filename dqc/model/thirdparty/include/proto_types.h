@@ -109,7 +109,7 @@ enum AckResult {
 enum CongestionControlType { 
 kRenoBytes,kRenoPlus,kCubicBytes,kCubicPlus,
 kWestwood,kWestwoodEnhance,
-kMpWestwood,kLiaBytes,kLiaEnhance,kWvegas,
+kMpWestwood,kLiaBytes,kWvegas,
 kDwcBytes,kCoupleBBR,kBBR_DELAY, 
 kBBR,kBBRD,kBBRPlus,kBBRRand,kTsunami,kHighSpeedRail,
 kGoogCC,kBBRv2,kCopa,kPCC,kVivace,

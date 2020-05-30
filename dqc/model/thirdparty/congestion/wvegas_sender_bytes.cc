@@ -112,15 +112,12 @@ void WvegasSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
             MaybeIncreaseCwnd(acked_packet_number,acked_bytes,prior_in_flight,event_time);
         }else{
             num_acked_packets_=0;
-            //TimeDelta rtt=TimeDelta::FromMicroseconds(sample_rtt_.ToMicroseconds()/count_rtt_);
-            TimeDelta rtt=min_rtt_;
+            TimeDelta rtt=TimeDelta::FromMicroseconds(sample_rtt_.ToMicroseconds()/count_rtt_);
             uint64_t send_cwnd=congestion_window_/kDefaultTCPMSS;
             uint64_t target_cwnd=send_cwnd*base_rtt_.ToMicroseconds()/rtt.ToMicroseconds();
             CHECK(rtt>=base_rtt_);
             TimeDelta q_delay=rtt-base_rtt_;
-            //wvegas implementation
-            //uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/rtt.ToMicroseconds();
-            uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/base_rtt_.ToMicroseconds();
+            uint32_t diff=send_cwnd*q_delay.ToMicroseconds()/rtt.ToMicroseconds();
             if(diff>gamma&&InSlowStart()){
                 congestion_window_=std::min(send_cwnd*kDefaultTCPMSS,(target_cwnd+1)*kDefaultTCPMSS);
                 ExitSlowstart();
@@ -321,8 +318,10 @@ void WvegasSender::OnPacketLost(QuicPacketNumber packet_number,
   if (InSlowStart()) {
     ++stats_->slowstart_packets_lost;
   }
-
+  
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
+  num_acked_packets_ = 0;
+  slowstart_threshold_ = std::max(congestion_window_/2,min_congestion_window_);
 }
 QuicByteCount WvegasSender::GetCongestionWindow() const {
   return congestion_window_;

@@ -1,6 +1,6 @@
 #! /bin/sh
 instance=1
-algo=viva
+algo=reno
 file1=${instance}_${algo}_1_bw.txt
 file2=${instance}_${algo}_2_bw.txt
 file3=${instance}_${algo}_3_bw.txt

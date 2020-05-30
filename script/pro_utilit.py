@@ -22,20 +22,20 @@ def CoutByteForFlows(ins,algo,flows):
             break
     return bytes
 name="%s_util.txt"
-instance=1
-flows=5
-algo="bbr"
+instance=[1,2]
+flows=4
+algo="reno"
 data_dir=algo+"/"
 mkdir(data_dir)
 fileout=name%algo
 caps=[5000000,3000000,3000000]
 duration=400;
 fout=open(data_dir+fileout,'w')
-for case in range(instance):
+for case in range(len(instance)):
     bytes=0
     total=caps[case]*duration/8
-    bytes=CoutByteForFlows(case+1,algo,flows)
+    bytes=CoutByteForFlows(instance[case],algo,flows)
     util=float(bytes)/float(total)
-    fout.write(str(case+1)+"\t")
+    fout.write(str(instance[case])+"\t")
     fout.write(str(util)+"\n")
 fout.close()

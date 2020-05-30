@@ -2,6 +2,7 @@
 #include <vector>
 #include <utility>
 #include "proto_types.h"
+#include "hybrid_slow_start.h"
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
@@ -78,6 +79,7 @@ class LpTcpSender : public SendAlgorithmInterface {
   void HandleRetransmissionTimeout();
   void RttSample(TimeDelta owd);
 private:
+   HybridSlowStart hybrid_slow_start_;
    enum State:uint32_t
    {
     LP_VALID_OWD = (1 << 1),    

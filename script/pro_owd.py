@@ -19,15 +19,15 @@ def ReadDelayData(fileName):
             sum_lines+=1;
     return  sum_owd,sum_lines
     
-instance=3
-flows=3;
-algo="viva"
+instance=[1,2]
+flows=4;
+algo="reno"
 data_dir=algo+"/"
 fileout="%s_owd.txt"%(algo)    
 name="%s_%s_%s_owd.txt"
 mkdir(data_dir)
 fout=open(data_dir+fileout,'w')
-for case in range(instance):
+for case in range(len(instance)):
     total_owd=0.0
     total_lines=0
     average_owd=0.0
@@ -36,7 +36,7 @@ for case in range(instance):
         sum_delay=0.0
         sum_lines=0
         average_owd=0.0
-        filename=name%(str(case+1),algo,str(i+1))
+        filename=name%(str(instance[case]),algo,str(i+1))
         if os.path.exists(filename):
             sum_delay,sum_lines=ReadDelayData(filename)
             total_owd+=sum_delay
@@ -44,8 +44,8 @@ for case in range(instance):
             exist=True
     if exist:
         average_owd=total_owd/total_lines
-        fout.write(str(case+1)+"\t")
+        fout.write(str(instance[case])+"\t")
         fout.write(str(average_owd)+"\n")
     else:
-        fout.write(str(case+1)+"\n")
+        fout.write(str(instance[case])+"\n")
 fout.close()        

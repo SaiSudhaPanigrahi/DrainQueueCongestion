@@ -1,12 +1,17 @@
 # DrainQueueCongestion
-Always drain buffer occupation in routers.  
+Congestion control algorithms evaluation on ns3  
 Copy code from quic protocol for simulation purpose.   
 - [x] Stream  
 - [x] Ack  
 - [x] Stop waiting  
 - [x] Send packet through socket  
-- [x] congestion control   
-
+Implemented congestion control algorithms:  
+- [x] Reno cubic  
+- [x] vegas tcp-lp copa  
+- [x] BBR PCC  
+Supported multipath congstion control algorithms:  
+- [x] lia wvegas  
+- [x] couple BBR  
 As for ns3 test case, the wscript file gives clear hint how to arrange this file  
 in the right position in ns3.  
 And add the CPLUS_INCLUDE_PATH flag in /etc/profile, for example:  

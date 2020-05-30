@@ -53,7 +53,12 @@ const float kModerateProbeRttMultiplier = 0.75;
 // Coefficient to determine if a new RTT is sufficiently similar to min_rtt that
 // we don't need to enter PROBE_RTT.
 const float kSimilarMinRttThreshold = 1.125;
-
+static const uint32_t bbr_cycle_rand = 7;
+enum bbr_pacing_gain_phase:uint8_t{
+    BBR_BW_PROBE_UP     = 0,
+    BBR_BW_PROBE_DOWN   = 1,
+    BBR_BW_PROBE_CRUISE = 2,
+};
 }  // namespace
 
 
@@ -86,8 +91,7 @@ CoupleBbrSender::CoupleBbrSender(ProtoTime now,
       random_(random),
       mode_(STARTUP),
       round_trip_count_(0),
-      /*max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),*/
-	  max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero()),
+      max_bandwidth_(kBandwidthWindowSize, QuicBandwidth::Zero(), 0),
       max_ack_height_(kBandwidthWindowSize, 0, 0),
       aggregation_epoch_start_time_(ProtoTime::Zero()),
       aggregation_epoch_bytes_(0),
@@ -128,7 +132,7 @@ CoupleBbrSender::CoupleBbrSender(ProtoTime now,
       startup_bytes_lost_(0),
       enable_ack_aggregation_during_startup_(false),
       expire_ack_aggregation_in_startup_(false),
-      drain_to_target_(false),
+      drain_to_target_(true),
       probe_rtt_based_on_bdp_(false),
       probe_rtt_skipped_if_similar_rtt_(false),
       probe_rtt_disabled_if_app_limited_(false),
@@ -322,7 +326,7 @@ void CoupleBbrSender::OnCongestionEvent(bool /*rtt_updated*/,
             break;
         }
     }
-    if(isAllInProbeMode&&ShouldBehaveFriendlyToSinglepath()){
+    if(isAllInProbeMode&&ShouldBehaveFriendlyToSinglepath()&&!other_ccs_.empty()){
         CalculateAlphaPacingGain();
     }
   }
@@ -398,8 +402,9 @@ void CoupleBbrSender::EnterProbeBandwidthMode(ProtoTime now) {
   if (cycle_current_offset_ >= 1) {
     cycle_current_offset_ += 1;
   }
-
   last_cycle_start_ = now;
+  cycle_mstamp_=now;
+  cycle_len_=0;
   pacing_gain_ = kPacingGain[cycle_current_offset_];
 }
 
@@ -514,39 +519,51 @@ bool CoupleBbrSender::ShouldExtendMinRttExpiry() const {
 void CoupleBbrSender::UpdateGainCyclePhase(ProtoTime now,
                                      QuicByteCount prior_in_flight,
                                      bool has_losses) {
+  TimeDelta elapsed=now-cycle_mstamp_;
   const QuicByteCount bytes_in_flight = unacked_packets_->bytes_in_flight();
-  // In most cases, the cycle is advanced after an RTT passes.
-  bool should_advance_gain_cycling = now - last_cycle_start_ > GetMinRtt();
-
-  // If the pacing gain is above 1.0, the connection is trying to probe the
-  // bandwidth by increasing the number of bytes in flight to at least
-  // pacing_gain * BDP.  Make sure that it actually reaches the target, as long
-  // as there are no losses suggesting that the buffers are not able to hold
-  // that much.
-  if (pacing_gain_ > 1.0 && !has_losses &&
-      prior_in_flight < GetTargetCongestionWindow(pacing_gain_)) {
-    should_advance_gain_cycling = false;
+  if(elapsed>cycle_len_*GetMinRtt()){
+	cycle_mstamp_=now;
+	cycle_len_=kGainCycleLength-random_->nextInt(bbr_cycle_rand);//kGainCycleLength;
+	cycle_current_offset_=0;
+    pacing_gain_ = kPacingGain[BBR_BW_PROBE_UP];
+    last_cycle_start_=now;
+    cycle_state_=BBR_BW_PROBE_UP;
+	return;
   }
-
-  // If pacing gain is below 1.0, the connection is trying to drain the extra
-  // queue which could have been incurred by probing prior to it.  If the number
-  // of bytes in flight falls down to the estimated BDP value earlier, conclude
-  // that the queue has been successfully drained and exit this cycle early.
-  if (pacing_gain_ < 1.0 && bytes_in_flight <= GetTargetCongestionWindow(1)) {
-    should_advance_gain_cycling = true;
+  if(cycle_state_==BBR_BW_PROBE_CRUISE){
+      bool should_advance_gain_cycling = now - last_cycle_start_ > GetMinRtt();
+      if(should_advance_gain_cycling){
+          cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
+          last_cycle_start_ = now;
+      }
+	  return ;
   }
-
-  if (should_advance_gain_cycling) {
-    cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
-    last_cycle_start_ = now;
-    // Stay in low gain mode until the target BDP is hit.
-    // Low gain mode will be exited immediately when the target BDP is achieved.
-    if (drain_to_target_ && pacing_gain_ < 1 &&
-        kPacingGain[cycle_current_offset_] == 1 &&
-        bytes_in_flight > GetTargetCongestionWindow(1)) {
-      return;
+  
+  if(cycle_state_==BBR_BW_PROBE_DOWN){
+	  if(drain_to_target_){
+        if(bytes_in_flight <= GetTargetCongestionWindow(1)){
+        pacing_gain_=kPacingGain[BBR_BW_PROBE_CRUISE];
+		cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
+        last_cycle_start_=now;
+        cycle_state_=BBR_BW_PROBE_CRUISE;
+        }
+	  }else{
+        if(now - last_cycle_start_ > GetMinRtt()){
+        pacing_gain_=kPacingGain[BBR_BW_PROBE_CRUISE];
+        cycle_current_offset_ = (cycle_current_offset_ + 1) % kGainCycleLength;
+        last_cycle_start_=now;
+        cycle_state_=BBR_BW_PROBE_CRUISE;
+        }
     }
-    pacing_gain_ = kPacingGain[cycle_current_offset_];
+  }
+  if((elapsed>GetMinRtt())&&
+	((bytes_in_flight>GetTargetCongestionWindow(pacing_gain_))||has_losses||
+			last_sample_is_app_limited_)){
+	  pacing_gain_=kPacingGain[BBR_BW_PROBE_DOWN];
+      cycle_current_offset_=1;
+      last_cycle_start_=now;
+      cycle_state_=BBR_BW_PROBE_DOWN;
+	  return;
   }
 }
 
@@ -793,7 +810,6 @@ void CoupleBbrSender::CalculateCongestionWindow(QuicByteCount bytes_acked,
     // window.
     congestion_window_ = congestion_window_ + bytes_acked;
   }
-
   // Enforce the limits on the congestion window.
   congestion_window_ = std::max(congestion_window_, min_congestion_window_);
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);
@@ -896,6 +912,9 @@ bool CoupleBbrSender::IsInProbeMode() const{
     return mode_==PROBE_BW||mode_==PROBE_RTT;
 }
 void CoupleBbrSender::CalculateAlphaPacingGain(){
+    if(cycle_len_<=2){
+        return;
+    }
     QuicBandwidth selfBandwidth=BandwidthEstimate();
     QuicBandwidth maxBandwidth=selfBandwidth;
     double bps=selfBandwidth.ToBitsPerSecond();
@@ -918,9 +937,9 @@ void CoupleBbrSender::CalculateAlphaPacingGain(){
     }
     double alpha=1.0,beta=1.0;
     beta=selfbps/accBandwidthSquare;
-    alpha=(4*beta-1)/3;
-	//std::cout<<congestion_id_<<" "<<other_ccs_.size()<<" "<<alpha<<" "<<beta<<" "<<selfbps<<" "<<accBandwidthSquare<<std::endl;
+    alpha=(cycle_len_*beta-2)/(cycle_len_-2);
     if(alpha<=0){
+		//std::cout<<congestion_id_<<" "<<alpha<<" "<<beta<<" "<<selfbps<<std::endl;
         alpha_gain_is_negative_=true;
         return ;
     }
@@ -928,10 +947,8 @@ void CoupleBbrSender::CalculateAlphaPacingGain(){
 }
 bool CoupleBbrSender::ShouldBehaveFriendlyToSinglepath() const{
     bool supress_pacing_gain=false;
-    if(mode_==PROBE_BW){
-        if(cycle_current_offset_>1/*cycle_current_offset_==3||cycle_current_offset_==5*/){
-            supress_pacing_gain=true;
-        }
+    if(mode_==PROBE_BW&&cycle_state_==BBR_BW_PROBE_CRUISE){
+        supress_pacing_gain=true;
     }
     return supress_pacing_gain;
 }

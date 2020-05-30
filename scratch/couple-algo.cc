@@ -91,6 +91,13 @@ link_config_t p4pLinks3[]={
 [3]={100*1000000,20,200},
 [4]={100*1000000,20,200},
 };
+link_config_t p4pLinks4[]={
+[0]={100*1000000,10,200},
+[1]={8*1000000,10,200},
+[2]={100*1000000,10,200},
+[3]={100*1000000,20,200},
+[4]={100*1000000,20,200},
+};
 const uint32_t TOPO_DEFAULT_BW     = 5000000;    // in bps: 3Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      10;    // in ms:   100ms
 const uint32_t TOPO_DEFAULT_QDELAY =     150;    // in ms:  300ms
@@ -139,15 +146,35 @@ int main (int argc, char *argv[]){
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
 	CommandLine cmd;
     std::string instance=std::string("1");
-    std::string cc_tmp("bbr");
+    std::string cc_tmp("mwest");
 	std::string loss_str("0");
+	std::string mpcoup("cp");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
+	cmd.AddValue ("lo", "loss",loss_str);
+	cmd.AddValue ("mp", "couple",mpcoup);
     cmd.Parse (argc, argv);
+    int loss_integer=std::stoi(loss_str);
+    double loss_rate=loss_integer*1.0/100;
+	std::cout<<"l "<<loss_integer<<std::endl;
+	bool coupled_=false;
+	if(mpcoup==std::string("cp")){
+		coupled_=true;
+	}
+	if(loss_integer>0){
+	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (loss_rate));
+	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
+	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
+	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
+	}
     uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     std::string cc_name;
-    cc_name="_"+cc_tmp+"_";
+	if(loss_integer>0){
+		cc_name="_"+cc_tmp+"l"+std::to_string(loss_integer)+"_";
+	}else{
+		cc_name="_"+cc_tmp+"_";
+	}
 	link_config_t *p4p=p4pLinks1;
     if(instance==std::string("1")){
 		p4p=p4pLinks1;
@@ -155,6 +182,8 @@ int main (int argc, char *argv[]){
 		p4p=p4pLinks2;      
     }else if(instance==std::string("3")){
         p4p=p4pLinks3;
+    }else if(instance==std::string("4")){
+        p4p=p4pLinks4;
     }else{
         p4p=p4pLinks1;
     }
@@ -244,6 +273,15 @@ int main (int argc, char *argv[]){
   i2i3 = ipv4.Assign (devn2n3);
   tch.Uninstall (devn2n3);
 
+    if(loss_integer>0){
+	std::string errorModelType = "ns3::RateErrorModel";
+  	ObjectFactory factory;
+  	factory.SetTypeId (errorModelType);
+  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
+	devn2n3.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));		
+	}
+
+
   ipv4.SetBase ("10.1.4.0", "255.255.255.0");
   i3i4 = ipv4.Assign (devn3n4);
   tch.Uninstall (devn3n4);
@@ -254,26 +292,36 @@ int main (int argc, char *argv[]){
 
   // Set up the routing
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-
-	dqc::CoupleSource *source=new dqc::CoupleSource();
-	source->RegsterMonitorCongestionId(1);
-	source->RegsterMonitorCongestionId(4);
-	dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
-	manager->RegisterSource(source);
-
-  dqc::CongestionControlType cc=kBBR;
+   	dqc::CongestionControlType cc=kBBR;
 	if(cc_tmp==std::string("mbbr")){
 		cc=kCoupleBBR;
 	}else if(cc_tmp==std::string("dwc")){
 		cc=kDwcBytes;
+		coupled_=true;
 	}else if(cc_tmp==std::string("wvegas")){
 		cc=kWvegas;
+		coupled_=true;
 	}else if(cc_tmp==std::string("mwest")){
 		cc=kMpWestwood;
+		coupled_=true;
 	}else if(cc_tmp==std::string("vegas")){
 		cc=kVegas;
+		coupled_=false;
+	}else if(cc_tmp==std::string("reno")){
+		cc=kRenoBytes;
+		coupled_=false;
 	}else{
 		cc=kBBR;
+		coupled_=false;
+	}
+
+  std::unique_ptr<dqc::CoupleSource> source;
+  dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
+	if(coupled_){
+		source.reset(new dqc::CoupleSource());
+		source->RegsterMonitorCongestionId(1);
+		source->RegsterMonitorCongestionId(4);	
+		manager->RegisterSource(source.get());
 	}
 	std::cout<<cc_tmp<<std::endl;
   	uint32_t max_bps=0;
@@ -325,7 +373,5 @@ int main (int argc, char *argv[]){
     Simulator::Run ();
     Simulator::Destroy();
 	manager->Destructor();
-	delete source;
-
 }
 

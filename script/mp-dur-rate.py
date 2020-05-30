@@ -10,23 +10,23 @@ def ReafByteInfo(fileName,left,right):
             bytes=bytes+int(lineArr[3])
     return bytes
 
-algo="lia"
-#algo="bbrrand"
+algo="mbbr"
 fileName1="%s_"+algo+"_1_owd.txt"
-fileName2="%s_"+algo+"_2_owd.txt"
+fileName2="%s_"+algo+"_4_owd.txt"
 fileOutName="mp_"+algo+"_bw"
-duration=300.0
+out_path=algo+"/"
+duration=400.0
 gap=5.0
 total=int(duration/gap);
-instance=5
-for case in range(instance):
-    fileOut=fileOutName+"_"+str(case+1)+".txt"
-    fout=open(fileOut,'w')
+instance=[4]
+for case in range(len(instance)):
+    fileOut=fileOutName+"_"+str(instance[case])+".txt"
+    fout=open(out_path+fileOut,'w')
     for i in range(total):
         left=i*gap
         right=(i+1)*gap
-        f1=fileName1%(str(case+1))
-        f2=fileName2%(str(case+1))
+        f1=fileName1%(str(instance[case]))
+        f2=fileName2%(str(instance[case]))
         bytes1=ReafByteInfo(f1,left,right)
         bytes2=ReafByteInfo(f2,left,right)
         rate=(bytes1+bytes2)*8/(gap*1000)

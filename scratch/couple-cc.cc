@@ -12,6 +12,7 @@
 #include <string>
 #include <iostream>
 #include <memory>
+#include <utility>
 using namespace ns3;
 using namespace dqc;
 const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 3Mbps
@@ -158,11 +159,17 @@ int main(int argc, char *argv[]){
 	}
 	NodeContainer nodes1 = BuildExampleTopo (linkBw1, msDelay1, msQDelay1,enable_random_loss);
     NodeContainer nodes2 = BuildExampleTopo (linkBw2, msDelay2, msQDelay2,enable_random_loss);
-	dqc::CoupleSource *source=new dqc::CoupleSource();
-	source->RegsterMonitorCongestionId(1);
-	source->RegsterMonitorCongestionId(4);
-	dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
-	manager->RegisterSource(source);
+
+    std::unique_ptr<dqc::CoupleSource> source;
+    dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
+    bool coupled=true;
+    if(coupled){
+		source.reset(new dqc::CoupleSource());
+		source->RegsterMonitorCongestionId(1);
+		source->RegsterMonitorCongestionId(4);	
+		manager->RegisterSource(source.get());
+	}
+
 	std::string prefix=instance+cc_name;
     uint32_t cc_id=1;
 	int test_pair=1;
@@ -204,6 +211,5 @@ int main(int argc, char *argv[]){
     Simulator::Run ();
     Simulator::Destroy();
 	manager->Destructor();
-	delete source;	
     return 0;
 }

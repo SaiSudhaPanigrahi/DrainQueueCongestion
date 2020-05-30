@@ -104,6 +104,12 @@ void LpTcpSender::OnCongestionEvent(
     if(!(lp_flag_&LP_VALID_OWD)){
         return ;
     }
+    if (rtt_updated && InSlowStart() &&
+      hybrid_slow_start_.ShouldExitSlowStart(
+          rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
+          GetCongestionWindow() / kDefaultTCPMSS)) {
+    ExitSlowstart();
+    }
     for (const LostPacket& lost_packet : lost_packets) {
     OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
                 prior_in_flight);
@@ -115,11 +121,10 @@ void LpTcpSender::OnCongestionEvent(
         MaybeIncreaseCwnd(acked_packet.packet_number,acked_packet.bytes_acked,
                     prior_in_flight, event_time);
     }
+    if (InSlowStart()){
+    hybrid_slow_start_.OnPacketAcked(acked_packet.packet_number);
     }
-    //add logic
-    /*if(congestion_window_<=min_congestion_window_){
-        slowstart_threshold_=max_congestion_window_;
-    }*/
+    }
 }
 
 void LpTcpSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
@@ -177,6 +182,7 @@ void LpTcpSender::OnPacketSent(
   DCHECK(!largest_sent_packet_number_.IsInitialized() ||
          largest_sent_packet_number_ < packet_number);
   largest_sent_packet_number_ = packet_number;
+  hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
 bool LpTcpSender::CanSend(QuicByteCount bytes_in_flight) {
@@ -239,6 +245,7 @@ void LpTcpSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   if (!packets_retransmitted) {
     return;
   }
+  hybrid_slow_start_.Restart();
   HandleRetransmissionTimeout();
 }
 
@@ -339,6 +346,7 @@ void LpTcpSender::HandleRetransmissionTimeout() {
   congestion_window_ = min_congestion_window_;
 }
 void LpTcpSender::OnConnectionMigration() {
+  hybrid_slow_start_.Restart();
   largest_sent_packet_number_.Clear();
   largest_acked_packet_number_.Clear();
   largest_sent_at_last_cutback_.Clear();
