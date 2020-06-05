@@ -1,10 +1,11 @@
-#include "tcp_westwood_sender_bytes.h"
+#include "balia_sender_bytes.h"
 #include "rtt_stats.h"
 #include "logging.h"
+#include <iostream>
 #include <algorithm>
 #include <cstdint>
 #include <string>
-
+#include "couple_cc_manager.h"
 namespace dqc{
 
 namespace {
@@ -12,47 +13,44 @@ namespace {
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kWestwoodBeta = 1.0f;  // add to reduce loss for westwood
+const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
 // fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
-const float kBandwidthWestwoodAlpha = 0.125f;
-const TimeDelta kWestwoodRttMin=TimeDelta::FromMilliseconds(50);
+const int rate_scale_limit = 25;
+const int alpha_scale = 10;
+const int scale_num = 5;
 }  // namespace
-
-TcpWestwoodSenderBytes::TcpWestwoodSenderBytes(
+static inline uint64_t mptcp_balia_scale(uint64_t val, int scale)
+{
+	return (uint64_t) val << scale;
+}
+BaliaSender::BaliaSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats)
-    :rtt_stats_(rtt_stats),
-    stats_(stats),
-    num_connections_(kDefaultNumConnections),
-    min4_mode_(false),
-    last_cutback_exited_slowstart_(false),
-    slow_start_large_reduction_(false),
-    no_prr_(false),
-    num_acked_packets_(0),
-    congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
-    min_congestion_window_(kDefaultMinimumCongestionWindow),
-    max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
-    slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
-    initial_tcp_congestion_window_(initial_tcp_congestion_window *
-                                   kDefaultTCPMSS),
-    initial_max_tcp_congestion_window_(max_congestion_window *
-                                       kDefaultTCPMSS),
-    min_slow_start_exit_window_(min_congestion_window_),
-    bw_ns_est_(QuicBandwidth::Zero()),
-    bw_est_(QuicBandwidth::Zero()),
-    acked_segment_length_(0),
-    min_rtt_(TimeDelta::Zero()),
-    rtt_win_sx_(ProtoTime::Zero()),
-    reset_rtt_min_(true),
-    first_ack_(true){}
+    : rtt_stats_(rtt_stats),
+      stats_(stats),
+      num_connections_(kDefaultNumConnections),
+      min4_mode_(false),
+      last_cutback_exited_slowstart_(false),
+      slow_start_large_reduction_(false),
+      no_prr_(false),
+      num_acked_packets_(0),
+      congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
+      min_congestion_window_(kDefaultMinimumCongestionWindow),
+      max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
+      slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
+      initial_tcp_congestion_window_(initial_tcp_congestion_window *
+                                     kDefaultTCPMSS),
+      initial_max_tcp_congestion_window_(max_congestion_window *
+                                         kDefaultTCPMSS),
+      min_slow_start_exit_window_(min_congestion_window_) {}
 
-TcpWestwoodSenderBytes::~TcpWestwoodSenderBytes() {}
-void TcpWestwoodSenderBytes::AdjustNetworkParameters(
+BaliaSender::~BaliaSender() {}
+void BaliaSender::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -62,22 +60,26 @@ void TcpWestwoodSenderBytes::AdjustNetworkParameters(
 
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
-void TcpWestwoodSenderBytes::OnCongestionEvent(
+
+float BaliaSender::RenoBeta() const {
+  // kNConnectionBeta is the backoff factor after loss for our N-connection
+  // emulation, which emulates the effective backoff of an ensemble of N
+  // TCP-Reno connections on a single loss event. The effective multiplier is
+  // computed as:
+  return (num_connections_ - 1 + kRenoBeta) / num_connections_;
+}
+
+void BaliaSender::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
     const AckedPacketVector& acked_packets,
     const LostPacketVector& lost_packets) {
-    if(first_ack_){
-        rtt_win_sx_=event_time;
-        first_ack_=false;
-    }
-    UpdateRttMin();
-    if (rtt_updated && InSlowStart() &&
-        hybrid_slow_start_.ShouldExitSlowStart(
-        rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
-        GetCongestionWindow() / kDefaultTCPMSS)){
-        ExitSlowstart();
+  if (rtt_updated && InSlowStart() &&
+      hybrid_slow_start_.ShouldExitSlowStart(
+          rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
+          GetCongestionWindow() / kDefaultTCPMSS)) {
+    ExitSlowstart();
   }
   for (const LostPacket& lost_packet : lost_packets) {
     OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
@@ -87,15 +89,13 @@ void TcpWestwoodSenderBytes::OnCongestionEvent(
     OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
                   prior_in_flight, event_time);
   }
-  WestwoodUpdateWindow(event_time);
 }
 
-void TcpWestwoodSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void BaliaSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
   largest_acked_packet_number_.UpdateMax(acked_packet_number);
-  acked_segment_length_+=acked_bytes;
   if (InRecovery()) {
     if (!no_prr_) {
       // PRR is used when in recovery.
@@ -110,7 +110,7 @@ void TcpWestwoodSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
   }
 }
 
-void TcpWestwoodSenderBytes::OnPacketSent(
+void BaliaSender::OnPacketSent(
     ProtoTime /*sent_time*/,
     QuicByteCount /*bytes_in_flight*/,
     QuicPacketNumber packet_number,
@@ -133,7 +133,7 @@ void TcpWestwoodSenderBytes::OnPacketSent(
   hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
-bool TcpWestwoodSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
+bool BaliaSender::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -148,7 +148,7 @@ bool TcpWestwoodSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth TcpWestwoodSenderBytes::PacingRate(
+QuicBandwidth BaliaSender::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   // We pace at twice the rate of the underlying sender's bandwidth estimate
   // during slow start and 1.25x during congestion avoidance to ensure pacing
@@ -159,7 +159,7 @@ QuicBandwidth TcpWestwoodSenderBytes::PacingRate(
   return bandwidth * (InSlowStart() ? 2 : (no_prr_ && InRecovery() ? 1 : 1.25));
 }
 
-QuicBandwidth TcpWestwoodSenderBytes::BandwidthEstimate() const {
+QuicBandwidth BaliaSender::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if (srtt.IsZero()) {
     // If we haven't measured an rtt, the bandwidth estimate is unknown.
@@ -168,11 +168,11 @@ QuicBandwidth TcpWestwoodSenderBytes::BandwidthEstimate() const {
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
 
-bool TcpWestwoodSenderBytes::InSlowStart() const {
+bool BaliaSender::InSlowStart() const {
   return GetCongestionWindow() < GetSlowStartThreshold();
 }
 
-bool TcpWestwoodSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool BaliaSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -183,17 +183,17 @@ bool TcpWestwoodSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const 
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool TcpWestwoodSenderBytes::InRecovery() const {
+bool BaliaSender::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool TcpWestwoodSenderBytes::ShouldSendProbingPacket() const {
+bool BaliaSender::ShouldSendProbingPacket() const {
   return false;
 }
 
-void TcpWestwoodSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
+void BaliaSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -202,13 +202,13 @@ void TcpWestwoodSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted)
   HandleRetransmissionTimeout();
 }
 
-std::string TcpWestwoodSenderBytes::GetDebugState() const {
+std::string BaliaSender::GetDebugState() const {
   return "";
 }
 
-void TcpWestwoodSenderBytes::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void BaliaSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void TcpWestwoodSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
+void BaliaSender::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -219,25 +219,25 @@ void TcpWestwoodSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void TcpWestwoodSenderBytes::SetInitialCongestionWindowInPackets(
+void BaliaSender::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpWestwoodSenderBytes::SetMinCongestionWindowInPackets(
+void BaliaSender::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpWestwoodSenderBytes::SetNumEmulatedConnections(int num_connections) {
+void BaliaSender::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
 
-void TcpWestwoodSenderBytes::ExitSlowstart() {
+void BaliaSender::ExitSlowstart() {
   slowstart_threshold_ = congestion_window_;
 }
 
-void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
+void BaliaSender::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -267,7 +267,12 @@ void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
   if (!no_prr_) {
     prr_.OnPacketLost(prior_in_flight);
   }
-
+  float beta=RenoBeta();
+  if(!other_ccs_.empty()){
+      mptcp_balia_recalc_ai();
+      beta=md_;
+  }
+  
   // TODO(b/77268641): Separate out all of slow start into a separate class.
   if (slow_start_large_reduction_ && InSlowStart()) {
     DCHECK_LT(kDefaultTCPMSS, congestion_window_);
@@ -276,37 +281,31 @@ void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-      //westwood method
-      if(bw_est_.IsZero()){
-          congestion_window_=congestion_window_*0.5;
-      }else{
-          congestion_window_=kWestwoodBeta*bw_est_*min_rtt_;
-      }
+    congestion_window_ = congestion_window_ *beta;
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
   }
   slowstart_threshold_ = congestion_window_;
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
-  reset_rtt_min_=true;
   // Reset packet count from congestion avoidance mode. We start counting again
   // when we're out of recovery.
   num_acked_packets_ = 0;
-  /*QUIC_DVLOG(1)*/DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
+  DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
                 << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount TcpWestwoodSenderBytes::GetCongestionWindow() const {
+QuicByteCount BaliaSender::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount TcpWestwoodSenderBytes::GetSlowStartThreshold() const {
+QuicByteCount BaliaSender::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void TcpWestwoodSenderBytes::MaybeIncreaseCwnd(
+void BaliaSender::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -327,60 +326,52 @@ void TcpWestwoodSenderBytes::MaybeIncreaseCwnd(
                   << " slowstart threshold: " << slowstart_threshold_;
     return;
   }
-  // Congestion avoidance.
-  if (true) {
-    // Classic Reno congestion avoidance.
-    ++num_acked_packets_;
-    // Divide by num_connections to smoothly increase the CWND at a faster rate
-    // than conventional Reno.
-    if (num_acked_packets_ * num_connections_ >=
-        congestion_window_ / kDefaultTCPMSS) {
-      congestion_window_ += kDefaultTCPMSS;
-      num_acked_packets_ = 0;
-    }
-
-    /*QUIC_DVLOG(1) */DLOG(INFO)<< "Reno; congestion window: " << congestion_window_
-                  << " slowstart threshold: " << slowstart_threshold_
-                  << " congestion window count: " << num_acked_packets_;
+  ++num_acked_packets_;
+  if(!other_ccs_.empty()){
+	  bool subflows_exit_slow_start=true;
+	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		  BaliaSender *sender=(*it);
+		  if(sender->InSlowStart()){
+			  subflows_exit_slow_start=false;
+			  break;
+		  }
+	  }
+	  if(subflows_exit_slow_start){
+          mptcp_balia_recalc_ai();
+		  uint64_t send_cwnd=ai_;
+		  if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
+			  send_cwnd=congestion_window_ / kDefaultTCPMSS;
+		  }
+		  if(num_acked_packets_*num_connections_>=send_cwnd){
+			  congestion_window_ += kDefaultTCPMSS;
+			  num_acked_packets_=0;
+		  }
+	  }else{
+		    if (num_acked_packets_ * num_connections_ >=
+		        congestion_window_ / kDefaultTCPMSS) {
+		      congestion_window_ += kDefaultTCPMSS;
+		      num_acked_packets_ = 0;
+		    }
+	  }
+  }else{
+	    if (num_acked_packets_ * num_connections_ >=
+	        congestion_window_ / kDefaultTCPMSS) {
+	      congestion_window_ += kDefaultTCPMSS;
+	      num_acked_packets_ = 0;
+	    }
   }
+  DLOG(INFO)<< "Lia congestion window: " << congestion_window_
+                << " slowstart threshold: " << slowstart_threshold_
+                << " congestion window count: " << num_acked_packets_;
+
 }
 
-void TcpWestwoodSenderBytes::HandleRetransmissionTimeout() {
+void BaliaSender::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
-void TcpWestwoodSenderBytes::UpdateRttMin(){
-    TimeDelta lrtt=rtt_stats_->latest_rtt();
-    if(reset_rtt_min_){
-        min_rtt_=lrtt;
-        reset_rtt_min_=false;
-    }else{
-        if(min_rtt_>lrtt){
-            min_rtt_=lrtt;
-        }
-    }
-}
-void TcpWestwoodSenderBytes::WestwoodUpdateWindow(ProtoTime event_time){
-    TimeDelta delta=event_time-rtt_win_sx_;
-    TimeDelta srtt = rtt_stats_->smoothed_rtt();
-    TimeDelta gap=srtt;
-    if(gap>kWestwoodRttMin){
-        gap=kWestwoodRttMin;
-    }
-    if(delta>gap){
-        QuicBandwidth bw=QuicBandwidth::FromBytesAndTimeDelta(acked_segment_length_,gap);
-        if(bw_ns_est_.IsZero()){
-            bw_ns_est_=bw;
-            bw_est_=bw;
-        }else{
-            bw_ns_est_=(1-kBandwidthWestwoodAlpha)*bw_ns_est_+kBandwidthWestwoodAlpha*bw;
-            bw_est_=(1-kBandwidthWestwoodAlpha)*bw_est_+kBandwidthWestwoodAlpha*bw_ns_est_;
-        }
-        acked_segment_length_=0;
-        rtt_win_sx_=event_time;
-    }
-}
-void TcpWestwoodSenderBytes::OnConnectionMigration() {
+
+void BaliaSender::OnConnectionMigration() {
   hybrid_slow_start_.Restart();
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
@@ -393,7 +384,73 @@ void TcpWestwoodSenderBytes::OnConnectionMigration() {
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType TcpWestwoodSenderBytes::GetCongestionControlType() const {
-  return kWestwood;
+CongestionControlType BaliaSender::GetCongestionControlType() const {
+  return kBalia;
+}
+void BaliaSender::SetCongestionId(uint32_t cid){
+	if(congestion_id_!=0||cid==0){
+		return;
+	}
+	congestion_id_=cid;
+	CoupleManager::Instance()->OnCongestionCreate(this);
+}
+void BaliaSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
+	bool exist=false;
+    BaliaSender *sender=dynamic_cast<BaliaSender*>(cc);
+    if(this==sender) {return ;}
+	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		if(sender==(*it)){
+			exist=true;
+			break;
+		}
+	}
+	if(!exist){
+		other_ccs_.push_back(sender);
+	}
+}
+void BaliaSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    BaliaSender *sender=dynamic_cast<BaliaSender*>(cc);
+	if(!other_ccs_.empty()){
+		other_ccs_.remove(sender);
+	}
+}
+void BaliaSender::mptcp_balia_recalc_ai(){
+    if(other_ccs_.empty()){
+        return ;
+    }
+    uint64_t bps=BandwidthEstimate().ToBitsPerSecond();
+    uint64_t max_rate =bps;
+    uint64_t rate =bps, sum_rate =bps;
+    uint64_t send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
+    float alpha;
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        bps=(*it)->BandwidthEstimate().ToBitsPerSecond();
+        if(bps>max_rate){
+            max_rate=bps;
+        }
+        sum_rate+=bps;
+    }
+    CHECK(max_rate<=mptcp_balia_scale(1, rate_scale_limit));
+    alpha=max_rate*1.0/rate;
+	/*	        (sum_rate)^2 * 10 * w_r
+	 * ai = ------------------------------------
+	 *	       (x_r + max_rate) * (4x_r + max_rate)
+	 */
+    // the above formular is not in consisent to his paper.
+    //x_r=w_r/rtt_r
+    //what I get is:
+	/*	        (sum_rate)^2 * 10 * w_r
+	 * ai = ------------------------------------
+	 *	       x_r(x_r + max_rate) * (4x_r + max_rate)
+	 */    
+    uint64_t ai=sum_rate*sum_rate*10/(rate+max_rate);
+    ai=ai*send_cwnd/(rate*((rate<<2)+max_rate));
+    if(ai==0){
+        ai=send_cwnd;
+    }
+    ai_=ai;
+    float reduce=std::min((float)1.5,alpha)/2;
+    CHECK(1>reduce);
+    md_=1-reduce;
 }
 }

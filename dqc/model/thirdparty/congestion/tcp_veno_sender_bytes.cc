@@ -1,4 +1,4 @@
-#include "tcp_westwood_sender_bytes.h"
+#include "tcp_veno_sender_bytes.h"
 #include "rtt_stats.h"
 #include "logging.h"
 #include <algorithm>
@@ -12,15 +12,12 @@ namespace {
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kWestwoodBeta = 1.0f;  // add to reduce loss for westwood
-// The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
-// fast retransmission.
+const int kVenoBeta =3;
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
-const float kBandwidthWestwoodAlpha = 0.125f;
-const TimeDelta kWestwoodRttMin=TimeDelta::FromMilliseconds(50);
+const float kRenoBeta = 0.5f;
 }  // namespace
 
-TcpWestwoodSenderBytes::TcpWestwoodSenderBytes(
+TcpVenoSenderBytes::TcpVenoSenderBytes(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     QuicPacketCount initial_tcp_congestion_window,
@@ -43,16 +40,12 @@ TcpWestwoodSenderBytes::TcpWestwoodSenderBytes(
     initial_max_tcp_congestion_window_(max_congestion_window *
                                        kDefaultTCPMSS),
     min_slow_start_exit_window_(min_congestion_window_),
-    bw_ns_est_(QuicBandwidth::Zero()),
-    bw_est_(QuicBandwidth::Zero()),
-    acked_segment_length_(0),
-    min_rtt_(TimeDelta::Zero()),
-    rtt_win_sx_(ProtoTime::Zero()),
-    reset_rtt_min_(true),
-    first_ack_(true){}
+    min_rtt_(TimeDelta::Infinite()),
+    base_rtt_(TimeDelta::Infinite()),
+    veno_beta_(kVenoBeta){}
 
-TcpWestwoodSenderBytes::~TcpWestwoodSenderBytes() {}
-void TcpWestwoodSenderBytes::AdjustNetworkParameters(
+TcpVenoSenderBytes::~TcpVenoSenderBytes() {}
+void TcpVenoSenderBytes::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -62,40 +55,52 @@ void TcpWestwoodSenderBytes::AdjustNetworkParameters(
 
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
-void TcpWestwoodSenderBytes::OnCongestionEvent(
+float TcpVenoSenderBytes::RenoBeta() const {
+  // kNConnectionBeta is the backoff factor after loss for our N-connection
+  // emulation, which emulates the effective backoff of an ensemble of N
+  // TCP-Reno connections on a single loss event. The effective multiplier is
+  // computed as:
+  return (num_connections_ - 1 + kRenoBeta) / num_connections_;
+}
+void TcpVenoSenderBytes::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
     const AckedPacketVector& acked_packets,
     const LostPacketVector& lost_packets) {
-    if(first_ack_){
-        rtt_win_sx_=event_time;
-        first_ack_=false;
+    if(rtt_updated){
+        auto vrtt=rtt_stats_->latest_rtt();
+        count_rtt_++;
+        if(base_rtt_>vrtt){
+            base_rtt_=vrtt;
+        }
+        if(min_rtt_>vrtt){
+            min_rtt_=vrtt;
+        }        
     }
-    UpdateRttMin();
+
     if (rtt_updated && InSlowStart() &&
         hybrid_slow_start_.ShouldExitSlowStart(
         rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
         GetCongestionWindow() / kDefaultTCPMSS)){
         ExitSlowstart();
-  }
-  for (const LostPacket& lost_packet : lost_packets) {
+    }
+    
+    for (const LostPacket& lost_packet : lost_packets) {
     OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
-                 prior_in_flight);
-  }
-  for (const AckedPacket acked_packet : acked_packets) {
+                prior_in_flight);
+    }
+    for (const AckedPacket acked_packet : acked_packets) {
     OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
-                  prior_in_flight, event_time);
-  }
-  WestwoodUpdateWindow(event_time);
+                    prior_in_flight, event_time);
+    }
 }
 
-void TcpWestwoodSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void TcpVenoSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
   largest_acked_packet_number_.UpdateMax(acked_packet_number);
-  acked_segment_length_+=acked_bytes;
   if (InRecovery()) {
     if (!no_prr_) {
       // PRR is used when in recovery.
@@ -103,14 +108,48 @@ void TcpWestwoodSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
     }
     return;
   }
-  MaybeIncreaseCwnd(acked_packet_number, acked_bytes, prior_in_flight,
-                    event_time);
   if (InSlowStart()) {
     hybrid_slow_start_.OnPacketAcked(acked_packet_number);
   }
+    uint32_t segments=GetCongestionWindow() / kDefaultTCPMSS;
+    double tmp=base_rtt_.ToMicroseconds()*1.0/min_rtt_.ToMicroseconds();
+    uint32_t target=static_cast<uint32_t>(segments*tmp);
+    CHECK(segments>=target);
+    veno_diff_ = segments - target;
+  if(count_rtt_<=2){
+      MaybeIncreaseCwnd(acked_packet_number, acked_bytes, prior_in_flight,
+                    event_time);
+  }else{
+    if(InSlowStart()){
+        congestion_window_ += kDefaultTCPMSS;
+    }else{
+        if(veno_diff_<veno_beta_){
+            num_acked_packets_++;
+            if (num_acked_packets_ * num_connections_ >=
+                congestion_window_ / kDefaultTCPMSS) {
+            congestion_window_ += kDefaultTCPMSS;
+            num_acked_packets_ = 0;
+            }     
+        }else{
+            if(num_acked_packets_ * num_connections_ >=
+                congestion_window_ / kDefaultTCPMSS){
+                if(inc_){
+                    congestion_window_+=kDefaultTCPMSS;
+                    inc_=false;
+                }else{
+                    inc_=true;
+                }
+                num_acked_packets_=0;
+            }else{
+                num_acked_packets_++;
+            }
+        }
+    }
+  }
+  //linux  veno->cntrtt = 0
+    min_rtt_=TimeDelta::Infinite();    
 }
-
-void TcpWestwoodSenderBytes::OnPacketSent(
+void TcpVenoSenderBytes::OnPacketSent(
     ProtoTime /*sent_time*/,
     QuicByteCount /*bytes_in_flight*/,
     QuicPacketNumber packet_number,
@@ -133,7 +172,7 @@ void TcpWestwoodSenderBytes::OnPacketSent(
   hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
-bool TcpWestwoodSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
+bool TcpVenoSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -148,7 +187,7 @@ bool TcpWestwoodSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth TcpWestwoodSenderBytes::PacingRate(
+QuicBandwidth TcpVenoSenderBytes::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   // We pace at twice the rate of the underlying sender's bandwidth estimate
   // during slow start and 1.25x during congestion avoidance to ensure pacing
@@ -159,7 +198,7 @@ QuicBandwidth TcpWestwoodSenderBytes::PacingRate(
   return bandwidth * (InSlowStart() ? 2 : (no_prr_ && InRecovery() ? 1 : 1.25));
 }
 
-QuicBandwidth TcpWestwoodSenderBytes::BandwidthEstimate() const {
+QuicBandwidth TcpVenoSenderBytes::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if (srtt.IsZero()) {
     // If we haven't measured an rtt, the bandwidth estimate is unknown.
@@ -168,11 +207,11 @@ QuicBandwidth TcpWestwoodSenderBytes::BandwidthEstimate() const {
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
 
-bool TcpWestwoodSenderBytes::InSlowStart() const {
+bool TcpVenoSenderBytes::InSlowStart() const {
   return GetCongestionWindow() < GetSlowStartThreshold();
 }
 
-bool TcpWestwoodSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool TcpVenoSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -183,17 +222,17 @@ bool TcpWestwoodSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const 
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool TcpWestwoodSenderBytes::InRecovery() const {
+bool TcpVenoSenderBytes::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool TcpWestwoodSenderBytes::ShouldSendProbingPacket() const {
+bool TcpVenoSenderBytes::ShouldSendProbingPacket() const {
   return false;
 }
 
-void TcpWestwoodSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
+void TcpVenoSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -202,13 +241,13 @@ void TcpWestwoodSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted)
   HandleRetransmissionTimeout();
 }
 
-std::string TcpWestwoodSenderBytes::GetDebugState() const {
+std::string TcpVenoSenderBytes::GetDebugState() const {
   return "";
 }
 
-void TcpWestwoodSenderBytes::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void TcpVenoSenderBytes::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void TcpWestwoodSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
+void TcpVenoSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -219,25 +258,25 @@ void TcpWestwoodSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void TcpWestwoodSenderBytes::SetInitialCongestionWindowInPackets(
+void TcpVenoSenderBytes::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpWestwoodSenderBytes::SetMinCongestionWindowInPackets(
+void TcpVenoSenderBytes::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpWestwoodSenderBytes::SetNumEmulatedConnections(int num_connections) {
+void TcpVenoSenderBytes::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
 
-void TcpWestwoodSenderBytes::ExitSlowstart() {
+void TcpVenoSenderBytes::ExitSlowstart() {
   slowstart_threshold_ = congestion_window_;
 }
 
-void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
+void TcpVenoSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -276,61 +315,56 @@ void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-      //westwood method
-      if(bw_est_.IsZero()){
-          congestion_window_=congestion_window_*0.5;
-      }else{
-          congestion_window_=kWestwoodBeta*bw_est_*min_rtt_;
-      }
+    if(veno_diff_<veno_beta_){
+        congestion_window_=congestion_window_*4*kDefaultTCPMSS/(5*kDefaultTCPMSS);
+    }else{
+        congestion_window_ = congestion_window_ * RenoBeta();
+    }
   }
+  
+  
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
   }
   slowstart_threshold_ = congestion_window_;
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
-  reset_rtt_min_=true;
   // Reset packet count from congestion avoidance mode. We start counting again
   // when we're out of recovery.
   num_acked_packets_ = 0;
-  /*QUIC_DVLOG(1)*/DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
+  DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
                 << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount TcpWestwoodSenderBytes::GetCongestionWindow() const {
+QuicByteCount TcpVenoSenderBytes::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount TcpWestwoodSenderBytes::GetSlowStartThreshold() const {
+QuicByteCount TcpVenoSenderBytes::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void TcpWestwoodSenderBytes::MaybeIncreaseCwnd(
+void TcpVenoSenderBytes::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
     ProtoTime event_time) {
-  //QUIC_BUG_IF(InRecovery()) << "Never increase the CWND during recovery.";
-  // Do not increase the congestion window unless the sender is close to using
-  // the current window.
   if (!IsCwndLimited(prior_in_flight)) {
     return;
   }
   if (congestion_window_ >= max_congestion_window_) {
     return;
   }
-  if (InSlowStart()) {
+    if (InSlowStart()) {
     // TCP slow start, exponential growth, increase by one for each ACK.
     congestion_window_ += kDefaultTCPMSS;
     /*QUIC_DVLOG(1)*/DLOG(INFO) << "Slow start; congestion window: " << congestion_window_
-                  << " slowstart threshold: " << slowstart_threshold_;
+                    << " slowstart threshold: " << slowstart_threshold_;
     return;
-  }
-  // Congestion avoidance.
-  if (true) {
-    // Classic Reno congestion avoidance.
+    }
     ++num_acked_packets_;
+    // Classic Reno congestion avoidance.
     // Divide by num_connections to smoothly increase the CWND at a faster rate
     // than conventional Reno.
     if (num_acked_packets_ * num_connections_ >=
@@ -339,48 +373,13 @@ void TcpWestwoodSenderBytes::MaybeIncreaseCwnd(
       num_acked_packets_ = 0;
     }
 
-    /*QUIC_DVLOG(1) */DLOG(INFO)<< "Reno; congestion window: " << congestion_window_
-                  << " slowstart threshold: " << slowstart_threshold_
-                  << " congestion window count: " << num_acked_packets_;
-  }
-}
 
-void TcpWestwoodSenderBytes::HandleRetransmissionTimeout() {
+}
+void TcpVenoSenderBytes::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
-void TcpWestwoodSenderBytes::UpdateRttMin(){
-    TimeDelta lrtt=rtt_stats_->latest_rtt();
-    if(reset_rtt_min_){
-        min_rtt_=lrtt;
-        reset_rtt_min_=false;
-    }else{
-        if(min_rtt_>lrtt){
-            min_rtt_=lrtt;
-        }
-    }
-}
-void TcpWestwoodSenderBytes::WestwoodUpdateWindow(ProtoTime event_time){
-    TimeDelta delta=event_time-rtt_win_sx_;
-    TimeDelta srtt = rtt_stats_->smoothed_rtt();
-    TimeDelta gap=srtt;
-    if(gap>kWestwoodRttMin){
-        gap=kWestwoodRttMin;
-    }
-    if(delta>gap){
-        QuicBandwidth bw=QuicBandwidth::FromBytesAndTimeDelta(acked_segment_length_,gap);
-        if(bw_ns_est_.IsZero()){
-            bw_ns_est_=bw;
-            bw_est_=bw;
-        }else{
-            bw_ns_est_=(1-kBandwidthWestwoodAlpha)*bw_ns_est_+kBandwidthWestwoodAlpha*bw;
-            bw_est_=(1-kBandwidthWestwoodAlpha)*bw_est_+kBandwidthWestwoodAlpha*bw_ns_est_;
-        }
-        acked_segment_length_=0;
-        rtt_win_sx_=event_time;
-    }
-}
-void TcpWestwoodSenderBytes::OnConnectionMigration() {
+void TcpVenoSenderBytes::OnConnectionMigration() {
   hybrid_slow_start_.Restart();
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
@@ -393,7 +392,7 @@ void TcpWestwoodSenderBytes::OnConnectionMigration() {
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType TcpWestwoodSenderBytes::GetCongestionControlType() const {
-  return kWestwood;
+CongestionControlType TcpVenoSenderBytes::GetCongestionControlType() const {
+  return kVeno;
 }
 }

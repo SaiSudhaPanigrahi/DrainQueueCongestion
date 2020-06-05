@@ -523,7 +523,7 @@ void CoupleBbrSender::UpdateGainCyclePhase(ProtoTime now,
   const QuicByteCount bytes_in_flight = unacked_packets_->bytes_in_flight();
   if(elapsed>cycle_len_*GetMinRtt()){
 	cycle_mstamp_=now;
-	cycle_len_=kGainCycleLength-random_->nextInt(bbr_cycle_rand);//kGainCycleLength;
+	cycle_len_=kGainCycleLength-random_->nextInt(bbr_cycle_rand);
 	cycle_current_offset_=0;
     pacing_gain_ = kPacingGain[BBR_BW_PROBE_UP];
     last_cycle_start_=now;

@@ -10,7 +10,6 @@ class LiaSender : public SendAlgorithmInterface {
  public:
   LiaSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      bool reno,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
@@ -90,10 +89,6 @@ class LiaSender : public SendAlgorithmInterface {
   PrrSender prr_;
   const RttStats* rtt_stats_;
   QuicConnectionStats* stats_;
-
-  // If true, Reno congestion control is used instead of Cubic.
-  const bool reno_;
-
   // Number of connections to simulate.
   uint32_t num_connections_;
 

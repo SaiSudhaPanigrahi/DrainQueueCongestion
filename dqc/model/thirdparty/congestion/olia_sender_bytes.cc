@@ -1,4 +1,4 @@
-#include "lia_sender_bytes.h"
+#include "olia_sender_bytes.h"
 #include "rtt_stats.h"
 #include "logging.h"
 #include <iostream>
@@ -17,15 +17,13 @@ const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
 // fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
-static const int alpha_scale_den = 10;
-static const int alpha_scale_num = 32;
-static const int alpha_scale = 12;
+const int scale = 10;
 }  // namespace
-static inline uint64_t mptcp_ccc_scale(uint32_t val, int scale)
+static inline uint64_t mptcp_olia_scale(uint64_t val, int scale)
 {
 	return (uint64_t) val << scale;
 }
-LiaSender::LiaSender(
+OliaSender::OliaSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     QuicPacketCount initial_tcp_congestion_window,
@@ -49,8 +47,8 @@ LiaSender::LiaSender(
                                          kDefaultTCPMSS),
       min_slow_start_exit_window_(min_congestion_window_) {}
 
-LiaSender::~LiaSender() {}
-void LiaSender::AdjustNetworkParameters(
+OliaSender::~OliaSender() {}
+void OliaSender::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -61,7 +59,7 @@ void LiaSender::AdjustNetworkParameters(
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
 
-float LiaSender::RenoBeta() const {
+float OliaSender::RenoBeta() const {
   // kNConnectionBeta is the backoff factor after loss for our N-connection
   // emulation, which emulates the effective backoff of an ensemble of N
   // TCP-Reno connections on a single loss event. The effective multiplier is
@@ -69,7 +67,7 @@ float LiaSender::RenoBeta() const {
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
 
-void LiaSender::OnCongestionEvent(
+void OliaSender::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
@@ -91,11 +89,13 @@ void LiaSender::OnCongestionEvent(
   }
 }
 
-void LiaSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void OliaSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
   largest_acked_packet_number_.UpdateMax(acked_packet_number);
+  //reference from mpquic
+  ca_.mptcp_loss3+=acked_bytes;
   if (InRecovery()) {
     if (!no_prr_) {
       // PRR is used when in recovery.
@@ -110,7 +110,7 @@ void LiaSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
   }
 }
 
-void LiaSender::OnPacketSent(
+void OliaSender::OnPacketSent(
     ProtoTime /*sent_time*/,
     QuicByteCount /*bytes_in_flight*/,
     QuicPacketNumber packet_number,
@@ -133,7 +133,7 @@ void LiaSender::OnPacketSent(
   hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
-bool LiaSender::CanSend(QuicByteCount bytes_in_flight) {
+bool OliaSender::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -148,7 +148,7 @@ bool LiaSender::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth LiaSender::PacingRate(
+QuicBandwidth OliaSender::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   // We pace at twice the rate of the underlying sender's bandwidth estimate
   // during slow start and 1.25x during congestion avoidance to ensure pacing
@@ -159,7 +159,7 @@ QuicBandwidth LiaSender::PacingRate(
   return bandwidth * (InSlowStart() ? 2 : (no_prr_ && InRecovery() ? 1 : 1.25));
 }
 
-QuicBandwidth LiaSender::BandwidthEstimate() const {
+QuicBandwidth OliaSender::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if (srtt.IsZero()) {
     // If we haven't measured an rtt, the bandwidth estimate is unknown.
@@ -168,11 +168,11 @@ QuicBandwidth LiaSender::BandwidthEstimate() const {
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
 
-bool LiaSender::InSlowStart() const {
+bool OliaSender::InSlowStart() const {
   return GetCongestionWindow() < GetSlowStartThreshold();
 }
 
-bool LiaSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool OliaSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -183,17 +183,17 @@ bool LiaSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool LiaSender::InRecovery() const {
+bool OliaSender::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool LiaSender::ShouldSendProbingPacket() const {
+bool OliaSender::ShouldSendProbingPacket() const {
   return false;
 }
 
-void LiaSender::OnRetransmissionTimeout(bool packets_retransmitted) {
+void OliaSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -202,13 +202,13 @@ void LiaSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   HandleRetransmissionTimeout();
 }
 
-std::string LiaSender::GetDebugState() const {
+std::string OliaSender::GetDebugState() const {
   return "";
 }
 
-void LiaSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void OliaSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void LiaSender::SetCongestionWindowFromBandwidthAndRtt(
+void OliaSender::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -219,25 +219,25 @@ void LiaSender::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void LiaSender::SetInitialCongestionWindowInPackets(
+void OliaSender::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void LiaSender::SetMinCongestionWindowInPackets(
+void OliaSender::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void LiaSender::SetNumEmulatedConnections(int num_connections) {
+void OliaSender::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
 
-void LiaSender::ExitSlowstart() {
+void OliaSender::ExitSlowstart() {
   slowstart_threshold_ = congestion_window_;
 }
 
-void LiaSender::OnPacketLost(QuicPacketNumber packet_number,
+void OliaSender::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -267,7 +267,6 @@ void LiaSender::OnPacketLost(QuicPacketNumber packet_number,
   if (!no_prr_) {
     prr_.OnPacketLost(prior_in_flight);
   }
-  mptcp_ccc_recalc_alpha();
   // TODO(b/77268641): Separate out all of slow start into a separate class.
   if (slow_start_large_reduction_ && InSlowStart()) {
     DCHECK_LT(kDefaultTCPMSS, congestion_window_);
@@ -276,7 +275,7 @@ void LiaSender::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-    congestion_window_ = congestion_window_ * RenoBeta();
+    congestion_window_ = congestion_window_ *RenoBeta();
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
@@ -286,21 +285,26 @@ void LiaSender::OnPacketLost(QuicPacketNumber packet_number,
   // Reset packet count from congestion avoidance mode. We start counting again
   // when we're out of recovery.
   num_acked_packets_ = 0;
-  /*QUIC_DVLOG(1)*/DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
+  struct mptcp_olia *ca=get_ca();
+  if(ca->mptcp_loss3 != ca->mptcp_loss2){
+      ca->mptcp_loss1 = ca->mptcp_loss2;
+      ca->mptcp_loss2 = ca->mptcp_loss3;
+  }
+  DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
                 << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount LiaSender::GetCongestionWindow() const {
+QuicByteCount OliaSender::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount LiaSender::GetSlowStartThreshold() const {
+QuicByteCount OliaSender::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void LiaSender::MaybeIncreaseCwnd(
+void OliaSender::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -325,23 +329,51 @@ void LiaSender::MaybeIncreaseCwnd(
   if(!other_ccs_.empty()){
 	  bool subflows_exit_slow_start=true;
 	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		  LiaSender *sender=(*it);
+		  OliaSender *sender=(*it);
 		  if(sender->InSlowStart()){
 			  subflows_exit_slow_start=false;
 			  break;
 		  }
 	  }
 	  if(subflows_exit_slow_start){
-		  mptcp_ccc_recalc_alpha();
-		  int send_cwnd=0;
-		  send_cwnd =mptcp_ccc_scale(1, alpha_scale)/alpha_;
-		  if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
-			  send_cwnd=congestion_window_ / kDefaultTCPMSS;
-		  }
-		  if(num_acked_packets_*num_connections_>=send_cwnd){
-			  congestion_window_ += kDefaultTCPMSS;
-			  num_acked_packets_=0;
-		  }
+          uint64_t inc_num, inc_den, rate, cwnd_scaled;
+          mptcp_olia *ca=get_ca();
+          mptcp_get_epsilon();
+          rate=mptcp_get_rate();
+          uint64_t send_cwnd=congestion_window_/kDefaultTCPMSS;
+          cwnd_scaled = mptcp_olia_scale(send_cwnd, scale);
+          inc_den = ca->epsilon_den *send_cwnd * rate ? : 1;
+          
+          
+          if (ca->epsilon_num == -1) {
+              if (ca->epsilon_den * cwnd_scaled * cwnd_scaled < rate) {
+                  inc_num = rate - ca->epsilon_den *
+                      cwnd_scaled * cwnd_scaled;
+                  ca->mptcp_snd_cwnd_cnt -=(
+                      mptcp_olia_scale(inc_num , scale)/inc_den);
+              } else {
+                  inc_num = ca->epsilon_den *
+                      cwnd_scaled * cwnd_scaled - rate;
+                  ca->mptcp_snd_cwnd_cnt +=(
+                      mptcp_olia_scale(inc_num , scale)/inc_den);
+              }
+          } else {
+              inc_num = ca->epsilon_num * rate +
+                  ca->epsilon_den * cwnd_scaled * cwnd_scaled;
+              ca->mptcp_snd_cwnd_cnt +=(
+                  mptcp_olia_scale(inc_num , scale)/inc_den);
+          }
+          
+          
+          if (ca->mptcp_snd_cwnd_cnt >= (1 << scale) - 1) {
+              if (congestion_window_ < max_congestion_window_)
+                  congestion_window_+=kDefaultTCPMSS;
+              ca->mptcp_snd_cwnd_cnt = 0;
+          } else if (ca->mptcp_snd_cwnd_cnt <= 0 - (1 << scale) + 1) {
+               congestion_window_=std::max(congestion_window_,kDefaultTCPMSS);
+               congestion_window_= std::max(min_congestion_window_, congestion_window_-kDefaultTCPMSS);
+               ca->mptcp_snd_cwnd_cnt = 0;
+          }
 	  }else{
 		    if (num_acked_packets_ * num_connections_ >=
 		        congestion_window_ / kDefaultTCPMSS) {
@@ -362,12 +394,12 @@ void LiaSender::MaybeIncreaseCwnd(
 
 }
 
-void LiaSender::HandleRetransmissionTimeout() {
+void OliaSender::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
 
-void LiaSender::OnConnectionMigration() {
+void OliaSender::OnConnectionMigration() {
   hybrid_slow_start_.Restart();
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
@@ -380,19 +412,19 @@ void LiaSender::OnConnectionMigration() {
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType LiaSender::GetCongestionControlType() const {
-  return kLiaBytes;
+CongestionControlType OliaSender::GetCongestionControlType() const {
+  return kOlia;
 }
-void LiaSender::SetCongestionId(uint32_t cid){
+void OliaSender::SetCongestionId(uint32_t cid){
 	if(congestion_id_!=0||cid==0){
 		return;
 	}
 	congestion_id_=cid;
 	CoupleManager::Instance()->OnCongestionCreate(this);
 }
-void LiaSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
+void OliaSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
 	bool exist=false;
-    LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+    OliaSender *sender=dynamic_cast<OliaSender*>(cc);
     if(this==sender) {return ;}
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
 		if(sender==(*it)){
@@ -404,56 +436,112 @@ void LiaSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
 		other_ccs_.push_back(sender);
 	}
 }
-void LiaSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
-    LiaSender *sender=dynamic_cast<LiaSender*>(cc);
+void OliaSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    OliaSender *sender=dynamic_cast<OliaSender*>(cc);
 	if(!other_ccs_.empty()){
 		other_ccs_.remove(sender);
 	}
 }
-uint64_t LiaSender::get_srtt_us() const{
+OliaSender::mptcp_olia* OliaSender::get_ca(){
+    return &ca_;
+}
+uint64_t OliaSender::get_srtt_us(){
 	return rtt_stats_->smoothed_rtt().ToMicroseconds();
 }
-void LiaSender::mptcp_ccc_recalc_alpha(){
-	uint64_t max_numerator=0,sum_denominator = 0, alpha = 1;
-	uint32_t best_cwnd = 0;
-	uint64_t best_rtt = 0;
-	uint32_t send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
-	uint64_t srtt=get_srtt_us();
-	best_rtt=srtt;
-	best_cwnd=send_cwnd;
-	max_numerator=mptcp_ccc_scale(send_cwnd,
-			alpha_scale_num)/(srtt*srtt);
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		LiaSender *sender=(*it);
-		send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
-		srtt=sender->get_srtt_us();
-		uint64_t tmp=mptcp_ccc_scale(send_cwnd,
-				alpha_scale_num)/(srtt*srtt);
-		if(tmp>max_numerator){
-			max_numerator=tmp;
-			best_rtt=srtt;
-			best_cwnd=send_cwnd;
-		}
-	}
-	send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
-	srtt=get_srtt_us();
-	sum_denominator+=mptcp_ccc_scale(send_cwnd,
-			alpha_scale_den) * best_rtt/srtt;
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-			LiaSender *sender=(*it);
-			send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
-			srtt=sender->get_srtt_us();
-			sum_denominator+=mptcp_ccc_scale(send_cwnd,
-					alpha_scale_den) * best_rtt/srtt;
-	}
-	sum_denominator *= sum_denominator;
-	CHECK(sum_denominator>0);
-	alpha = mptcp_ccc_scale(best_cwnd, alpha_scale_num)/sum_denominator;
-	CHECK(alpha>=1);
-	alpha_=alpha;
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		LiaSender *sender=(*it);
-		sender->set_alpha(alpha);
-	}
+uint32_t OliaSender::mptcp_get_crt_cwnd(){
+    uint32_t send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
+    if(InRecovery()){
+        send_cwnd=slowstart_threshold_/kDefaultTCPMSS;
+    }
+    return send_cwnd;
+}
+uint64_t OliaSender::mptcp_get_rate(){
+    uint32_t path_rtt=get_srtt_us();
+    uint64_t rate=1;
+    uint32_t tmp_cwnd=mptcp_get_crt_cwnd();
+    rate+=mptcp_olia_scale(tmp_cwnd, scale);
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        OliaSender *sender=(*it);
+        uint64_t scaled_num;
+        tmp_cwnd=sender->mptcp_get_crt_cwnd();
+        scaled_num=mptcp_olia_scale(tmp_cwnd, scale) * path_rtt;
+        rate +=(scaled_num/sender->get_srtt_us());
+    }
+    rate*=rate;
+    return rate;
+}
+void OliaSender::mptcp_get_epsilon(){
+    std::list<OliaSender*> ccs;
+    ccs.push_back(this);
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        OliaSender *sender=(*it);
+        ccs.push_back(sender);
+    }
+	uint64_t tmp_int, tmp_rtt, best_int = 0, best_rtt = 1;
+	uint32_t max_cwnd=0, tmp_cwnd, established_cnt = 0;
+	uint8_t M = 0, B_not_M = 0;
+    //mptcp_get_max_cwnd
+    for(auto it=ccs.begin();it!=ccs.end();it++){
+        OliaSender *sender=(*it);
+        tmp_cwnd = sender->mptcp_get_crt_cwnd();
+        if(tmp_cwnd>max_cwnd){
+            max_cwnd=tmp_cwnd;
+        }
+    }
+    struct mptcp_olia *ca=nullptr;
+    for(auto it=ccs.begin();it!=ccs.end();it++){
+        OliaSender *sender=(*it);
+        ca=sender->get_ca();
+        established_cnt++;
+        tmp_rtt=sender->get_srtt_us();
+        tmp_rtt*=tmp_rtt;
+		tmp_int = std::max(ca->mptcp_loss3 - ca->mptcp_loss2,
+			      ca->mptcp_loss2 - ca->mptcp_loss1);
+        if((uint64_t)tmp_int * best_rtt>=(uint64_t)best_int * tmp_rtt){
+            best_rtt = tmp_rtt;
+            best_int = tmp_int;
+        }
+    }
+    for(auto it=ccs.begin();it!=ccs.end();it++){
+        OliaSender *sender=(*it);
+        ca=sender->get_ca();
+        tmp_cwnd = sender->mptcp_get_crt_cwnd();
+        if(tmp_cwnd==max_cwnd){
+            M++;
+        }else{
+            tmp_rtt=sender->get_srtt_us();
+            tmp_rtt*=tmp_rtt;
+            tmp_int = std::max(ca->mptcp_loss3 - ca->mptcp_loss2,
+            ca->mptcp_loss2 - ca->mptcp_loss1);
+            if((uint64_t)tmp_int * best_rtt == (uint64_t)best_int * tmp_rtt){
+                B_not_M++;
+            }
+        }
+    }
+    for(auto it=ccs.begin();it!=ccs.end();it++){
+        OliaSender *sender=(*it);
+        ca=sender->get_ca();
+        if(B_not_M == 0){
+            ca->epsilon_num = 0;
+            ca->epsilon_den = 1;
+        }else{
+            tmp_rtt=sender->get_srtt_us();
+            tmp_rtt*=tmp_rtt;
+            tmp_int = std::max(ca->mptcp_loss3 - ca->mptcp_loss2,
+            ca->mptcp_loss2 - ca->mptcp_loss1);
+            tmp_cwnd = sender->mptcp_get_crt_cwnd();
+            if(tmp_cwnd < max_cwnd&&
+            (uint64_t)tmp_int * best_rtt == (uint64_t)best_int * tmp_rtt){
+                ca->epsilon_num = 1;
+                ca->epsilon_den = established_cnt * B_not_M;
+            }else if(tmp_cwnd == max_cwnd){
+                ca->epsilon_num = -1;
+                ca->epsilon_den = established_cnt * M;
+            }else{
+                ca->epsilon_num = 0;
+                ca->epsilon_den = 1;
+            }
+        }
+    }
 }
 }

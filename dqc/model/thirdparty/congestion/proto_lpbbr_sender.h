@@ -1,5 +1,6 @@
 #pragma once
 #include <ostream>
+#include <list>
 #include "proto_send_algorithm_interface.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_windowed_filter.h"
@@ -64,7 +65,7 @@ class LpBbrSender : public SendAlgorithmInterface {
             const UnackedPacketMapInfoInterface* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
-            Random* random,bool drain_to_target);
+            Random* random,bool lp_mode);
   LpBbrSender(const LpBbrSender&) = delete;
   LpBbrSender& operator=(const LpBbrSender&) = delete;
   ~LpBbrSender() override;
@@ -101,8 +102,14 @@ class LpBbrSender : public SendAlgorithmInterface {
   CongestionControlType GetCongestionControlType() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
+  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
+  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
-
+  bool IsInProbeMode() const;
+  float CalculateWindowGain();
+  QuicByteCount EstimateBandwidthDelayProduct();
   // Gets the number of RTTs BBR remains in STARTUP phase.
   QuicRoundTripCount num_startup_rtts() const { return num_startup_rtts_; }
   bool has_non_app_limited_sample() const {
@@ -224,6 +231,7 @@ class LpBbrSender : public SendAlgorithmInterface {
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time);
   bool ShouldReduceBacklogedPacket();
+  bool IsAllflowsInProbeMode () const;
   const RttStats* rtt_stats_;
   const UnackedPacketMapInfoInterface* unacked_packets_;
   Random* random_;
@@ -377,6 +385,9 @@ class LpBbrSender : public SendAlgorithmInterface {
   const bool always_get_bw_sample_when_acked_;
   int cycle_len_{0};
   ProtoTime cycle_mstamp_{ProtoTime::Zero()};
+  bool lp_mode_{true};
+  uint32_t congestion_id_{0};
+  std::list<LpBbrSender*> other_ccs_;
 };
 
  std::ostream& operator<<(std::ostream& os,

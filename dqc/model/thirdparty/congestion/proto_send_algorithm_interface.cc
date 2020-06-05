@@ -1,5 +1,6 @@
 #include "proto_send_algorithm_interface.h"
 #include "rtt_stats.h"
+#include "balia_sender_bytes.h"
 #include "proto_bbr_plus_sender.h"
 #include "proto_bbr_sender.h"
 #include "proto_delay_bbr_sender.h"
@@ -7,13 +8,15 @@
 #include "proto_bbr_rand_sender.h"
 #include "proto_tsunami_sender.h"
 #include "tcp_cubic_sender_bytes.h"
+#include "tcp_veno_sender_bytes.h"
 #include "tcp_westwood_sender_bytes.h"
 #include "tcp_westwood_sender_enhance.h"
 #include "bbr2_sender.h"
 #include "cubic_plus_sender_bytes.h"
 #include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
-#include "mp_westwood_sender_enhance.h"
+#include "lia_sender_enhance.h"
+#include "olia_sender_bytes.h"
 #include "pcc_sender.h"
 #include "proto_copa_sender.h"
 #include "couple_bbr_sender.h"
@@ -21,6 +24,8 @@
 #include "wvegas_sender_bytes.h"
 #include "ledbat_sender_bytes.h"
 #include "proto_lpbbr_sender.h"
+#include "mp_veno_sender_bytes.h"
+#include "mp_westwood_sender_bytes.h"
 #include "lptcp_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
@@ -51,10 +56,17 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats
                                );
         }
+        case kVeno:{
+            return new TcpVenoSenderBytes(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
         case kWestwood:{
             return new TcpWestwoodSenderBytes(clock,
                                rtt_stats,
-                               true,
                                initial_congestion_window,
                                max_congestion_window,
                                stats
@@ -69,10 +81,9 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats
                                );
         }
-        case kMpWestwood:{
-            return new MpWestwoodSenderEnhance(clock,
+        case kMpWest:{
+            return new MpWestwoodSenderBytes(clock,
                                rtt_stats,
-                               unacked_packets,
                                initial_congestion_window,
                                max_congestion_window,
                                stats
@@ -98,13 +109,54 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats,random
                                );
         }
-        case kLiaBytes:{
-            return new LiaSender(clock,
+        case kBalia:{
+            return new BaliaSender(clock,
                                rtt_stats,
-                       		   true,
                                initial_congestion_window,
                                max_congestion_window,
                                stats
+                               );
+        }
+        case kLiaBytes:{
+            return new LiaSender(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kLiaEnhance:{
+            return new LiaSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,false
+                               );
+        }
+        case kOlia:{
+            return new OliaSender(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kMpVeno:{
+            return new MpVenoSender(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kLiaEnhance2:{
+            return new LiaSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,true
                                );
         }
         case kWvegas:{
@@ -264,6 +316,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats);
         }
         case kLpBBR:{
+            return new LpBbrSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random,true
+                               );
+        }
+        case kLpBBRNo:{
             return new LpBbrSender(clock->Now(),
                                rtt_stats,
                                unacked_packets,

@@ -6,8 +6,8 @@
 #include "random.h"
 #include "logging.h"
 #include "proto_constants.h"
+#include "couple_cc_manager.h"
 #include <ostream>
-
 namespace dqc{
 namespace {
 /* Pace at ~1% below estimated bw, on average, to reduce queue at bottleneck.
@@ -85,7 +85,7 @@ LpBbrSender::LpBbrSender(ProtoTime now,
                      const UnackedPacketMapInfoInterface* unacked_packets,
                      QuicPacketCount initial_tcp_congestion_window,
                      QuicPacketCount max_tcp_congestion_window,
-                     Random* random,bool drain_to_target)
+                     Random* random,bool lp_mode)
     : rtt_stats_(rtt_stats),
       unacked_packets_(unacked_packets),
       random_(random),
@@ -132,14 +132,15 @@ LpBbrSender::LpBbrSender(ProtoTime now,
       startup_bytes_lost_(0),
       enable_ack_aggregation_during_startup_(false),
       expire_ack_aggregation_in_startup_(false),
-      drain_to_target_(drain_to_target),
+      drain_to_target_(true),
       probe_rtt_based_on_bdp_(false),
       probe_rtt_skipped_if_similar_rtt_(false),
       probe_rtt_disabled_if_app_limited_(false),
       app_limited_since_last_probe_rtt_(false),
       min_rtt_since_last_probe_rtt_(TimeDelta::Infinite()),
       always_get_bw_sample_when_acked_(
-          GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)) {
+          GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)),
+          lp_mode_(lp_mode){
   /*if (stats_) {
     stats_->slowstart_count = 0;
     stats_->slowstart_start_time = QuicTime::Zero();
@@ -519,7 +520,7 @@ void LpBbrSender::UpdateGainCyclePhase(ProtoTime now,
   const QuicByteCount bytes_in_flight = unacked_packets_->bytes_in_flight();
   if(elapsed>cycle_len_*GetMinRtt()){
 	cycle_mstamp_=now;
-	cycle_len_=kGainCycleLength/*-random_->nextInt(bbr_cycle_rand)*/;
+	cycle_len_=kGainCycleLength-random_->nextInt(bbr_cycle_rand);
 	cycle_current_offset_=0;
     pacing_gain_ = kPacingGain[BBR_BW_PROBE_UP];
     last_cycle_start_=now;
@@ -785,8 +786,9 @@ void LpBbrSender::CalculateCongestionWindow(QuicByteCount bytes_acked,
     // window.
     congestion_window_ = congestion_window_ + bytes_acked;
   }
-  if((mode_==PROBE_BW)&&ShouldReduceBacklogedPacket()){
-    QuicByteCount bdp=GetTargetCongestionWindow(1.0);
+  if((mode_==PROBE_BW)&&ShouldReduceBacklogedPacket()&&lp_mode_&&IsAllflowsInProbeMode()){
+    QuicByteCount bdp=GetTargetCongestionWindow(1.0)*CalculateWindowGain();
+    bdp=(bdp/kDefaultTCPMSS)*kDefaultTCPMSS;
     congestion_window_=std::min(congestion_window_,bdp);
   }
   // Enforce the limits on the congestion window.
@@ -858,7 +860,63 @@ void LpBbrSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {
 LpBbrSender::DebugState LpBbrSender::ExportDebugState() const {
   return DebugState(*this);
 }
-
+void LpBbrSender::SetCongestionId(uint32_t cid){
+	if(congestion_id_!=0||cid==0){
+		return;
+	}
+	congestion_id_=cid;
+	CoupleManager::Instance()->OnCongestionCreate(this);
+}
+void LpBbrSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
+    LpBbrSender *sender=dynamic_cast<LpBbrSender*>(cc);
+    other_ccs_.push_back(sender);
+}
+void LpBbrSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    LpBbrSender *sender=dynamic_cast<LpBbrSender*>(cc);
+    if(!other_ccs_.empty()){
+        other_ccs_.remove(sender);
+    }
+}
+bool LpBbrSender::IsInProbeMode() const{
+    return mode_==PROBE_BW||mode_==PROBE_RTT;
+}
+bool LpBbrSender::IsAllflowsInProbeMode() const{
+    bool isAllInProbeMode=true;
+    if(!IsInProbeMode()||other_ccs_.empty()){
+        isAllInProbeMode=false;
+    }else{
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        if(!(*it)->IsInProbeMode()){
+            isAllInProbeMode=false;
+            break;
+        }
+    }
+    }
+    return isAllInProbeMode;
+}
+float LpBbrSender::CalculateWindowGain(){
+    float window_gain=congestion_window_gain_constant_;
+    if(other_ccs_.empty()){
+        return window_gain;
+    }
+    QuicByteCount self_bdp=EstimateBandwidthDelayProduct();
+    QuicByteCount max_bdp=self_bdp;
+    QuicByteCount bdp=self_bdp;
+    QuicByteCount sum_bdp=bdp;
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        bdp=(*it)->EstimateBandwidthDelayProduct();
+        if(bdp>max_bdp){
+            max_bdp=bdp;
+        }
+        sum_bdp+=bdp;
+    }
+    double beta=max_bdp*1.0/sum_bdp;
+    window_gain=beta;
+    return window_gain;
+}
+QuicByteCount LpBbrSender::EstimateBandwidthDelayProduct(){
+    return GetTargetCongestionWindow(1.0);
+}
 static std::string ModeToString(LpBbrSender::Mode mode) {
   switch (mode) {
     case LpBbrSender::STARTUP:

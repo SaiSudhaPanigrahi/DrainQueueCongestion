@@ -1,20 +1,35 @@
 #pragma once
+#include <list>
 #include "proto_types.h"
 #include "hybrid_slow_start.h"
 #include "prr_sender.h"
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
-class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
+class OliaSender : public SendAlgorithmInterface {
  public:
-  TcpWestwoodSenderBytes(const ProtoClock* clock,
+    struct mptcp_olia {
+        mptcp_olia():mptcp_loss1(0),
+        mptcp_loss2(0),
+        mptcp_loss3(0),
+        epsilon_num(0),
+        epsilon_den(1),
+        mptcp_snd_cwnd_cnt(0){}
+        uint64_t    mptcp_loss1;
+        uint64_t    mptcp_loss2;
+        uint64_t    mptcp_loss3;
+        int	epsilon_num;
+        uint32_t    epsilon_den;
+        int mptcp_snd_cwnd_cnt;
+    };
+  OliaSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  TcpWestwoodSenderBytes(const TcpWestwoodSenderBytes&) = delete;
-  TcpWestwoodSenderBytes& operator=(const TcpWestwoodSenderBytes&) = delete;
-  ~TcpWestwoodSenderBytes() override;
+  OliaSender(const OliaSender&) = delete;
+  OliaSender& operator=(const OliaSender&) = delete;
+  ~OliaSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -48,11 +63,21 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
+  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
+  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
-
+  struct mptcp_olia* get_ca();
+  uint64_t get_srtt_us();
+  uint32_t mptcp_get_crt_cwnd();
+  uint64_t mptcp_get_rate();
+  void mptcp_get_epsilon();
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
+ protected:
+  // Compute the TCP Reno beta based on the current number of connections.
+  float RenoBeta() const;
 
-  protected:
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
   // TODO(ianswett): Remove these and migrate to OnCongestionEvent.
@@ -72,8 +97,6 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
                          QuicByteCount prior_in_flight,
                          ProtoTime event_time);
   void HandleRetransmissionTimeout();
-  void UpdateRttMin();
-  void WestwoodUpdateWindow(ProtoTime event_time);
  private:
   //friend class test::TcpCubicSenderBytesPeer;
 
@@ -81,6 +104,8 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
   PrrSender prr_;
   const RttStats* rtt_stats_;
   QuicConnectionStats* stats_;
+
+
   // Number of connections to simulate.
   uint32_t num_connections_;
 
@@ -105,6 +130,7 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
 
   // When true, use unity pacing instead of PRR.
   bool no_prr_;
+
   // ACK counter for the Reno implementation.
   uint64_t num_acked_packets_;
 
@@ -130,28 +156,8 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
 
   // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
-
-/* TCP Westwood structure */
-/*
-struct westwood {
-	u32    bw_ns_est;         first bandwidth estimation..not too smoothed 8) 
-	u32    bw_est;            bandwidth estimate 
-	u32    rtt_win_sx;        here starts a new evaluation... 
-	u32    bk;
-	u32    snd_una;           used for evaluating the number of acked bytes 
-	u32    cumul_ack;
-	u32    accounted;
-	u32    rtt;
-	u32    rtt_min;           minimum observed RTT 
-	u8     first_ack;         flag which infers that this is the first ack 
-	u8     reset_rtt_min;     Reset RTT min to next RTT sample
-};*/
-  QuicBandwidth bw_ns_est_;
-  QuicBandwidth bw_est_;
-  QuicByteCount acked_segment_length_{0};
-  TimeDelta min_rtt_;
-  ProtoTime rtt_win_sx_;
-  bool reset_rtt_min_{true};
-  bool first_ack_{true};
+  uint32_t congestion_id_{0};
+  std::list<OliaSender*> other_ccs_;
+  mptcp_olia ca_;
 };
 }

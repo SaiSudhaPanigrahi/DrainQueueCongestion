@@ -1,20 +1,21 @@
 #pragma once
+#include <list>
 #include "proto_types.h"
 #include "hybrid_slow_start.h"
 #include "prr_sender.h"
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
-class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
+class MpWestwoodSenderBytes : public SendAlgorithmInterface {
  public:
-  TcpWestwoodSenderBytes(const ProtoClock* clock,
+  MpWestwoodSenderBytes(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  TcpWestwoodSenderBytes(const TcpWestwoodSenderBytes&) = delete;
-  TcpWestwoodSenderBytes& operator=(const TcpWestwoodSenderBytes&) = delete;
-  ~TcpWestwoodSenderBytes() override;
+  MpWestwoodSenderBytes(const MpWestwoodSenderBytes&) = delete;
+  MpWestwoodSenderBytes& operator=(const MpWestwoodSenderBytes&) = delete;
+  ~MpWestwoodSenderBytes() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -48,8 +49,12 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
+  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
+  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
-
+  QuicBandwidth GetWestwoodBandwidth();
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
 
   protected:
@@ -74,6 +79,7 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
   void HandleRetransmissionTimeout();
   void UpdateRttMin();
   void WestwoodUpdateWindow(ProtoTime event_time);
+  void UpdateAlpha();
  private:
   //friend class test::TcpCubicSenderBytesPeer;
 
@@ -130,22 +136,8 @@ class TcpWestwoodSenderBytes : public SendAlgorithmInterface {
 
   // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
-
-/* TCP Westwood structure */
-/*
-struct westwood {
-	u32    bw_ns_est;         first bandwidth estimation..not too smoothed 8) 
-	u32    bw_est;            bandwidth estimate 
-	u32    rtt_win_sx;        here starts a new evaluation... 
-	u32    bk;
-	u32    snd_una;           used for evaluating the number of acked bytes 
-	u32    cumul_ack;
-	u32    accounted;
-	u32    rtt;
-	u32    rtt_min;           minimum observed RTT 
-	u8     first_ack;         flag which infers that this is the first ack 
-	u8     reset_rtt_min;     Reset RTT min to next RTT sample
-};*/
+  
+  uint32_t congestion_id_{0};
   QuicBandwidth bw_ns_est_;
   QuicBandwidth bw_est_;
   QuicByteCount acked_segment_length_{0};
@@ -153,5 +145,7 @@ struct westwood {
   ProtoTime rtt_win_sx_;
   bool reset_rtt_min_{true};
   bool first_ack_{true};
+  std::list<MpWestwoodSenderBytes*> other_ccs_;
+  float alpha_{1.0};
 };
 }

@@ -4,6 +4,7 @@
 #include "proto_windowed_filter.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_send_algorithm_interface.h"
+#include <list>
 namespace dqc{
 class RttStats;
 typedef uint64_t QuicRoundTripCount;
@@ -56,9 +57,11 @@ public:
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
   // End implementation of SendAlgorithmInterface.
-
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
+  bool IsInAimdState(){return mode_==AIMD;}
   protected:
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
@@ -84,9 +87,7 @@ public:
   void DiscardLostPackets(const LostPacketVector& lost_packets);
   bool UpdateRoundTripCounter(QuicPacketNumber last_acked_packet);
   bool UpdateBandwidthAndMinRtt(ProtoTime now,
-    const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth);
-  void UpdateWindowBandwidth(QuicBandwidth &bandwidth);
-  void UpdateWindowBandwidth(ProtoTime event_time,QuicBandwidth &bandwidth);
+  const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth);
   bool ShouldExtendMinRttExpiry() const;
   void CheckIfFullBandwidthReached();
   void MaybeExitStartupOrDrain(ProtoTime now);
@@ -96,8 +97,8 @@ public:
   TimeDelta GetMinRtt() const;
   QuicByteCount GetTargetCongestionWindow(float gain) const;
   float RenoBeta() const;
-  void MaybeAccelerate();
-  void ResetAccelerationFactor();
+  //void mptcp_ccc_recalc_alpha();
+  void ResetWindowRtt();
 private:
     PrrSender prr_;
     const RttStats* rtt_stats_;
@@ -105,7 +106,7 @@ private:
     QuicConnectionStats* stats_;
     // Number of connections to simulate.
     uint32_t num_connections_;
-    uint32_t initial_num_connections_;
+    
     // Track the largest packet that has been sent.
     QuicPacketNumber largest_sent_packet_number_;
     
@@ -152,13 +153,7 @@ private:
     
     // The minimum window when exiting slow start with large reduction.
     QuicByteCount min_slow_start_exit_window_;
-    QuicBandwidth bw_ns_est_;
-    QuicBandwidth bw_est_;
-    ProtoTime rtt_win_sx_;
-    bool first_ack_{true};
-    bool first_round_{true};
     bool reset_rtt_min_{true};
-    bool reno_mode_{true};
     typedef WindowedFilter<QuicBandwidth,
                          MaxFilter<QuicBandwidth>,
                          QuicRoundTripCount,
@@ -190,10 +185,12 @@ private:
     const bool always_get_bw_sample_when_acked_;
     TimeDelta min_rtt_;
     ProtoTime min_rtt_timestamp_;
+    TimeDelta window_max_rtt_{TimeDelta::Zero()};
+    TimeDelta window_min_rtt_{TimeDelta::Infinite()};
+    bool delay_yield_flag_{true};
     bool probe_rtt_skipped_if_similar_rtt_;
     bool exit_startup_on_loss_;
-    bool enable_acceleration_;
-    uint32_t rounds_to_accelerate_;
-    QuicRoundTripCount last_update_round_{0};
+    uint32_t congestion_id_{0};
+    //float alpha_{1.0};
 };
 }
