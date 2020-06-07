@@ -16,6 +16,7 @@
 #include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
 #include "lia_sender_enhance.h"
+#include "lia_sender_enhance3.h"
 #include "olia_sender_bytes.h"
 #include "pcc_sender.h"
 #include "proto_copa_sender.h"
@@ -134,6 +135,24 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats,false
                                );
         }
+        case kLiaEnhance2:{
+            return new LiaSenderEnhance(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,true
+                               );
+        }
+        case kLiaEnhance3:{
+            return new LiaSenderEnhance3(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,false
+                               );
+        }
         case kOlia:{
             return new OliaSender(clock,
                                rtt_stats,
@@ -148,15 +167,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats
-                               );
-        }
-        case kLiaEnhance2:{
-            return new LiaSenderEnhance(clock,
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               stats,true
                                );
         }
         case kWvegas:{

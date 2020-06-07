@@ -333,7 +333,7 @@ void LiaSender::MaybeIncreaseCwnd(
 	  }
 	  if(subflows_exit_slow_start){
 		  mptcp_ccc_recalc_alpha();
-		  int send_cwnd=0;
+		  uint64_t send_cwnd=0;
 		  send_cwnd =mptcp_ccc_scale(1, alpha_scale)/alpha_;
 		  if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
 			  send_cwnd=congestion_window_ / kDefaultTCPMSS;

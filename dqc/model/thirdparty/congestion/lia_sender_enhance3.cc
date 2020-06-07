@@ -1,4 +1,4 @@
-#include "lia_sender_enhance.h"
+#include "lia_sender_enhance3.h"
 #include "rtt_stats.h"
 #include "unacked_packet_map.h"
 #include "flag_impl.h"
@@ -15,8 +15,7 @@ namespace {
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kWestwoodDelayBeta = 0.8f;
-const float kWestwoodLossBeta = 0.8f;  // add to reduce loss for westwood
+const float kWestwoodBeta = 0.9f;
 const float kRenoBeta = 0.5f;
 const TimeDelta kMinRttExpiry = TimeDelta::FromMilliseconds(2500);
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
@@ -24,22 +23,16 @@ const TimeDelta kMinRttExpiry = TimeDelta::FromMilliseconds(2500);
 const QuicByteCount kDefaultMinimumCongestionWindow = 4* kDefaultTCPMSS;
 const float kDerivedHighCWNDGain = 2.0f;
 const float kBandwidthWestwoodAlpha = 0.125f;
-const QuicRoundTripCount kBandwidthWindowSize=5;//10;
+const QuicRoundTripCount kBandwidthWindowSize=10;
 const float kSimilarMinRttThreshold = 1.125;
 const float kStartupGrowthTarget = 1.5;
 const float kStartupAfterLossGain = 1.5f;
 const QuicRoundTripCount kRoundTripsWithoutGrowthBeforeExitingStartup = 3;
 const float kLatencyFactor=0.7;
 const QuicRoundTripCount kMaxRttObservationWindow=20;
-static const int alpha_scale_den = 10;
-static const int alpha_scale_num = 32;
-static const int alpha_scale = 12;
 }  // namespace
-static inline uint64_t mptcp_ccc_scale(uint32_t val, int scale)
-{
-	return (uint64_t) val << scale;
-}
-LiaSenderEnhance::LiaSenderEnhance(
+
+LiaSenderEnhance3::LiaSenderEnhance3(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     const UnackedPacketMapInfoInterface* unacked_packets,
@@ -84,6 +77,7 @@ LiaSenderEnhance::LiaSenderEnhance(
     always_get_bw_sample_when_acked_(
     GetQuicReloadableFlag(quic_always_get_bw_sample_when_acked)),
     min_rtt_(TimeDelta::Zero()),
+    global_min_rtt_(TimeDelta::Infinite()),
     min_rtt_timestamp_(ProtoTime::Zero()),
     probe_rtt_skipped_if_similar_rtt_(false),
     exit_startup_on_loss_(false),
@@ -92,8 +86,8 @@ LiaSenderEnhance::LiaSenderEnhance(
         EnterStartupMode(clock->Now());
     }
 
-LiaSenderEnhance::~LiaSenderEnhance() {}
-void LiaSenderEnhance::AdjustNetworkParameters(
+LiaSenderEnhance3::~LiaSenderEnhance3() {}
+void LiaSenderEnhance3::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -102,7 +96,7 @@ void LiaSenderEnhance::AdjustNetworkParameters(
   }
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
-void LiaSenderEnhance::OnCongestionEvent(
+void LiaSenderEnhance3::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
@@ -114,6 +108,9 @@ void LiaSenderEnhance::OnCongestionEvent(
     DiscardLostPackets(lost_packets);
     TimeDelta srtt = rtt_stats_->smoothed_rtt();
     TimeDelta rtt=rtt_stats_->latest_rtt();
+    if(global_min_rtt_>rtt){
+        global_min_rtt_=rtt;
+    }
     if (!acked_packets.empty()) {
 	    QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
 	    is_round_start = UpdateRoundTripCounter(last_acked_packet);
@@ -124,7 +121,7 @@ void LiaSenderEnhance::OnCongestionEvent(
         if(min_rtt_expired){
             if(!acked_packets.empty()){
                 QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
-                CongestionWindowBackoff(last_acked_packet,prior_in_flight,kWestwoodDelayBeta);
+                CongestionWindowBackoff(last_acked_packet,prior_in_flight,kWestwoodBeta);
             }
         }
         bool congestion_loss=true;
@@ -152,7 +149,7 @@ void LiaSenderEnhance::OnCongestionEvent(
     }
     sampler_.RemoveObsoletePackets(unacked_packets_->GetLeastUnacked());
 }
-void LiaSenderEnhance::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void LiaSenderEnhance3::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
@@ -168,7 +165,7 @@ void LiaSenderEnhance::OnPacketAcked(QuicPacketNumber acked_packet_number,
                     event_time);
 }
 
-void LiaSenderEnhance::OnPacketSent(
+void LiaSenderEnhance3::OnPacketSent(
     ProtoTime sent_time,
     QuicByteCount bytes_in_flight,
     QuicPacketNumber packet_number,
@@ -192,7 +189,7 @@ void LiaSenderEnhance::OnPacketSent(
                         is_retransmittable);
 }
 
-bool LiaSenderEnhance::CanSend(QuicByteCount bytes_in_flight) {
+bool LiaSenderEnhance3::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -207,7 +204,7 @@ bool LiaSenderEnhance::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth LiaSenderEnhance::PacingRate(
+QuicBandwidth LiaSenderEnhance3::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   if (pacing_rate_.IsZero()) {
     return high_gain_ * QuicBandwidth::FromBytesAndTimeDelta(
@@ -222,21 +219,21 @@ QuicBandwidth LiaSenderEnhance::PacingRate(
       return pacing_rate_;
   }
 }
-QuicBandwidth LiaSenderEnhance::BandwidthEstimate() const {
+QuicBandwidth LiaSenderEnhance3::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if(mode_==STARTUP||mode_==DRAIN){
       return BandwidthEstimateBest();
   }
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
-QuicBandwidth LiaSenderEnhance::BandwidthEstimateBest() const {
+QuicBandwidth LiaSenderEnhance3::BandwidthEstimateBest() const {
     return max_bandwidth_.GetBest();
 }
-bool LiaSenderEnhance::InSlowStart() const {
+bool LiaSenderEnhance3::InSlowStart() const {
   return mode_ == STARTUP||mode_==DRAIN;
 }
 
-bool LiaSenderEnhance::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool LiaSenderEnhance3::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -247,17 +244,17 @@ bool LiaSenderEnhance::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool LiaSenderEnhance::InRecovery() const {
+bool LiaSenderEnhance3::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool LiaSenderEnhance::ShouldSendProbingPacket() const {
+bool LiaSenderEnhance3::ShouldSendProbingPacket() const {
   return false;
 }
 
-void LiaSenderEnhance::OnRetransmissionTimeout(bool packets_retransmitted) {
+void LiaSenderEnhance3::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -265,13 +262,13 @@ void LiaSenderEnhance::OnRetransmissionTimeout(bool packets_retransmitted) {
   HandleRetransmissionTimeout();
 }
 
-std::string LiaSenderEnhance::GetDebugState() const {
+std::string LiaSenderEnhance3::GetDebugState() const {
   return "";
 }
 
-void LiaSenderEnhance::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void LiaSenderEnhance3::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void LiaSenderEnhance::SetCongestionWindowFromBandwidthAndRtt(
+void LiaSenderEnhance3::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -282,20 +279,20 @@ void LiaSenderEnhance::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void LiaSenderEnhance::SetInitialCongestionWindowInPackets(
+void LiaSenderEnhance3::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void LiaSenderEnhance::SetMinCongestionWindowInPackets(
+void LiaSenderEnhance3::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void LiaSenderEnhance::SetNumEmulatedConnections(int num_connections) {
+void LiaSenderEnhance3::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
 }
-void LiaSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
+void LiaSenderEnhance3::CongestionWindowBackoff(QuicPacketNumber packet_number,QuicByteCount prior_in_flight,float gain){
   if (largest_sent_at_last_cutback_.IsInitialized() &&
       packet_number <= largest_sent_at_last_cutback_) {
           return ;
@@ -307,7 +304,7 @@ void LiaSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,Qu
   if(bw_est.IsZero()){
       congestion_window_=congestion_window_*RenoBeta();
   }else{
-      congestion_window_=gain*bw_est*min_rtt_;
+      congestion_window_=gain*bw_est*global_min_rtt_;
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
@@ -317,7 +314,7 @@ void LiaSenderEnhance::CongestionWindowBackoff(QuicPacketNumber packet_number,Qu
   reset_rtt_min_=true;
   num_acked_packets_ = 0;
 }
-void LiaSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
+void LiaSenderEnhance3::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -343,8 +340,6 @@ void LiaSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
   if (!no_prr_) {
     prr_.OnPacketLost(prior_in_flight);
   }
-
-  // TODO(b/77268641): Separate out all of slow start into a separate class.
   if (slow_start_large_reduction_ && InSlowStart()) {
     DCHECK_LT(kDefaultTCPMSS, congestion_window_);
     if (congestion_window_ >= 2 * initial_tcp_congestion_window_) {
@@ -357,7 +352,7 @@ void LiaSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
           congestion_window_=congestion_window_*RenoBeta();
       }else{
           QuicBandwidth  rate=BandwidthEstimateBest();
-          congestion_window_=kWestwoodLossBeta*rate*min_rtt_;
+          congestion_window_=kWestwoodBeta*rate*global_min_rtt_;
       }
   }
   if (congestion_window_ < min_congestion_window_) {
@@ -372,17 +367,17 @@ void LiaSenderEnhance::OnPacketLost(QuicPacketNumber packet_number,
                 << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount LiaSenderEnhance::GetCongestionWindow() const {
+QuicByteCount LiaSenderEnhance3::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount LiaSenderEnhance::GetSlowStartThreshold() const {
+QuicByteCount LiaSenderEnhance3::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void LiaSenderEnhance::MaybeIncreaseCwnd(
+void LiaSenderEnhance3::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -397,23 +392,23 @@ void LiaSenderEnhance::MaybeIncreaseCwnd(
   if(!other_ccs_.empty()){
 	  bool subflows_exit_slow_start=true;
 	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		   LiaSenderEnhance *sender=(*it);
+		   LiaSenderEnhance3 *sender=(*it);
 		  if(sender->InSlowStart()){
 			subflows_exit_slow_start=false;
 			break;
 		  }
 	  }
 	  if(subflows_exit_slow_start){
-		  mptcp_ccc_recalc_alpha();
-		  uint64_t send_cwnd=0;
-		  send_cwnd =mptcp_ccc_scale(1, alpha_scale)/alpha_;
-		  if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
-			  send_cwnd=congestion_window_ / kDefaultTCPMSS;
-		  }
-		  if(num_acked_packets_*num_connections_>=send_cwnd){
-			  congestion_window_ += kDefaultTCPMSS;
-			  num_acked_packets_=0;
-		  }
+        UpdateAlpha();
+        uint64_t send_cwnd=0;
+        send_cwnd =congestion_window_/(kDefaultTCPMSS*alpha_);
+        if(send_cwnd<congestion_window_ / kDefaultTCPMSS){
+            send_cwnd=congestion_window_ / kDefaultTCPMSS;
+        }
+        if(num_acked_packets_*num_connections_>=send_cwnd){
+            congestion_window_ += kDefaultTCPMSS;
+            num_acked_packets_=0;
+        }
 	  }else{
 		    if (num_acked_packets_ * num_connections_ >=
 		        congestion_window_ / kDefaultTCPMSS) {
@@ -433,22 +428,22 @@ void LiaSenderEnhance::MaybeIncreaseCwnd(
                 << " congestion window count: " << num_acked_packets_;
 }
 
-void LiaSenderEnhance::HandleRetransmissionTimeout() {
+void LiaSenderEnhance3::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
-void LiaSenderEnhance::EnterStartupMode(ProtoTime now) {
+void LiaSenderEnhance3::EnterStartupMode(ProtoTime now) {
   mode_ = STARTUP;
   pacing_gain_ = high_gain_;
   congestion_window_gain_ = high_cwnd_gain_;
 }
 
-void LiaSenderEnhance::EnterAIMDMode(ProtoTime now) {
+void LiaSenderEnhance3::EnterAIMDMode(ProtoTime now) {
   mode_ = AIMD;
   congestion_window_gain_ =1.0;
   congestion_window_=GetTargetCongestionWindow(congestion_window_gain_);
 }
-void LiaSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_packets) {
+void LiaSenderEnhance3::DiscardLostPackets(const LostPacketVector& lost_packets) {
   for (const LostPacket& packet : lost_packets) {
     sampler_.OnPacketLost(packet.packet_number);
     if (mode_ == STARTUP) {
@@ -458,7 +453,7 @@ void LiaSenderEnhance::DiscardLostPackets(const LostPacketVector& lost_packets) 
     }
   }
 }
-bool LiaSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet) {
+bool LiaSenderEnhance3::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet) {
   if (!current_round_trip_end_.IsInitialized()||
       last_acked_packet > current_round_trip_end_) {
     round_trip_count_++;
@@ -467,7 +462,7 @@ bool LiaSenderEnhance::UpdateRoundTripCounter(QuicPacketNumber last_acked_packet
   }
   return false;
 }
-bool LiaSenderEnhance::UpdateBandwidthAndMinRtt(
+bool LiaSenderEnhance3::UpdateBandwidthAndMinRtt(
     ProtoTime now,
     const AckedPacketVector& acked_packets,QuicBandwidth &bandwidth) {
   TimeDelta sample_min_rtt = TimeDelta::Infinite();
@@ -522,7 +517,7 @@ bool LiaSenderEnhance::UpdateBandwidthAndMinRtt(
   }
   return min_rtt_expired;
 }
-bool LiaSenderEnhance::ShouldExtendMinRttExpiry() const {
+bool LiaSenderEnhance3::ShouldExtendMinRttExpiry() const {
   const bool min_rtt_increased_since_last_probe =
       min_rtt_since_last_probe_rtt_ > min_rtt_ * kSimilarMinRttThreshold;
   if (probe_rtt_skipped_if_similar_rtt_ &&
@@ -534,7 +529,7 @@ bool LiaSenderEnhance::ShouldExtendMinRttExpiry() const {
   }
   return false;
 }
-void LiaSenderEnhance::CheckIfFullBandwidthReached(){
+void LiaSenderEnhance3::CheckIfFullBandwidthReached(){
   QuicBandwidth target = bandwidth_at_last_round_ * kStartupGrowthTarget;
   if (BandwidthEstimateBest() >= target) {
     bandwidth_at_last_round_ = BandwidthEstimateBest();
@@ -547,7 +542,7 @@ void LiaSenderEnhance::CheckIfFullBandwidthReached(){
     is_at_full_bandwidth_ = true;
   }    
 }
-void LiaSenderEnhance::MaybeExitStartupOrDrain(ProtoTime now) {
+void LiaSenderEnhance3::MaybeExitStartupOrDrain(ProtoTime now) {
   if (mode_ == STARTUP && is_at_full_bandwidth_) {
     mode_ = DRAIN;
     pacing_gain_ = drain_gain_;
@@ -558,7 +553,7 @@ void LiaSenderEnhance::MaybeExitStartupOrDrain(ProtoTime now) {
     EnterAIMDMode(now);
   }
 }
-void LiaSenderEnhance::CalculatePacingRate(){
+void LiaSenderEnhance3::CalculatePacingRate(){
   if (BandwidthEstimateBest().IsZero()) {
     return;
   }
@@ -575,21 +570,21 @@ void LiaSenderEnhance::CalculatePacingRate(){
   }
   pacing_rate_ = std::max(pacing_rate_, target_rate);
 }
-void LiaSenderEnhance::CalculateCongestionWindow(){
+void LiaSenderEnhance3::CalculateCongestionWindow(){
   QuicByteCount target_window =
       GetTargetCongestionWindow(congestion_window_gain_);
   congestion_window_=target_window;
   congestion_window_ = std::max(congestion_window_, min_congestion_window_);
   congestion_window_ = std::min(congestion_window_, max_congestion_window_);
 }
-float LiaSenderEnhance::RenoBeta() const {
+float LiaSenderEnhance3::RenoBeta() const {
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
-TimeDelta LiaSenderEnhance::GetMinRtt() const {
+TimeDelta LiaSenderEnhance3::GetMinRtt() const {
   return !min_rtt_.IsZero() ? min_rtt_ : rtt_stats_->initial_rtt();
 }
 
-QuicByteCount LiaSenderEnhance::GetTargetCongestionWindow(float gain) const {
+QuicByteCount LiaSenderEnhance3::GetTargetCongestionWindow(float gain) const {
   QuicByteCount bdp = GetMinRtt() * BandwidthEstimateBest();
   QuicByteCount congestion_window = gain * bdp;
 
@@ -600,7 +595,7 @@ QuicByteCount LiaSenderEnhance::GetTargetCongestionWindow(float gain) const {
 
   return std::max(congestion_window, min_congestion_window_);
 }
-void LiaSenderEnhance::OnConnectionMigration() {
+void LiaSenderEnhance3::OnConnectionMigration() {
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
   largest_acked_packet_number_.Clear();
@@ -612,19 +607,19 @@ void LiaSenderEnhance::OnConnectionMigration() {
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType LiaSenderEnhance::GetCongestionControlType() const {
-  return kLiaEnhance;
+CongestionControlType LiaSenderEnhance3::GetCongestionControlType() const {
+  return kLiaEnhance3;
 }
-void LiaSenderEnhance::SetCongestionId(uint32_t cid){
+void LiaSenderEnhance3::SetCongestionId(uint32_t cid){
 	if(congestion_id_!=0||cid==0){
 		return;
 	}
 	congestion_id_=cid;
 	CoupleManager::Instance()->OnCongestionCreate(this);
 }
-void LiaSenderEnhance::RegisterCoupleCC(SendAlgorithmInterface*cc){
+void LiaSenderEnhance3::RegisterCoupleCC(SendAlgorithmInterface*cc){
 	bool exist=false;
-    LiaSenderEnhance *sender=dynamic_cast<LiaSenderEnhance*>(cc);
+    LiaSenderEnhance3 *sender=dynamic_cast<LiaSenderEnhance3*>(cc);
     if(this==sender) {return ;}
 	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
 		if(sender==(*it)){
@@ -636,61 +631,33 @@ void LiaSenderEnhance::RegisterCoupleCC(SendAlgorithmInterface*cc){
 		other_ccs_.push_back(sender);
 	}
 }
-void LiaSenderEnhance::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
-    LiaSenderEnhance *sender=dynamic_cast<LiaSenderEnhance*>(cc);
+void LiaSenderEnhance3::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    LiaSenderEnhance3 *sender=dynamic_cast<LiaSenderEnhance3*>(cc);
 	if(!other_ccs_.empty()){
 		other_ccs_.remove(sender);
 	}
 }
-uint64_t LiaSenderEnhance::get_srtt_us() const{
-	return rtt_stats_->smoothed_rtt().ToMicroseconds();
+void LiaSenderEnhance3::UpdateAlpha(){
+    alpha_=1.0;
+    if(other_ccs_.empty()){
+        return ;
+    }
+    QuicBandwidth selfBandwidth=BandwidthEstimateBest();
+    QuicBandwidth maxBandwidth=selfBandwidth;
+    double bps=selfBandwidth.ToBitsPerSecond();
+    double accBandwidth=bps;
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        QuicBandwidth bandwidth=(*it)->BandwidthEstimateBest();
+        bps=bandwidth.ToBitsPerSecond();
+        accBandwidth+=bps;
+        if(bandwidth>maxBandwidth){
+            maxBandwidth=bandwidth;
+        }
+    }
+    bps=maxBandwidth.ToBitsPerSecond();
+    alpha_=(bps*bps)/(accBandwidth*accBandwidth);
 }
-void LiaSenderEnhance::mptcp_ccc_recalc_alpha(){
- if(!other_ccs_.empty()){
-	uint64_t max_numerator=0,sum_denominator = 0, alpha = 1;
-	uint32_t best_cwnd = 0;
-	uint64_t best_rtt = 0;
-	uint32_t send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
-	uint64_t srtt=get_srtt_us();
-	best_rtt=srtt;
-	best_cwnd=send_cwnd;
-	max_numerator=mptcp_ccc_scale(send_cwnd,
-			alpha_scale_num)/(srtt*srtt);
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		LiaSenderEnhance *sender=(*it);
-		send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
-		srtt=sender->get_srtt_us();
-		uint64_t tmp=mptcp_ccc_scale(send_cwnd,
-				alpha_scale_num)/(srtt*srtt);
-		if(tmp>max_numerator){
-			max_numerator=tmp;
-			best_rtt=srtt;
-			best_cwnd=send_cwnd;
-		}
-	}
-	send_cwnd=GetCongestionWindow()/kDefaultTCPMSS;
-	srtt=get_srtt_us();
-	sum_denominator+=mptcp_ccc_scale(send_cwnd,
-			alpha_scale_den) * best_rtt/srtt;
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-			LiaSenderEnhance *sender=(*it);
-			send_cwnd=sender->GetCongestionWindow()/kDefaultTCPMSS;
-			srtt=sender->get_srtt_us();
-			sum_denominator+=mptcp_ccc_scale(send_cwnd,
-					alpha_scale_den) * best_rtt/srtt;
-	}
-	sum_denominator *= sum_denominator;
-	CHECK(sum_denominator>0);
-	alpha = mptcp_ccc_scale(best_cwnd, alpha_scale_num)/sum_denominator;
-	CHECK(alpha>=1);
-	alpha_=alpha;
-	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
-		LiaSenderEnhance *sender=(*it);
-		sender->set_alpha(alpha);
-	}
- }
-}
-TimeDelta LiaSenderEnhance::GetDelayThreshold(){
+TimeDelta LiaSenderEnhance3::GetDelayThreshold(){
     TimeDelta threshold=TimeDelta::Zero();
     TimeDelta max_rtt=max_rtt_.GetBest();
     if(max_rtt>min_rtt_){

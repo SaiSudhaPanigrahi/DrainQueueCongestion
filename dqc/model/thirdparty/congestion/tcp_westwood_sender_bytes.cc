@@ -288,7 +288,7 @@ void TcpWestwoodSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
   }
   slowstart_threshold_ = congestion_window_;
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
-  reset_rtt_min_=true;
+  //reset_rtt_min_=true;
   // Reset packet count from congestion avoidance mode. We start counting again
   // when we're out of recovery.
   num_acked_packets_ = 0;

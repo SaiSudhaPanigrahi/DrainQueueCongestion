@@ -454,17 +454,17 @@ void MpWestwoodSenderBytes::UpdateAlpha(){
     QuicBandwidth selfBandwidth=GetWestwoodBandwidth();
     QuicBandwidth maxBandwidth=selfBandwidth;
     double bps=selfBandwidth.ToBitsPerSecond();
-    double accBandwidthSquare=bps*bps;
+    double accBandwidth=bps;
     for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
         QuicBandwidth bandwidth=(*it)->GetWestwoodBandwidth();
         bps=bandwidth.ToBitsPerSecond();
-        accBandwidthSquare+=(bps*bps);
+        accBandwidth+=bps;
         if(bandwidth>maxBandwidth){
             maxBandwidth=bandwidth;
         }
     }
     bps=maxBandwidth.ToBitsPerSecond();
-    alpha_=(bps*bps)/accBandwidthSquare;
+    alpha_=(bps*bps)/(accBandwidth*accBandwidth);
     
 }
 }
