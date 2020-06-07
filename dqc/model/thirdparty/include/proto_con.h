@@ -11,6 +11,7 @@
 #include "proto_connection_stats.h"
 #include <deque>
 #include <map>
+#include <stdint.h>
 namespace dqc{
 class ProtoCon:public ProtoConVisitor,StreamAckedObserver,
 ProtoFrameVisitor,ProtoStreamDataProducer{
@@ -20,9 +21,7 @@ public:
     virtual ~TraceSentSeq(){}
     virtual void OnSent(PacketNumber seq,ProtoTime sent_ts){};
 };
-    void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
-    void SetTraceLossPacketDelay(TraceLossPacketDelay cb){sent_manager_.SetTraceLossPacketDelay(std::move(cb));}
-    void SetMaxBandwidth(uint32_t bps);
+public:
     ProtoCon(ProtoClock *clock,AlarmFactory *alarm_factory,CongestionControlType cc);
     ~ProtoCon();
     QuicBandwidth EstimatedBandwidth() const{
@@ -36,9 +35,14 @@ public:
     void set_packet_writer(Socket *writer){
         packet_writer_=writer;
     }
+    void SetTraceSentSeq(TraceSentSeq *cb){trace_sent_ =cb;}
+    void SetTraceLossPacketDelay(TraceLossPacketDelay cb){sent_manager_.SetTraceLossPacketDelay(std::move(cb));}
+    void SetMaxBandwidth(uint32_t bps);
     void set_peer(SocketAddress &peer){peer_=peer;}
     void Process();
-    
+
+    void SetThisCongestionId(uint32_t cid);
+    void SetThisNumEmulatedConnections(int num_connections);    
 
     virtual void WritevData(uint32_t id,StreamOffset offset,ByteCount len,bool fin) override;
     virtual void OnAckStream(uint32_t id,StreamOffset off,ByteCount len) override;
@@ -56,7 +60,6 @@ public:
                                  StreamOffset offset,
                                  ByteCount len,
                                  basic::DataWriter *writer) override;
-	TimeDelta CalculateFastRetranTime();
     void OnCanWrite();
     void OnFastRetransmit();
     void OnRetransmissionTimeOut();
@@ -64,6 +67,7 @@ public:
         return sent_manager_.GetRetransmissionDelay();
     }
     PacketNumber GetMaxSentSeq() const { return seq_;}
+    uint32_t GetFastRetrans() const {return fast_retrans_;}
 	std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo(){return sent_manager_.GetOneWayDelayInfo();}
 private:
     PacketNumber AllocSeq(){
@@ -101,6 +105,7 @@ private:
 	QuicConnectionStats con_stats_;
     bool supports_release_time_{false};
     TimeDelta release_time_into_future_{TimeDelta::Zero()};
-    
+    uint32_t fast_retrans_{0};
+    uint32_t cid_{0};
 };
 }//namespace dqc;

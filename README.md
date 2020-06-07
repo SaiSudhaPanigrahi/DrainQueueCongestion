@@ -17,8 +17,8 @@ As for ns3 test case, the wscript file gives clear hint how to arrange this file
 in the right position in ns3.  
 And add the CPLUS_INCLUDE_PATH flag in /etc/profile, for example:  
 ```
-export DQC_PATH=/home/zsy/C_Test/ns-allinone-3.26/ns-3.26/src/dqc/model/thirdparty  
-export CPLUS_INCLUDE_PATH=CPLUS_INCLUDE_PATH:$DQC_PATH/include:$DQC_PATH/congestion/:$DQC_PATH/logging  
+export DQC=/home/zsy/C_Test/ns-allinone-3.26/ns-3.26/src/dqc/model/thirdparty  
+export CPLUS_INCLUDE_PATH=CPLUS_INCLUDE_PATH:$DQC/include/:$DQC/congestion/:$DQC/logging/  
 ```
 The path /home/zsy/C_Test/ is where I put ns-allinone-3.26 under, substituting it with your ns3 path.  
 Create a file named "traces" under /xx/xx/ns-allinone-3.xx/ns-3.xx/ for data collection.  

@@ -58,6 +58,13 @@ ProtoCon::~ProtoCon(){
         delete stream;
     }
 }
+void ProtoCon::SetThisCongestionId(uint32_t cid){
+    cid_=cid;
+    sent_manager_.SetCongestionId(cid);
+}
+void ProtoCon::SetThisNumEmulatedConnections(int num_connections){
+    sent_manager_.SetNumEmulatedConnections(num_connections);
+}
 void ProtoCon::SetMaxBandwidth(uint32_t bps){
     QuicBandwidth max_rate(QuicBandwidth::FromBitsPerSecond(bps));
     sent_manager_.SetMaxPacingRate(max_rate);
@@ -67,9 +74,11 @@ void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
     if(!first_packet_from_peer_){
         if(peer!=peer_){
             DLOG(INFO)<<"wrong peer";
-            return ;
+            CHECK(0);
+            return;
         }
     }
+    
     if(first_packet_from_peer_){
         peer_=peer;
         first_packet_from_peer_=false;
@@ -88,16 +97,6 @@ void ProtoCon::Process(){
         DLOG(INFO)<<"set writer first";
         return;
     }
-    //only send one packet out at a time
-    /*if(CanWrite(HAS_RETRANSMITTABLE_DATA)){
-    bool packet_send=SendRetransPending(TT_LOSS_RETRANS);
-    if(!packet_send){
-        if(waiting_info_.empty()){
-            NotifyCanSendToStreams();
-        }
-        Send();
-    }
-    }*/
     MaybeSendBulkData();
 }
 bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
@@ -123,6 +122,11 @@ bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){
     return true;
 }
 void ProtoCon::MaybeSendBulkData(){
+    if(!fast_retrans_alarm_->IsSet()){
+        TimeDelta rto=sent_manager_.GetRetransmissionDelay(0);
+        ProtoTime next=clock_->ApproximateNow()+rto;
+        fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
+    }
     WriteNewData();
 }
 void ProtoCon::OnCanWriteSession(){
@@ -195,8 +199,8 @@ bool ProtoCon::OnAckTimestamp(PacketNumber packet_number,
 bool ProtoCon::OnAckFrameEnd(PacketNumber start){
     DLOG(INFO)<<start;
     sent_manager_.OnAckEnd(new_ack_received_time_);
-	TimeDelta max_rtt=CalculateFastRetranTime();
-	ProtoTime next=new_ack_received_time_+max_rtt;
+	TimeDelta rto=sent_manager_.GetRetransmissionDelay(0);
+	ProtoTime next=new_ack_received_time_+rto;
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
     if(supports_release_time_){
         UpdateReleaseTimeIntoFuture();
@@ -213,21 +217,16 @@ bool ProtoCon::WriteStreamData(uint32_t id,
     }
     return stream->WriteStreamData(offset,len,writer);
 }
-TimeDelta ProtoCon::CalculateFastRetranTime(){
-	const RttStats *rtt_stats=sent_manager_.GetRttStats();
-	TimeDelta max_rtt=rtt_stats->smoothed_rtt();
-	max_rtt=std::max(max_rtt,rtt_stats->latest_rtt());
-	max_rtt=max_rtt+rtt_stats->mean_deviation();
-	CHECK(max_rtt.ToMilliseconds()>0);
-	return max_rtt;	
-}
 void ProtoCon::OnFastRetransmit(){
 	sent_manager_.FastRetransmit();
-	TimeDelta max_rtt=CalculateFastRetranTime();
-	ProtoTime next=clock_->Now()+max_rtt;
-	SendRetransPending(TT_FAST_RETRANS);
+    TimeDelta rto=sent_manager_.GetRetransmissionDelay(0);
+	TimeDelta wall_time=clock_->Now()-ProtoTime::Zero();
+	//NS_LOG_INFO(cid_<<" now and rto "<<wall_time.ToMilliseconds()<<" "<<rto.ToMilliseconds());
+	ProtoTime next=clock_->Now()+rto;
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
-	//NS_LOG_INFO("fast retrans");
+    bool send=SendRetransPending(TT_FAST_RETRANS);
+    CHECK(send);
+    fast_retrans_++;
 }
 ProtoStream *ProtoCon::CreateStream(){
     uint32_t id=stream_id_;
@@ -254,8 +253,7 @@ int ProtoCon::Send(){
         return 0;
     }
 	if(waiting_info_.size()==0){
-		std::cout<<"wait info bug"<<std::endl;
-		abort();
+		CHECK(0);
 	}
 	//std::cout<<"wait info size "<<waiting_info_.size()<<std::endl;
 	//quite none sense https://blog.csdn.net/chunyunzhe/article/details/79256973
@@ -300,10 +298,13 @@ bool ProtoCon::SendRetransPending(TransType tt){
             			stream.len,stream.fin,tt);
         	}
         }
-        if(!has_stream_to_retrans){
-//TODO Send stop waiting frame only
-        	SendStopWaitingFrame();
-        }
+        packet_send=true;
+    }
+    if(!packet_send&&(tt==TT_FAST_RETRANS)){
+        //PacketNumber unacked=sent_manager_.GetLeastUnacked();
+        //uint64_t una=unacked.ToUint64();
+        //NS_LOG_INFO("una "<<una);
+        SendStopWaitingFrame();
         packet_send=true;
     }
     return packet_send;

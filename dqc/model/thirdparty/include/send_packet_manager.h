@@ -73,6 +73,7 @@ public:
     const TimeDelta GetRetransmissionDelay() const{
         return GetRetransmissionDelay(consecutive_rto_count_);
     }
+    const TimeDelta GetRetransmissionDelay(size_t consecutive_rto_count) const;
     void SetTraceLossPacketDelay(TraceLossPacketDelay cb){trace_lost_=std::move(cb);}
     std::pair<PacketNumber,TimeDelta> GetOneWayDelayInfo() { return one_way_delay_;}
     void SetCongestionId(uint32_t cid);
@@ -91,7 +92,6 @@ private:
     void MarkForRetrans(PacketNumber seq);
     void PostToPending(PacketNumber seq,TransmissionInfo &info);
     void ClearAckedAndLossVector();
-    const TimeDelta GetRetransmissionDelay(size_t consecutive_rto_count) const ;
     ProtoClock *clock_{nullptr};
 	QuicConnectionStats* stats_;
     StreamAckedObserver *acked_observer_{nullptr};
