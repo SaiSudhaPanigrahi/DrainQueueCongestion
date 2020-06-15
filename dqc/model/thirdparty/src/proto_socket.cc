@@ -23,7 +23,7 @@ int UdpSocket::RecvFrom(char*buf,size_t size,SocketAddress &peer){
     int ret=0;
     su_addr dst;
     ret=su_udp_recv(fd_,&dst,(void*)buf,(uint32_t)size,0);
-    if(recv>=0){
+    if(ret>=0){
         char ip[40];
         uint16_t port;
         su_addr_to_iport(&dst,ip,40,&port);

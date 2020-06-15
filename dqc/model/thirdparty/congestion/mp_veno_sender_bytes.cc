@@ -88,7 +88,13 @@ void MpVenoSender::OnCongestionEvent(
             min_rtt_=vrtt;
         }        
     }
-    
+
+    uint32_t segments=GetCongestionWindow() / kDefaultTCPMSS;
+    double tmp=base_rtt_.ToMicroseconds()*1.0/min_rtt_.ToMicroseconds();
+    uint32_t target=static_cast<uint32_t>(segments*tmp);
+    CHECK(segments>=target);
+    veno_diff_ = segments - target;
+    UpdateTheta();
   if (rtt_updated && InSlowStart() &&
       hybrid_slow_start_.ShouldExitSlowStart(
           rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
@@ -292,13 +298,6 @@ void MpVenoSender::OnPacketLost(QuicPacketNumber packet_number,
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
   } else{
-        uint32_t segments=GetCongestionWindow() / kDefaultTCPMSS;
-        double tmp=base_rtt_.ToMicroseconds()*1.0/min_rtt_.ToMicroseconds();
-        uint32_t target=static_cast<uint32_t>(segments*tmp);
-        CHECK(segments>=target);
-        veno_diff_ = segments - target;
-    
-        UpdateTheta();
         if(veno_diff_<veno_beta_*theta_){
             congestion_window_=congestion_window_*4*kDefaultTCPMSS/(5*kDefaultTCPMSS);
         }else{
@@ -364,50 +363,60 @@ void MpVenoSender::MaybeIncreaseCwnd(
 		  }
 	  }
 	  if(subflows_exit_slow_start){
-          uint64_t inc_num, inc_den, rate, cwnd_scaled;
-          mptcp_olia *ca=get_ca();
-          mptcp_get_epsilon();
-          rate=mptcp_get_rate();
-          uint64_t send_cwnd=congestion_window_/kDefaultTCPMSS;
-          cwnd_scaled = mptcp_olia_scale(send_cwnd, scale);
-          inc_den = ca->epsilon_den *send_cwnd * rate ? : 1;
-          
-          
-          if (ca->epsilon_num == -1) {
-              if (ca->epsilon_den * cwnd_scaled * cwnd_scaled < rate) {
-                  inc_num = rate - ca->epsilon_den *
-                      cwnd_scaled * cwnd_scaled;
-                  ca->mptcp_snd_cwnd_cnt -=(
-                      mptcp_olia_scale(inc_num , scale)/inc_den);
-              } else {
-                  inc_num = ca->epsilon_den *
-                      cwnd_scaled * cwnd_scaled - rate;
-                  ca->mptcp_snd_cwnd_cnt +=(
-                      mptcp_olia_scale(inc_num , scale)/inc_den);
-              }
-          } else {
-              inc_num = ca->epsilon_num * rate +
-                  ca->epsilon_den * cwnd_scaled * cwnd_scaled;
-              ca->mptcp_snd_cwnd_cnt +=(
-                  mptcp_olia_scale(inc_num , scale)/inc_den);
+          bool inc=true;
+          if((veno_diff_>=veno_beta_*theta_)&&num_acked_packets_%2==0){
+            inc=false;
           }
-          
-          
-          if (ca->mptcp_snd_cwnd_cnt >= (1 << scale) - 1) {
-              if (congestion_window_ < max_congestion_window_)
-                  congestion_window_+=kDefaultTCPMSS;
-              ca->mptcp_snd_cwnd_cnt = 0;
-          } else if (ca->mptcp_snd_cwnd_cnt <= 0 - (1 << scale) + 1) {
-               congestion_window_=std::max(congestion_window_,kDefaultTCPMSS);
-               congestion_window_= std::max(min_congestion_window_, congestion_window_-kDefaultTCPMSS);
-               ca->mptcp_snd_cwnd_cnt = 0;
-          }
-	  }else{
-		    if (num_acked_packets_ * num_connections_ >=
-		        congestion_window_ / kDefaultTCPMSS) {
-		      congestion_window_ += kDefaultTCPMSS;
-		      num_acked_packets_ = 0;
-		    }
+          if(inc){
+            uint64_t inc_num, inc_den, rate, cwnd_scaled;
+            mptcp_olia *ca=get_ca();
+            mptcp_get_epsilon();
+            rate=mptcp_get_rate();
+            uint64_t send_cwnd=congestion_window_/kDefaultTCPMSS;
+            cwnd_scaled = mptcp_olia_scale(send_cwnd, scale);
+            inc_den = ca->epsilon_den *send_cwnd * rate ? : 1;
+            
+            
+            if (ca->epsilon_num == -1) {
+                if (ca->epsilon_den * cwnd_scaled * cwnd_scaled < rate) {
+                    inc_num = rate - ca->epsilon_den *
+                        cwnd_scaled * cwnd_scaled;
+                    ca->mptcp_snd_cwnd_cnt -=(
+                        mptcp_olia_scale(inc_num , scale)/inc_den);
+                } else {
+                    inc_num = ca->epsilon_den *
+                        cwnd_scaled * cwnd_scaled - rate;
+                    ca->mptcp_snd_cwnd_cnt +=(
+                        mptcp_olia_scale(inc_num , scale)/inc_den);
+                }
+            } else {
+                inc_num = ca->epsilon_num * rate +
+                    ca->epsilon_den * cwnd_scaled * cwnd_scaled;
+                ca->mptcp_snd_cwnd_cnt +=(
+                    mptcp_olia_scale(inc_num , scale)/inc_den);
+            }
+            
+            
+            if (ca->mptcp_snd_cwnd_cnt >= (1 << scale) - 1) {
+                if (congestion_window_ < max_congestion_window_)
+                    congestion_window_+=kDefaultTCPMSS;
+                ca->mptcp_snd_cwnd_cnt = 0;
+            } else if (ca->mptcp_snd_cwnd_cnt <= 0 - (1 << scale) + 1) {
+                congestion_window_=std::max(congestion_window_,kDefaultTCPMSS);
+                congestion_window_= std::max(min_congestion_window_, congestion_window_-kDefaultTCPMSS);
+                ca->mptcp_snd_cwnd_cnt = 0;
+            }              
+        }
+        if (num_acked_packets_ * num_connections_ >=
+                    congestion_window_ / kDefaultTCPMSS){
+            num_acked_packets_=0;            
+        }
+        }else{
+                if (num_acked_packets_ * num_connections_ >=
+                    congestion_window_ / kDefaultTCPMSS) {
+                congestion_window_ += kDefaultTCPMSS;
+                num_acked_packets_ = 0;
+                }
 	  }
   }else{
 	    if (num_acked_packets_ * num_connections_ >=

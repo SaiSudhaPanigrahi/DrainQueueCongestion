@@ -123,8 +123,8 @@ void TcpVenoSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
     if(InSlowStart()){
         congestion_window_ += kDefaultTCPMSS;
     }else{
+        ++num_acked_packets_;
         if(veno_diff_<veno_beta_){
-            num_acked_packets_++;
             if (num_acked_packets_ * num_connections_ >=
                 congestion_window_ / kDefaultTCPMSS) {
             congestion_window_ += kDefaultTCPMSS;
@@ -140,8 +140,6 @@ void TcpVenoSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
                     inc_=true;
                 }
                 num_acked_packets_=0;
-            }else{
-                num_acked_packets_++;
             }
         }
     }

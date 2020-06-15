@@ -150,8 +150,7 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                unacked_packets,
                                initial_congestion_window,
                                max_congestion_window,
-                               stats,false
-                               );
+                               stats);
         }
         case kOlia:{
             return new OliaSender(clock,
