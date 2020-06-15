@@ -32,7 +32,7 @@
 using namespace ns3;
 using namespace dqc;
 using namespace std;
-NS_LOG_COMPONENT_DEFINE ("bbr-rtt");
+NS_LOG_COMPONENT_DEFINE ("couple-algo");
 
 uint32_t checkTimes;
 double avgQueueSize;
@@ -65,38 +65,65 @@ uint32_t msQdelay;
 }link_config_t;
 //unrelated topology
 /*
-   L3      L1      L4
 configuration same as the above dumbbell topology
 n0--L0--n2--L1--n3--L2--n4
 n1--L3--n2--L1--n3--L4--n5
 */
 link_config_t p4pLinks1[]={
-[0]={100*1000000,20,100},
+[0]={100*1000000,10,60},
+[1]={5*1000000,10,60},
+[2]={100*1000000,10,60},
+[3]={100*1000000,10,60},
+[4]={100*1000000,10,60},
+};
+link_config_t p4pLinks2[]={
+[0]={100*1000000,10,90},
+[1]={5*1000000,10,90},
+[2]={100*1000000,10,90},
+[3]={100*1000000,10,90},
+[4]={100*1000000,10,90},
+};
+link_config_t p4pLinks3[]={
+[0]={100*1000000,10,100},
 [1]={5*1000000,10,100},
-[2]={100*1000000,20,100},
+[2]={100*1000000,10,100},
 [3]={100*1000000,20,100},
 [4]={100*1000000,20,100},
 };
-link_config_t p4pLinks2[]={
-[0]={100*1000000,20,150},
+link_config_t p4pLinks4[]={
+[0]={100*1000000,10,150},
 [1]={5*1000000,10,150},
-[2]={100*1000000,20,150},
+[2]={100*1000000,10,150},
 [3]={100*1000000,20,150},
 [4]={100*1000000,20,150},
 };
-link_config_t p4pLinks3[]={
-[0]={100*1000000,20,200},
-[1]={5*1000000,10,200},
-[2]={100*1000000,20,200},
-[3]={100*1000000,20,200},
-[4]={100*1000000,20,200},
+link_config_t p4pLinks5[]={
+[0]={100*1000000,10,140},
+[1]={6*1000000,10,140},
+[2]={100*1000000,10,140},
+[3]={100*1000000,30,140},
+[4]={100*1000000,30,140},
 };
-link_config_t p4pLinks4[]={
+link_config_t p4pLinks6[]={
+[0]={100*1000000,10,180},
+[1]={6*1000000,10,180},
+[2]={100*1000000,10,180},
+[3]={100*1000000,40,180},
+[4]={100*1000000,40,180},
+};
+link_config_t p4pLinks7[]={
+[0]={100*1000000,10,160},
+[1]={8*1000000,10,160},
+[2]={100*1000000,10,160},
+[3]={100*1000000,30,160},
+[4]={100*1000000,40,160},
+};
+link_config_t p4pLinks8[]={
 [0]={100*1000000,10,200},
 [1]={8*1000000,10,200},
 [2]={100*1000000,10,200},
-[3]={100*1000000,20,200},
-[4]={100*1000000,20,200},
+[3]={100*1000000,40,200},
+[4]={100*1000000,50,200},
 };
 const uint32_t TOPO_DEFAULT_BW     = 5000000;    // in bps: 3Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      10;    // in ms:   100ms
@@ -136,17 +163,20 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
 		recvApp->SetOwdTraceFuc(MakeCallback(&DqcTrace::OnOwd,trace));
 	}	
 }
-static double simDuration=400;
+static double simDuration=300;
 uint16_t sendPort=5432;
 uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
+//command to run:
+//
 int main (int argc, char *argv[]){
     LogComponentEnable("dqcsender",LOG_LEVEL_ALL);
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
+	LogComponentEnable("lia_enhance3",LOG_LEVEL_ALL);
 	CommandLine cmd;
     std::string instance=std::string("1");
-    std::string cc_tmp("mwest");
+    std::string cc_tmp("mbbr");
 	std::string loss_str("0");
 	std::string mpcoup("cp");
     cmd.AddValue ("it", "instacne", instance);
@@ -155,11 +185,15 @@ int main (int argc, char *argv[]){
 	cmd.AddValue ("mp", "couple",mpcoup);
     cmd.Parse (argc, argv);
     int loss_integer=std::stoi(loss_str);
-    double loss_rate=loss_integer*1.0/100;
-	std::cout<<"l "<<loss_integer<<std::endl;
-	bool coupled_=false;
-	if(mpcoup==std::string("cp")){
-		coupled_=true;
+    double loss_rate=loss_integer*1.0/1000;
+	std::cout<<"l "<<loss_rate<<std::endl;
+	bool couple=false;
+	if(mpcoup==std::string("se")){
+		couple=false;
+	}else if(mpcoup==std::string("cp")){
+		couple=true;
+	}else{
+		couple=true;
 	}
 	if(loss_integer>0){
 	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (loss_rate));
@@ -167,8 +201,6 @@ int main (int argc, char *argv[]){
 	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
 	}
-    uint64_t linkBw   = TOPO_DEFAULT_BW;
-    uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     std::string cc_name;
 	if(loss_integer>0){
 		cc_name="_"+cc_tmp+"l"+std::to_string(loss_integer)+"_";
@@ -184,6 +216,14 @@ int main (int argc, char *argv[]){
         p4p=p4pLinks3;
     }else if(instance==std::string("4")){
         p4p=p4pLinks4;
+    }else if(instance==std::string("5")){
+        p4p=p4pLinks5;
+    }else if(instance==std::string("6")){
+        p4p=p4pLinks6;
+    }else if(instance==std::string("7")){
+        p4p=p4pLinks7;
+    }else if(instance==std::string("8")){
+        p4p=p4pLinks8;
     }else{
         p4p=p4pLinks1;
     }
@@ -208,7 +248,6 @@ int main (int argc, char *argv[]){
   n2n3 = NodeContainer (c.Get (2), c.Get (3));
   n3n4 = NodeContainer (c.Get (3), c.Get (4));
   n3n5 = NodeContainer (c.Get (3), c.Get (5));
-  uint32_t meanPktSize = 1500;
   link_config_t *config=p4p;
   uint32_t bufSize=0;	
 
@@ -295,33 +334,66 @@ int main (int argc, char *argv[]){
    	dqc::CongestionControlType cc=kBBR;
 	if(cc_tmp==std::string("mbbr")){
 		cc=kCoupleBBR;
+	}else if(cc_tmp==std::string("lpbbr")){
+		cc=kLpBBR;
+		couple=true;
+	}else if(cc_tmp==std::string("lpbbrno")){
+		cc=kLpBBRNo;
+		couple=false;
 	}else if(cc_tmp==std::string("dwc")){
 		cc=kDwcBytes;
-		coupled_=true;
+		couple=true;
 	}else if(cc_tmp==std::string("wvegas")){
 		cc=kWvegas;
-		coupled_=true;
-	}else if(cc_tmp==std::string("mwest")){
-		cc=kMpWestwood;
-		coupled_=true;
+		couple=true;
+	}else if(cc_tmp==std::string("westen")){
+		cc=kWestwoodEnhance;
+		couple=false;
+	}else if(cc_tmp==std::string("mpwest")){
+		cc=kMpWest;
+		couple=true;
+	}else if(cc_tmp==std::string("mpveno")){
+		cc=kMpVeno;
+		couple=true;
+	}else if(cc_tmp==std::string("balia")){
+		cc=kBalia;
+		couple=true;
+	}else if(cc_tmp==std::string("lia")){
+		cc=kLiaBytes;
+		couple=true;
+	}else if(cc_tmp==std::string("liaen")){
+		cc=kLiaEnhance;
+	}else if(cc_tmp==std::string("liaen2")){
+		cc=kLiaEnhance2;
+	}else if(cc_tmp==std::string("liaen3")){
+		cc=kLiaEnhance3;
+	}else if(cc_tmp==std::string("olia")){
+		cc=kOlia;
+		couple=true;
 	}else if(cc_tmp==std::string("vegas")){
 		cc=kVegas;
-		coupled_=false;
+		couple=false;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
-		coupled_=false;
+		couple=false;
+	}else if(cc_tmp==std::string("cubic")){
+		cc=kCubicBytes;
+		couple=false;
 	}else{
 		cc=kBBR;
-		coupled_=false;
+		couple=false;
 	}
 
   std::unique_ptr<dqc::CoupleSource> source;
   dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
-	if(coupled_){
+	if(couple){
 		source.reset(new dqc::CoupleSource());
 		source->RegsterMonitorCongestionId(1);
 		source->RegsterMonitorCongestionId(4);	
 		manager->RegisterSource(source.get());
+	}
+	if(!couple){
+		std::cout<<"seperate "<<std::endl;
 	}
 	std::cout<<cc_tmp<<std::endl;
   	uint32_t max_bps=0;
@@ -341,7 +413,7 @@ int main (int argc, char *argv[]){
 	DqcTrace trace2;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
-    InstallDqc(cc,c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace2,max_bps,cc_id);
+    InstallDqc(kRenoBytes,c.Get(0),c.Get(4),sendPort,recvPort,appStart,appStop,&trace2,max_bps,cc_id);
 	test_pair++;
 	sendPort++;
 	recvPort++;
@@ -351,7 +423,7 @@ int main (int argc, char *argv[]){
 	DqcTrace trace3;
 	log=instance+cc_name+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
-	InstallDqc(cc,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id);
+	InstallDqc(kRenoBytes,c.Get(1),c.Get(5),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id);
 	test_pair++;
 	sendPort++;
 	recvPort++;

@@ -281,8 +281,6 @@ int main (int argc, char *argv[]){
 		cc=kHighSpeedRail;
 	}else if(cc_tmp==std::string("tsu")){
 		cc=kTsunami;
-	}else if(cc_tmp==std::string("bbrcubic")){
-		cc=kBBRCubic;
 	}
 	std::cout<<cc_tmp<<std::endl;
   uint32_t max_bps=0;

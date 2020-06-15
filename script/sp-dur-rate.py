@@ -1,34 +1,40 @@
 import os
+import argparse
 def mkdir(path):
     folder = os.path.exists(path)
     if not folder:    
         os.makedirs(path)
 def ReafByteInfo(fileName,left,right):
     bytes=0
-    for index, line in enumerate(open(fileName,'r')):
-        lineArr = line.strip().split()
-        time=float(lineArr[0])
-        if time>right:
-            break
-        if time>=left:
-            bytes=bytes+int(lineArr[3])
+    if os.path.exists(fileName):
+        for index, line in enumerate(open(fileName,'r')):
+            lineArr = line.strip().split()
+            time=float(lineArr[0])
+            if time>right:
+                break
+            if time>=left:
+                bytes=bytes+int(lineArr[3])
     return bytes
-algo="reno"
-data_dir=algo+"/"
+parser = argparse.ArgumentParser(description='manual to this script')
+parser.add_argument('--algo', type=str, default ='olia')
+args = parser.parse_args()
+algo=args.algo
+data_dir="data_process"
+out_path=data_dir+"/"
 flows=4
 fileName="%s_"+algo+"_%s_owd.txt"
 fileOutName="%s_"+algo+"_%s_dur_bw"
-duration=400.0
+duration=300.0
 gap=5.0
 total=int(duration/gap);
-instance=[4]
-data_dir=algo+"/"
-mkdir(data_dir)
+instance=[1]
+
+mkdir(out_path)
 for case in range(len(instance)):
     for f in range(flows):
         strTemp=fileOutName%(str(instance[case]),str(f+1))
         fileOut=strTemp+".txt"
-        fout=open(data_dir+fileOut,'w')
+        fout=open(out_path+fileOut,'w')
         for i in range(total):
             left=i*gap
             right=(i+1)*gap

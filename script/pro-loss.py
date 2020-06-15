@@ -2,6 +2,7 @@
 https://blog.csdn.net/qq_29422251/article/details/77713741
 '''
 import os
+import argparse
 def mkdir(path):
     folder = os.path.exists(path)
     if not folder:    
@@ -14,14 +15,19 @@ def ReadLossInfo(fileName):
         count += 1
     lineArr = line.strip().split()
     return count,int(lineArr[1])
-instance=[1,2]
+
+parser = argparse.ArgumentParser(description='manual to this script')
+parser.add_argument('--algo', type=str, default ='olia')
+args = parser.parse_args()
+algo=args.algo
+instance=[1,2,3,4,5,6,7,8]
 flows=4;
-algo="reno"
-data_dir=algo+"/"
+data_dir="data_process"
+out_path=data_dir+"/"
 fileout="%s_loss_%s.txt"%(algo,str(flows))    
 name="%s_%s_%s_owd.txt"
-mkdir(data_dir)
-fout=open(data_dir+fileout,'w')
+mkdir(out_path)
+fout=open(out_path+fileout,'w')
 for case in range(len(instance)):
     total_recv=0
     total=0

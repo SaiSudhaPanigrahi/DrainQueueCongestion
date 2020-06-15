@@ -190,7 +190,7 @@ int main(int argc, char *argv[]){
     LogComponentEnable("proto_connection",LOG_LEVEL_ALL);
     //LogComponentEnable("dqcreceiver",LOG_LEVEL_ALL);
 	//LogComponentEnable("dqcdelayackreceiver",LOG_LEVEL_ALL);
-	ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
+	//ns3::LogComponentEnable("proto_pacing",LOG_LEVEL_ALL);
 	uint64_t linkBw   = TOPO_DEFAULT_BW;
     uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     uint32_t msQDelay = TOPO_DEFAULT_QDELAY;

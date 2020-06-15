@@ -18,7 +18,7 @@ const uint32_t DEFAULT_PACKET_SIZE = 1000;
 static int ip=1;
 static NodeContainer BuildExampleTopo (uint64_t bps,
                                        uint32_t msDelay,
-                                       uint32_t msQdelay)
+                                       uint32_t msQdelay,bool enable_random_loss)
 {
     NodeContainer nodes;
     nodes.Create (2);
@@ -40,9 +40,13 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     address.SetBase (nodeip.c_str(), "255.255.255.0");
     address.Assign (devices);
 
-    // Uncomment to capture simulated traffic
-    // pointToPoint.EnablePcapAll ("rmcat-example");
-
+    if(enable_random_loss){
+	std::string errorModelType = "ns3::RateErrorModel";
+  	ObjectFactory factory;
+  	factory.SetTypeId (errorModelType);
+  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
+	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));		
+	}
     // disable tc for now, some bug in ns3 causes extra delay
     TrafficControlHelper tch;
     tch.Uninstall (devices);
@@ -124,11 +128,6 @@ uint16_t recvPort=5000;
 float appStart=0.0;
 float appStop=simDuration;
 int main(int argc, char *argv[]){
-	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (0.01));
-	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
-
-	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (0.01));
-	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
     //std::string filename("error.log");
     //std::ios::openmode filemode=std::ios_base::out;
     //GlobalStream::Create(filename,filemode);
@@ -146,10 +145,28 @@ int main(int argc, char *argv[]){
 	std::string cc_name;
 	CommandLine cmd;
     std::string instance=std::string("1");
+	std::string loss_str("0");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
+	cmd.AddValue ("lo", "loss",loss_str);
     cmd.Parse (argc, argv);
-	cc_name="_"+cc_tmp+"_";
+    int loss_integer=std::stoi(loss_str);
+	//10 1% loss rate
+    double loss_rate=loss_integer*1.0/1000;
+	std::cout<<"l "<<loss_rate<<std::endl;
+	bool enable_random_loss=false;
+	if(loss_integer>0){
+	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (loss_rate));
+	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
+	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
+	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
+	}
+	if(loss_integer>0){
+		cc_name="_"+cc_tmp+"l"+std::to_string(loss_integer)+"_";
+		enable_random_loss=true;
+	}else{
+		cc_name="_"+cc_tmp+"_";
+	}
     if(instance==std::string("1")){
         linkBw=3000000;
         msDelay=50;
@@ -161,7 +178,7 @@ int main(int argc, char *argv[]){
     }else if(instance==std::string("3")){
         linkBw=3000000;
         msDelay=100;
-        msQDelay=300;        
+        msQDelay=200;        
     }else if(instance==std::string("4")){
         linkBw=4000000;
         msDelay=50;
@@ -220,25 +237,34 @@ int main(int argc, char *argv[]){
 		cc=kVegas;
 	}else if(cc_tmp==std::string("ledbat")){
 		cc=kLedbat;
+	}else if(cc_tmp==std::string("lptcp")){
+		cc=kLpTcp;
 	}else if(cc_tmp==std::string("copa")){
 		cc=kCopa;
 		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("veno")){
+		cc=kVeno;
+	}else if(cc_tmp==std::string("westwood")){
+		cc=kWestwood;
 	}else if(cc_tmp==std::string("westen")){
 		cc=kWestwoodEnhance;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("pcc")){
 		cc=kPCC;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("viva")){
 		cc=kVivace;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("webviva")){
 		cc=kWebRTCVivace;
-		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("lpbbr")){
+		cc=kLpBBR;
+	}else if(cc_tmp==std::string("liaen")){
+		cc=kLiaEnhance;
+	}else if(cc_tmp==std::string("liaen2")){
+		cc=kLiaEnhance2;
 	}else{
 		cc=kRenoBytes;
 	}
-    NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
+	std::cout<<cc_tmp<<std::endl;
+    NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay,enable_random_loss);
 	int test_pair=1;
 	DqcTrace trace1;
 	std::string log_common=instance+cc_name;
@@ -246,6 +272,7 @@ int main(int argc, char *argv[]){
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
 	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
+
 	DqcTrace trace2;
 	log=log_common+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
@@ -256,7 +283,9 @@ int main(int argc, char *argv[]){
 	log=log_common+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+	InstallDqc(kCubicBytes,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+
+
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
     Simulator::Destroy();	

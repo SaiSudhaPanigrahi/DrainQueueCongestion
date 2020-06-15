@@ -5,6 +5,7 @@ https://blog.csdn.net/weixin_38215395/article/details/78679296
 '''
 #change lineArr[1] the index accoring to the data trace format
 import os
+import argparse
 def mkdir(path):
     folder = os.path.exists(path)
     if not folder:    
@@ -19,14 +20,18 @@ def ReadDelayData(fileName):
             sum_lines+=1;
     return  sum_owd,sum_lines
     
-instance=[1,2]
+parser = argparse.ArgumentParser(description='manual to this script')
+parser.add_argument('--algo', type=str, default ='olia')
+args = parser.parse_args()
+algo=args.algo
+instance=[1,2,3,4,5,6,7,8]
 flows=4;
-algo="reno"
-data_dir=algo+"/"
+data_dir="data_process"
+out_path=data_dir+"/"
 fileout="%s_owd.txt"%(algo)    
 name="%s_%s_%s_owd.txt"
-mkdir(data_dir)
-fout=open(data_dir+fileout,'w')
+mkdir(out_path)
+fout=open(out_path+fileout,'w')
 for case in range(len(instance)):
     total_owd=0.0
     total_lines=0

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import argparse
 def mkdir(path):
     folder = os.path.exists(path)
     if not folder:    
@@ -21,19 +22,23 @@ def CoutByteForFlows(ins,algo,flows):
             bytes=0
             break
     return bytes
+parser = argparse.ArgumentParser(description='manual to this script')
+parser.add_argument('--algo', type=str, default ='olia')
+args = parser.parse_args()
+algo=args.algo
 name="%s_util.txt"
-instance=[1,2]
+instance=[1,2,3,4,5,6,7,8]
 flows=4
-algo="reno"
-data_dir=algo+"/"
-mkdir(data_dir)
+data_dir="data_process"
+out_path=data_dir+"/"
+mkdir(out_path)
 fileout=name%algo
-caps=[5000000,3000000,3000000]
-duration=400;
-fout=open(data_dir+fileout,'w')
+caps=[5000000,5000000,5000000,5000000,6000000,6000000,8000000,8000000]
+duration=300;
+fout=open(out_path+fileout,'w')
 for case in range(len(instance)):
     bytes=0
-    total=caps[case]*duration/8
+    total=caps[instance[case]-1]*duration/8
     bytes=CoutByteForFlows(instance[case],algo,flows)
     util=float(bytes)/float(total)
     fout.write(str(instance[case])+"\t")

@@ -99,18 +99,29 @@ int main(int argc, char *argv[]){
     std::string instance=std::string("3");
     std::string cc_tmp("lia");
 	std::string loss_str("0");
+    std::string mpcoup("cp");
     cmd.AddValue ("it", "instacne", instance);
 	cmd.AddValue ("cc", "cctype", cc_tmp);
 	cmd.AddValue ("lo", "loss",loss_str);
+    cmd.AddValue ("mp", "couple",mpcoup);
     cmd.Parse (argc, argv);
     int loss_integer=std::stoi(loss_str);
-    double loss_rate=loss_integer*1.0/100;
-    std::cout<<"l "<<loss_integer<<std::endl;
+    double loss_rate=loss_integer*1.0/1000;
+    std::cout<<"l "<<loss_rate<<std::endl;
 	if(loss_integer>0){
 	Config::SetDefault ("ns3::RateErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::RateErrorModel::ErrorUnit", StringValue ("ERROR_UNIT_PACKET"));
 	Config::SetDefault ("ns3::BurstErrorModel::ErrorRate", DoubleValue (loss_rate));
 	Config::SetDefault ("ns3::BurstErrorModel::BurstSize", StringValue ("ns3::UniformRandomVariable[Min=1|Max=3]"));
+	}
+    
+	bool couple=false;
+	if(mpcoup==std::string("se")){
+		couple=false;
+	}else if(mpcoup==std::string("cp")){
+		couple=true;
+	}else{
+		couple=true;
 	}
 	uint16_t sendPort=6000;
 	uint16_t recvPort=5000;
@@ -131,10 +142,10 @@ int main(int argc, char *argv[]){
 	}
 	
     if(instance==std::string("1")){
-        linkBw1=6000000;
+        linkBw1=3000000;
         msDelay1=50;
         msQDelay1=150;
-        linkBw2=1500000;
+        linkBw2=3000000;
         msDelay2=100;
         msQDelay2=200;
     }else if(instance==std::string("2")){
@@ -151,6 +162,7 @@ int main(int argc, char *argv[]){
 		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
+		couple=false;
 		std::cout<<cc_tmp<<std::endl;
 	}
 	bool enable_random_loss=false;
@@ -162,14 +174,15 @@ int main(int argc, char *argv[]){
 
     std::unique_ptr<dqc::CoupleSource> source;
     dqc::CoupleManager *manager=dqc::CoupleManager::Instance();
-    bool coupled=true;
-    if(coupled){
+    if(couple){
 		source.reset(new dqc::CoupleSource());
 		source->RegsterMonitorCongestionId(1);
 		source->RegsterMonitorCongestionId(4);	
 		manager->RegisterSource(source.get());
 	}
-
+	if(!couple){
+		std::cout<<"seperate "<<std::endl;
+	}
 	std::string prefix=instance+cc_name;
     uint32_t cc_id=1;
 	int test_pair=1;
@@ -185,7 +198,7 @@ int main(int argc, char *argv[]){
 	log=prefix+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart+40,appStop,&trace2,max_bps,cc_id,1);
+	InstallDqc(kRenoBytes,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart,appStop,&trace2,max_bps,cc_id,1);
     sendPort++;
 	recvPort++;
 	cc_id++;
@@ -194,13 +207,11 @@ int main(int argc, char *argv[]){
 	log=prefix+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes1.Get(0),nodes1.Get(1),sendPort,recvPort,appStart,appStop,&trace3,max_bps,cc_id,1);
+	InstallDqc(kRenoBytes,nodes2.Get(0),nodes2.Get(1),sendPort,recvPort,appStart+40,appStop,&trace3,max_bps,cc_id,1);
     sendPort++;
 	recvPort++;
     cc_id++;
 
-	sendPort=6000;
-	recvPort=5000;
 	DqcTrace trace4;
 	log=prefix+std::to_string(test_pair);
 	trace4.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
