@@ -14,7 +14,8 @@ static const size_t kMaxRetransmissionsOnTimeout = 2;
 // The path degrading delay is the sum of this number of consecutive RTO delays.
 const size_t kNumRetransmissionDelaysForPathDegradingDelay = 2;
 const int32_t kMaxFastRetransNum=2;
-static int kRandSeedOffsert=0;
+static int kRandSeedOffset=9301; 
+static int kRandomCount=0;
 }
 //only retransmitable frame can be marked as inflight;
 //hence, only stream has such quality.
@@ -26,8 +27,8 @@ SendPacketManager::SendPacketManager(ProtoClock *clock,QuicConnectionStats* stat
 ,one_way_delay_(PacketNumber(0),TimeDelta::Zero()){
     DCHECK(clock_);
 	int seed=std::time(nullptr);
-    rand_.seed(seed+kRandSeedOffsert);
-	kRandSeedOffsert+=12345;
+    rand_.seed(seed+kRandSeedOffset*kRandomCount);
+	kRandomCount+=2;
 }
 SendPacketManager::~SendPacketManager(){
 }

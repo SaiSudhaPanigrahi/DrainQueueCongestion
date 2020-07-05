@@ -68,7 +68,7 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
                         float startTime,
                         float stopTime,
 						DqcTrace *trace,
-                        uint32_t max_bps=0,uint32_t emucons=1)
+                        uint32_t max_bps=0,uint32_t cid=0,uint32_t emucons=1)
 {
     Ptr<DqcSender> sendApp = CreateObject<DqcSender> (cc_type);
     //Ptr<DqcDelayAckReceiver> recvApp = CreateObject<DqcDelayAckReceiver>();
@@ -88,6 +88,9 @@ static void InstallDqc( dqc::CongestionControlType cc_type,
     if(max_bps>0){
         sendApp->SetMaxBandwidth(max_bps);
     }
+	if(cid){
+		sendApp->SetCongestionId(cid);
+	}
 	if(trace){
 		sendApp->SetBwTraceFuc(MakeCallback(&DqcTrace::OnBw,trace));
 		//sendApp->SetSentSeqTraceFuc(MakeCallback(&DqcTrace::OnSentSeq,trace));
@@ -225,69 +228,104 @@ int main(int argc, char *argv[]){
         msQDelay=150;        
     }
  	dqc::CongestionControlType cc=kRenoBytes;
+	dqc::CongestionControlType cc1=kRenoBytes;
 	if(cc_tmp==std::string("bbr")){
 		cc=kBBR;
+		cc1=cc;
 	}else if(cc_tmp==std::string("bbrd")){
 		cc=kBBRD;
+		cc1=cc;
+	}else if(cc_tmp==std::string("bbrplus")){
+		cc=kBBRPlus;
+		cc1=cc;
 	}else if(cc_tmp==std::string("cubic")){
 		cc=kCubicBytes;
+		cc1=cc;
 	}else if(cc_tmp==std::string("reno")){
 		cc=kRenoBytes;
+		cc1=cc;
 	}else if(cc_tmp==std::string("vegas")){
 		cc=kVegas;
+		cc1=cc;
 	}else if(cc_tmp==std::string("ledbat")){
 		cc=kLedbat;
+		cc1=cc;
 	}else if(cc_tmp==std::string("lptcp")){
 		cc=kLpTcp;
+		cc1=cc;
 	}else if(cc_tmp==std::string("copa")){
 		cc=kCopa;
+		cc1=cc;
 		std::cout<<cc_tmp<<std::endl;
+	}else if(cc_tmp==std::string("elastic")){
+		cc=kElastic;
+		cc1=cc;
 	}else if(cc_tmp==std::string("veno")){
 		cc=kVeno;
+		cc1=cc;
 	}else if(cc_tmp==std::string("westwood")){
 		cc=kWestwood;
-	}else if(cc_tmp==std::string("westen")){
-		cc=kWestwoodEnhance;
+		cc1=cc;
 	}else if(cc_tmp==std::string("pcc")){
 		cc=kPCC;
+		cc1=cc;
 	}else if(cc_tmp==std::string("viva")){
 		cc=kVivace;
+		cc1=cc;
 	}else if(cc_tmp==std::string("webviva")){
 		cc=kWebRTCVivace;
+		cc1=cc;
 	}else if(cc_tmp==std::string("lpbbr")){
 		cc=kLpBBR;
+		cc1=cc;
 	}else if(cc_tmp==std::string("liaen")){
 		cc=kLiaEnhance;
+		cc1=cc;
 	}else if(cc_tmp==std::string("liaen2")){
 		cc=kLiaEnhance2;
+		cc1=cc;
+	}else if(cc_tmp==std::string("learning")){
+		cc=kLearningBytes;
+		cc1=cc;
+	}else if(cc_tmp==std::string("hunnan")){
+		cc=kHunnanBytes;
+		cc1=cc;
+	}else if(cc_tmp==std::string("hunnanreno")){
+		cc=kHunnanBytes;
+		cc1=kRenoBytes;
 	}else{
 		cc=kRenoBytes;
+		cc1=cc;
 	}
 	std::cout<<cc_tmp<<std::endl;
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay,enable_random_loss);
+	uint32_t cc_id=1;
 	int test_pair=1;
 	DqcTrace trace1;
 	std::string log_common=instance+cc_name;
 	std::string log=log_common+std::to_string(test_pair);
 	trace1.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort,recvPort,appStart,appStop,&trace1,max_bps,cc_id);
+	cc_id++;
 
 	DqcTrace trace2;
 	log=log_common+std::to_string(test_pair);
 	trace2.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart+40,appStop,&trace2,max_bps);
+	InstallDqc(cc,nodes.Get(0),nodes.Get(1),sendPort+1,recvPort+1,appStart,appStop,&trace2,max_bps,cc_id);
+	cc_id++;
 
 	DqcTrace trace3;
 	log=log_common+std::to_string(test_pair);
 	trace3.Log(log,DqcTraceEnable::E_DQC_OWD|DqcTraceEnable::E_DQC_BW);
 	test_pair++;
-	InstallDqc(kCubicBytes,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart+80,appStop,&trace3,max_bps);
+	InstallDqc(cc1,nodes.Get(0),nodes.Get(1),sendPort+2,recvPort+2,appStart,appStop,&trace3,max_bps,cc_id);
+	cc_id++;
 
 
     Simulator::Stop (Seconds(simDuration));
     Simulator::Run ();
-    Simulator::Destroy();	
+    Simulator::Destroy();
     return 0;
 }

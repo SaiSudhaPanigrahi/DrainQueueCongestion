@@ -230,9 +230,6 @@ int main(int argc, char *argv[]){
 	}else if(cc_tmp==std::string("westwood")){
 		cc=kWestwood;
 		std::cout<<cc_tmp<<std::endl;
-	}else if(cc_tmp==std::string("westen")){
-		cc=kWestwoodEnhance;
-		std::cout<<cc_tmp<<std::endl;
 	}else if(cc_tmp==std::string("cubicplus")){
 		cc=kCubicPlus;
 		std::cout<<cc_tmp<<std::endl;

@@ -1,12 +1,8 @@
 # DrainQueueCongestion
 Congestion control algorithms evaluation on ns3  
-Copy code from quic protocol for simulation purpose.   
-- [x] Stream  
-- [x] Ack  
-- [x] Stop waiting  
-- [x] Send packet through socket  
+code is referenced from quic protocol for simulation purpose.   
 Implemented congestion control algorithms:  
-- [x] Reno cubic veno   
+- [x] Reno cubic veno elastic  
 - [x] vegas tcp-lp copa  
 - [x] BBR PCC  
 Supported multipath congstion control algorithms:  

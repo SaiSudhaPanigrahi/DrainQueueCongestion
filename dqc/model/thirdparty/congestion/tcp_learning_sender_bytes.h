@@ -1,34 +1,67 @@
 #pragma once
+#include <iostream>
+#include <fstream>
 #include "proto_types.h"
 #include "prr_sender.h"
 #include "proto_windowed_filter.h"
 #include "proto_bandwidth_sampler.h"
 #include "proto_send_algorithm_interface.h"
-#include <list>
+#include "rtt_stats.h"
 namespace dqc{
-class RttStats;
 typedef uint64_t QuicRoundTripCount;
-class LiaSenderEnhance3 : public SendAlgorithmInterface {
+const size_t kActionTableSize=5;
+class ActionTrace{
+public:
+    static ActionTrace *Instance();
+    void Destruct();
+    void RecordAction(uint32_t millis,uint32_t cid,uint32_t action);
+private:
+    ActionTrace();
+    ~ActionTrace();
+    std::fstream traces_;
+};
+class Reward{
+public:
+    Reward();
+    ~Reward();
+    void UpdateReward(double new_sample);
+    void Reset();
+private:
+    friend inline bool operator<(Reward lhs, Reward rhs);
+    friend inline bool operator<=(Reward lhs, Reward rhs);
+    friend inline bool operator>(Reward lhs, Reward rhs);
+    friend inline bool operator>=(Reward lhs, Reward rhs);
+    bool first_;
+    double value_;
+};
+inline bool operator<(Reward lhs, Reward rhs) {
+  return lhs.value_ < rhs.value_;
+}
+inline bool operator>(Reward lhs, Reward rhs){
+    return  rhs<lhs;
+}
+inline bool operator<=(Reward lhs, Reward rhs){
+    return !(rhs<lhs);
+}
+bool operator>=(Reward lhs, Reward rhs){
+    return !(lhs <rhs);
+}
+class TcpLearningSenderBytes : public SendAlgorithmInterface {
 public:
     enum Mode {
         STARTUP,
         DRAIN,
         AIMD,
     };
-    enum LinkType:uint8_t{
-        NotSure=0,
-        LinkRandonLoss=1,
-        LinkCongestionLoss=2,
-    };
-  LiaSenderEnhance3(const ProtoClock* clock,
+  TcpLearningSenderBytes(const ProtoClock* clock,
                       const RttStats* rtt_stats,
                       const UnackedPacketMapInfoInterface* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
-                      QuicConnectionStats* stats);
-  LiaSenderEnhance3(const LiaSenderEnhance3&) = delete;
-  LiaSenderEnhance3& operator=(const LiaSenderEnhance3&) = delete;
-  ~LiaSenderEnhance3() override;
+                      QuicConnectionStats* stats,Random* random,bool half);
+  TcpLearningSenderBytes(const TcpLearningSenderBytes&) = delete;
+  TcpLearningSenderBytes& operator=(const TcpLearningSenderBytes&) = delete;
+  ~TcpLearningSenderBytes() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -64,12 +97,8 @@ public:
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
   void SetCongestionId(uint32_t cid) override;
   uint32_t GetCongestionId() override{ return congestion_id_;}
-  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
-  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
-  uint64_t get_srtt_us() const;
-  void set_alpha(uint64_t alpha){alpha_=alpha;}
   bool IsInAimdState(){return mode_==AIMD;}
   protected:
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
@@ -106,13 +135,18 @@ public:
   TimeDelta GetMinRtt() const;
   QuicByteCount GetTargetCongestionWindow(float gain) const;
   float RenoBeta() const;
-  void mptcp_ccc_recalc_alpha();
   TimeDelta GetDelayThreshold();
+  void ChooseAction();
+  void ExploitAction();
+  void ExploreAction();
 private:
+    const ProtoClock *clock_;
     PrrSender prr_;
     const RttStats* rtt_stats_;
     const UnackedPacketMapInfoInterface* unacked_packets_;
     QuicConnectionStats* stats_;
+    Random *random_;
+    bool half_cwnd_on_loss_{false};
     // Number of connections to simulate.
     uint32_t num_connections_;
     
@@ -195,17 +229,16 @@ private:
     const bool always_get_bw_sample_when_acked_;
     TimeDelta min_rtt_;
     ProtoTime min_rtt_timestamp_;
-    bool delay_yield_flag_{true};
+    TimeDelta base_rtt_;
     bool probe_rtt_skipped_if_similar_rtt_;
     bool exit_startup_on_loss_;
     uint32_t congestion_id_{0};
-    std::list<LiaSenderEnhance3*> other_ccs_;
-    uint64_t alpha_;
-    bool loss_diff_{true};
     RTTFilter max_rtt_;
-    ProtoTime last_link_type_decision_time_{ProtoTime::Zero()};
-    uint32_t total_sent_within_delay_threshold_{0};
-    uint32_t loss_within_delay_threshold_{0};
-    LinkType link_type_{NotSure};
+    RttStats srtt_monitor_;
+    uint32_t action_index_{0};
+    bool has_action_chosen_{false};
+    QuicPacketNumber largest_sent_at_new_action_;
+    QuicPacketNumber largest_sent_when_action_sent_acked_;
+    Reward reward_table_[kActionTableSize];
 };
 }

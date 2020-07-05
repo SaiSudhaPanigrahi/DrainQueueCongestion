@@ -19,7 +19,8 @@ class RttStats
 
     // Called when connection migrates and rtt measurement needs to be reset.
     void OnConnectionMigration();
-
+    //for resample rtt
+    void Reset() {OnConnectionMigration();}
     // Returns the EWMA smoothed RTT for the connection.
     // May return Zero if no valid updates have occurred.
     TimeDelta smoothed_rtt() const { return smoothed_rtt_; }
@@ -57,7 +58,6 @@ class RttStats
     void set_initial_max_ack_delay(TimeDelta initial_max_ack_delay) {
         max_ack_delay_ = std::max(max_ack_delay_, initial_max_ack_delay);
     }
-
   private:
     TimeDelta latest_rtt_;
     TimeDelta min_rtt_;

@@ -8,9 +8,11 @@
 #include "proto_bbr_rand_sender.h"
 #include "proto_tsunami_sender.h"
 #include "tcp_cubic_sender_bytes.h"
+#include "tcp_elastic_sender_bytes.h"
+#include "tcp_hunnan_sender_bytes.h"
+#include "tcp_learning_sender_bytes.h"
 #include "tcp_veno_sender_bytes.h"
 #include "tcp_westwood_sender_bytes.h"
-#include "tcp_westwood_sender_enhance.h"
 #include "bbr2_sender.h"
 #include "cubic_plus_sender_bytes.h"
 #include "dwc_sender_bytes.h"
@@ -28,6 +30,7 @@
 #include "mp_veno_sender_bytes.h"
 #include "mp_westwood_sender_bytes.h"
 #include "lptcp_sender_bytes.h"
+#include "xmp_sender_bytes.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -57,6 +60,14 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                stats
                                );
         }
+        case kElastic:{
+            return new TcpElasticSenderBytes(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
         case kVeno:{
             return new TcpVenoSenderBytes(clock,
                                rtt_stats,
@@ -68,15 +79,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         case kWestwood:{
             return new TcpWestwoodSenderBytes(clock,
                                rtt_stats,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               stats
-                               );
-        }
-        case kWestwoodEnhance:{
-            return new TcpWestwoodSenderEnhance(clock,
-                               rtt_stats,
-                               unacked_packets,
                                initial_congestion_window,
                                max_congestion_window,
                                stats
@@ -212,6 +214,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                random,false
                                );
         }
+        case kBBRD:{
+            return new BbrSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random,true
+                               );
+        }
         case kBBRPlus:{
             return new BbrPlusSender(clock->Now(),
                                rtt_stats,
@@ -228,15 +239,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                random
-                               );
-        }
-        case kBBRD:{
-            return new BbrSender(clock->Now(),
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               random,true
                                );
         }
         case kTsunami:{
@@ -340,6 +342,38 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                random,false
+                               );
+        }
+        case kLearningBytes:{
+            return new TcpLearningSenderBytes(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,random,false);
+        }
+        case kLearningBytesHalf:{
+            return new TcpLearningSenderBytes(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,random,true);
+        }
+        case kHunnanBytes:{
+            return new TcpHunnanSenderBytes(clock,
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats,random);
+        }
+        case kXmpBytes:{
+            return new XmpSenderBytes(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
                                );
         }
         default:{
