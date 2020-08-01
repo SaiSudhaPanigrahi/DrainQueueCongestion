@@ -5,13 +5,13 @@
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/callback.h"
-#include "dqc_clock.h"
-#include "proto_types.h"
-#include "interval.h"
-#include "packet_number.h"
-#include "received_packet_manager.h"
-#include "proto_framer.h"
-#include "process_alarm_factory.h"
+#include "ns3/dqc_clock.h"
+#include "ns3/proto_types.h"
+#include "ns3/interval.h"
+#include "ns3/packet_number.h"
+#include "ns3/received_packet_manager.h"
+#include "ns3/proto_framer.h"
+#include "ns3/process_alarm_factory.h"
 namespace ns3{
 class DqcReceiver:public Application,
 public dqc::ProtoFrameVisitor{
@@ -26,6 +26,7 @@ public:
 	InetSocketAddress GetLocalAddress();
     bool OnStreamFrame(dqc::PacketStream &frame) override;
     void OnError(dqc::ProtoFramer* framer) override;
+    void OnEcnMarkCount(uint64_t ecn_ce_count) override;
     bool OnAckFrameStart(dqc::PacketNumber largest_acked,
                          dqc::TimeDelta ack_delay_time) override;
     bool OnAckRange(dqc::PacketNumber start,
@@ -42,6 +43,7 @@ private:
         return m_seq++;
     }
 	void RecvPacket(Ptr<Socket> socket);
+    void RecvEcnCallback(uint8_t ecn);
 	void SendToNetwork(Ptr<Packet> p);
 	bool m_running{true};
     bool m_knowPeer{false};   
@@ -57,5 +59,6 @@ private:
     dqc::ProtoFramer m_frameEncoder;
     IntervalSet<dqc::StreamOffset> m_recvInterval;
 	TraceOwd m_traceOwdCb;
+    bool m_ecn_flag{false};
 };    
 }

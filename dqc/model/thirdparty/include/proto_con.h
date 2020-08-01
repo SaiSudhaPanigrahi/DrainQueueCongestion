@@ -49,6 +49,7 @@ public:
     //framevisitor
     virtual bool OnStreamFrame(PacketStream &frame) override;
     virtual void OnError(ProtoFramer* framer) override;
+    virtual void OnEcnMarkCount(uint64_t ecn_ce_count) override;
     virtual bool OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time) override;
     virtual bool OnAckRange(PacketNumber start, PacketNumber end) override;

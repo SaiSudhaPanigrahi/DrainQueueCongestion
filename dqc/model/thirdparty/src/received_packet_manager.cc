@@ -2,7 +2,10 @@
 #include "logging.h"
 namespace dqc{
 ReceivdPacketManager::ReceivdPacketManager()
-:time_largest_observed_(ProtoTime::Zero()){}
+:time_largest_observed_(ProtoTime::Zero()){
+    ecn_ce_count_=0;
+    ack_frame_.ecn_ce_count=ecn_ce_count_;
+}
 void ReceivdPacketManager::RecordPacketReceived(PacketNumber seq,ProtoTime receive_time){
     if(!ack_frame_updated_){
         ack_frame_.received_packet_times.clear();
@@ -37,6 +40,10 @@ const AckFrame &ReceivdPacketManager::GetUpdateAckFrame(ProtoTime &now){
         ack_frame_.ack_delay_time=now-time_largest_observed_;
     }
     return ack_frame_;
+}
+void ReceivdPacketManager::AddEcnCount(uint32_t bytes){
+    ecn_ce_count_+=bytes;
+    ack_frame_.ecn_ce_count=ecn_ce_count_;
 }
 void ReceivdPacketManager::ResetAckStates(){
 	ack_frame_updated_ = false;

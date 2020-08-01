@@ -16,6 +16,7 @@ public:
     void set_save_timestamps(bool save_timestamps) {
         save_timestamps_ = save_timestamps;
     }
+    void AddEcnCount(uint32_t bytes);
 	void ResetAckStates();
 private:
     bool save_timestamps_{false};
@@ -23,6 +24,7 @@ private:
     ProtoTime time_largest_observed_;
     AckFrame ack_frame_;
     PacketNumber peer_least_packet_awaiting_ack_{0};
+    uint64_t ecn_ce_count_{0};
 };
 
 }//namespace dqc

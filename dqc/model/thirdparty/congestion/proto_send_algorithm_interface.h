@@ -114,6 +114,7 @@ public:
   // for that.
   virtual void OnApplicationLimited(QuicByteCount bytes_in_flight) = 0;
   virtual void OnOneWayDelaySample(ProtoTime event_time,QuicPacketNumber seq,ProtoTime sent_time,ProtoTime recv_time){}
+  virtual void OnUpdateEcnBytes(uint64_t ecn_ce_count){}
   virtual void SetCongestionId(uint32_t cid){}
   virtual uint32_t GetCongestionId(){ return 0;}
   virtual void RegisterCoupleCC(SendAlgorithmInterface*cc){}

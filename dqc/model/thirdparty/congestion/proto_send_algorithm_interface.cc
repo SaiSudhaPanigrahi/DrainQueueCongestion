@@ -1,19 +1,8 @@
 #include "proto_send_algorithm_interface.h"
-#include "rtt_stats.h"
+
 #include "balia_sender_bytes.h"
-#include "proto_bbr_plus_sender.h"
-#include "proto_bbr_sender.h"
-#include "proto_delay_bbr_sender.h"
-#include "proto_highrail_sender.h"
-#include "proto_bbr_rand_sender.h"
-#include "proto_tsunami_sender.h"
-#include "tcp_cubic_sender_bytes.h"
-#include "tcp_elastic_sender_bytes.h"
-#include "tcp_hunnan_sender_bytes.h"
-#include "tcp_learning_sender_bytes.h"
-#include "tcp_veno_sender_bytes.h"
-#include "tcp_westwood_sender_bytes.h"
 #include "bbr2_sender.h"
+#include "couple_bbr_sender.h"
 #include "cubic_plus_sender_bytes.h"
 #include "dwc_sender_bytes.h"
 #include "lia_sender_bytes.h"
@@ -21,8 +10,22 @@
 #include "lia_sender_enhance3.h"
 #include "olia_sender_bytes.h"
 #include "pcc_sender.h"
+
+#include "proto_bbr_plus_sender.h"
+#include "proto_bbr_sender.h"
+#include "proto_bbr_rand_sender.h"
 #include "proto_copa_sender.h"
-#include "couple_bbr_sender.h"
+#include "proto_dctcp_sender.h"
+#include "proto_delay_bbr_sender.h"
+#include "proto_highrail_sender.h"
+#include "proto_tsunami_sender.h"
+#include "rtt_stats.h"
+#include "tcp_cubic_sender_bytes.h"
+#include "tcp_elastic_sender_bytes.h"
+#include "tcp_hunnan_sender_bytes.h"
+#include "tcp_learning_sender_bytes.h"
+#include "tcp_veno_sender_bytes.h"
+#include "tcp_westwood_sender_bytes.h"
 #include "vegas_sender_bytes.h"
 #include "wvegas_sender_bytes.h"
 #include "ledbat_sender_bytes.h"
@@ -370,6 +373,14 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
         }
         case kXmpBytes:{
             return new XmpSenderBytes(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
+        }
+        case kDctcp:{
+            return new ProtoDctcpSender(clock,
                                rtt_stats,
                                initial_congestion_window,
                                max_congestion_window,

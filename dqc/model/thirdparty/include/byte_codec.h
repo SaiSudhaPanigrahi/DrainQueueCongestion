@@ -8,6 +8,7 @@ enum Endianness{
     NETWORK_ORDER, //big
     HOST_ORDER,//little
 };
+uint8_t GetVarInt62Len(uint64_t value);
 class DataReader{
 public:
     DataReader(const char* buf,uint32_t len);
@@ -24,6 +25,21 @@ public:
     bool ReadStringPiece(std::string * result, size_t size);
     bool IsDoneReading() const ;
     size_t BytesRemaining() const;
+    uint8_t PeekVarInt62Length();
+
+    // Read an IETF-encoded Variable Length Integer and place the result
+    // in |*result|.
+    // Returns true if it works, false if not. The only error is that
+    // there is not enough in the buffer to read the number.
+    // If there is an error, |*result| is not altered.
+    // Numbers are encoded per the rules in draft-ietf-quic-transport-10.txt
+    // and that the integers in the range 0 ... (2^62)-1.
+    bool ReadVarInt62(uint64_t* result);
+protected:
+    const char* data() const { return data_; }
+    size_t pos() const { return pos_; }
+    void AdvancePos(size_t amount);
+    Endianness endianness() const { return endianness_; }
 private:
     bool CanRead(uint32_t bytes);
     void OnFailure();
@@ -43,6 +59,7 @@ public:
     uint32_t capacity(){
         return capacity_;
     }
+    size_t remaining() const { return capacity_ - pos_; }
     bool WriteUInt8(uint8_t value);
     bool WriteUInt16(uint16_t value);
     bool WriteUInt32(uint32_t value);
@@ -50,6 +67,11 @@ public:
     bool WriteBytesToUInt64(uint32_t num_bytes, uint64_t value);
     bool WriteBytes(const void *value,uint32_t size);
     bool WriteUFloat16(uint64_t value);
+    bool WriteVarInt62(uint64_t value);
+protected:
+    Endianness endianness() const { return endianness_; }
+    char* buffer() const { return buf_; }
+    void IncreaseLength(size_t delta);
 private:
     char* BeginWrite(uint32_t bytes);
     char *buf_{0};

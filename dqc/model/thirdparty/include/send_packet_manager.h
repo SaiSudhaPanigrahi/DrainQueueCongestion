@@ -48,9 +48,6 @@ public:
     void Retransmitted(PacketNumber number);
     //TODO handle rto
     void OnRetransmissionTimeOut();
-    // Retransmits two packets for an RTO and removes any non-retransmittable
-    // packets from flight.
-    void RetransmitRtoPackets();
     bool NeedFastRetrans() {
     	bool need_retrans=fast_retrans_flag_;
     	fast_retrans_flag_=false;
@@ -58,6 +55,7 @@ public:
     }
     void FastRetransmit();
     int DeliverPacketsToPendingQueue(int n);
+    void UpdateEcnBytes(uint64_t ecn_ce_count);
     void OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time);
     void OnAckRange(PacketNumber start,PacketNumber end);
     void OnAckTimestamp(PacketNumber packet_number,ProtoTime timestamp);

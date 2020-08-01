@@ -56,6 +56,7 @@ struct AckFrame{
     PacketVector received_packet_times;
     PacketNumber largest_acked;
     TimeDelta ack_delay_time;
+    uint64_t ecn_ce_count{0};
 };
 inline PacketNumber LargestAcked(const AckFrame& frame) {
   DCHECK((!frame.packets.Empty()) &&frame.packets.Max() > frame.largest_acked);

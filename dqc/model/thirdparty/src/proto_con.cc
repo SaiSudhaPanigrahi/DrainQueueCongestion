@@ -179,6 +179,9 @@ bool ProtoCon::OnStreamFrame(PacketStream &frame){
 void ProtoCon::OnError(ProtoFramer* framer){
     DLOG(INFO)<<"frame error";
 }
+void ProtoCon::OnEcnMarkCount(uint64_t ecn_ce_count){
+    sent_manager_.UpdateEcnBytes(ecn_ce_count);
+}
 bool ProtoCon::OnAckFrameStart(PacketNumber largest_acked,
                                  TimeDelta ack_delay_time){
   DLOG(INFO)<<largest_acked<<" "<<std::to_string(ack_delay_time.ToMilliseconds());
@@ -219,12 +222,14 @@ bool ProtoCon::WriteStreamData(uint32_t id,
 }
 void ProtoCon::OnFastRetransmit(){
 	sent_manager_.FastRetransmit();
+    sent_manager_.OnRetransmissionTimeOut();
     TimeDelta rto=sent_manager_.GetRetransmissionDelay(0);
 	TimeDelta wall_time=clock_->Now()-ProtoTime::Zero();
 	//NS_LOG_INFO(cid_<<" now and rto "<<wall_time.ToMilliseconds()<<" "<<rto.ToMilliseconds());
 	ProtoTime next=clock_->Now()+rto;
 	fast_retrans_alarm_->Update(next,TimeDelta::FromMilliseconds(1));
     bool send=SendRetransPending(TT_FAST_RETRANS);
+    std::cout<<"con time out"<<std::endl;
     CHECK(send);
     fast_retrans_++;
 }

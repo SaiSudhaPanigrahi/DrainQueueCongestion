@@ -344,7 +344,9 @@ bool ProtoFramer::AppendAckFrameAndTypeByte(const AckFrame& frame,basic::DataWri
   if (!writer->WriteUInt8(type_byte)) {
     return false;
   }
-
+  if (!writer->WriteVarInt62(frame.ecn_ce_count)) {
+    return false;
+  }  
   size_t max_num_ack_blocks = available_timestamp_and_ack_block_bytes /
                               (ack_block_length + PACKET_NUMBER_1BYTE);
   // Number of ack blocks.
@@ -648,6 +650,12 @@ bool ProtoFramer::ProcessAckFrame(basic::DataReader* reader, uint8_t frame_type)
   const ProtoPacketNumberLength largest_acked_length = ReadAckPacketNumberLength(
       ExtractBits(frame_type, kQuicSequenceNumberLengthNumBits,
                   kLargestAckedOffset));
+  uint64_t ecn_ce_count=0;
+  if (!reader->ReadVarInt62(&ecn_ce_count)) {
+    set_detailed_error("ecn decoder errro");
+    return false;
+  }
+  visitor_->OnEcnMarkCount(ecn_ce_count);
   uint64_t largest_acked;
   if (!reader->ReadBytesToUInt64(largest_acked_length, &largest_acked)) {
     set_detailed_error("Unable to read largest acked.");

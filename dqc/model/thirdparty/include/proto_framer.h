@@ -13,6 +13,7 @@ public:
   virtual ~ProtoFrameVisitor(){}
   virtual bool OnStreamFrame(PacketStream &frame)=0;
   virtual void OnError(ProtoFramer* framer) = 0;
+  virtual void OnEcnMarkCount(uint64_t ecn_ce_count)=0;
   // Called when largest acked of an AckFrame has been parsed.
   virtual bool OnAckFrameStart(PacketNumber largest_acked,
                                TimeDelta ack_delay_time) = 0;

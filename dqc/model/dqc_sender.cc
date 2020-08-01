@@ -25,11 +25,13 @@ int FakePackeWriter::SendTo(const char*buf,size_t size,dqc::SocketAddress &dst){
 	return size;
 }
 /*kQueueLimit kShadow kBBRv2 kBBR kPOTEN kCubicBytes*/
-DqcSender::DqcSender():DqcSender(kBBR){}
-DqcSender::DqcSender(dqc::CongestionControlType cc_type)
+DqcSender::DqcSender(bool ecn):DqcSender(kBBR,ecn){}
+DqcSender::DqcSender(dqc::CongestionControlType cc_type,bool ecn)
 :m_writer(this)
 ,m_alarmFactory(new ProcessAlarmFactory(&m_timeDriver))
-,m_connection(&m_clock,m_alarmFactory.get(), cc_type){}
+,m_connection(&m_clock,m_alarmFactory.get(), cc_type){
+	m_ecn=ecn;
+}
 void DqcSender::SetBwTraceFuc(TraceBandwidth cb){
 	m_traceBwCb=cb;
 	if(m_traceBwCb.IsNull()){
@@ -71,6 +73,9 @@ void DqcSender::Bind(uint16_t port){
     }
     m_bindPort=port;
     m_socket->SetRecvCallback (MakeCallback(&DqcSender::RecvPacket,this));
+    if(m_ecn){
+	m_socket->SetIpTos(0x01);
+    }
     m_connection.set_packet_writer(&m_writer);
 	m_connection.SetTraceSentSeq(this);
     m_stream=m_connection.GetOrCreateStream(m_streamId);

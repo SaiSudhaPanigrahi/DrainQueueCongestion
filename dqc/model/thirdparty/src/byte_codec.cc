@@ -4,6 +4,47 @@
 #include "basic_constants.h"
 #include "logging.h"
 namespace basic{
+// Maximum value that can be properly encoded using VarInt62 coding.
+const uint64_t kVarInt62MaxValue = UINT64_C(0x3fffffffffffffff);
+
+// VarInt62 encoding masks
+// If a uint64_t anded with a mask is not 0 then the value is encoded
+// using that length (or is too big, in the case of kVarInt62ErrorMask).
+// Values must be checked in order (error, 8-, 4-, and then 2- bytes)
+// and if none are non-0, the value is encoded in 1 byte.
+const uint64_t kVarInt62ErrorMask = UINT64_C(0xc000000000000000);
+const uint64_t kVarInt62Mask8Bytes = UINT64_C(0x3fffffffc0000000);
+const uint64_t kVarInt62Mask4Bytes = UINT64_C(0x000000003fffc000);
+const uint64_t kVarInt62Mask2Bytes = UINT64_C(0x0000000000003fc0);
+enum VariableLengthIntegerLength : uint8_t {
+  // Length zero means the variable length integer is not present.
+  VARIABLE_LENGTH_INTEGER_LENGTH_0 = 0,
+  VARIABLE_LENGTH_INTEGER_LENGTH_1 = 1,
+  VARIABLE_LENGTH_INTEGER_LENGTH_2 = 2,
+  VARIABLE_LENGTH_INTEGER_LENGTH_4 = 4,
+  VARIABLE_LENGTH_INTEGER_LENGTH_8 = 8,
+
+  // By default we write the IETF long header length using the 2-byte encoding
+  // of variable length integers, even when the length is below 64, which allows
+  // us to fill in the length before knowing what the length actually is.
+  kBasicDefaultLongHeaderLengthLength = VARIABLE_LENGTH_INTEGER_LENGTH_2,
+};
+uint8_t GetVarInt62Len(uint64_t value){
+  if ((value & kVarInt62ErrorMask) != 0) {
+    CHECK(0);
+    return VARIABLE_LENGTH_INTEGER_LENGTH_0;
+  }
+  if ((value & kVarInt62Mask8Bytes) != 0) {
+    return VARIABLE_LENGTH_INTEGER_LENGTH_8;
+  }
+  if ((value & kVarInt62Mask4Bytes) != 0) {
+    return VARIABLE_LENGTH_INTEGER_LENGTH_4;
+  }
+  if ((value & kVarInt62Mask2Bytes) != 0) {
+    return VARIABLE_LENGTH_INTEGER_LENGTH_2;
+  }
+  return VARIABLE_LENGTH_INTEGER_LENGTH_1;    
+}
 DataReader::DataReader(const char* buf,uint32_t len)
 :DataReader(buf,len,NETWORK_ORDER){}
 DataReader::DataReader(const char* buf,uint32_t len,Endianness endianness)
@@ -118,6 +159,73 @@ bool DataReader::IsDoneReading() const {
 size_t DataReader::BytesRemaining() const {
   return len_ - pos_;
 }
+uint8_t DataReader::PeekVarInt62Length() {
+  DCHECK_EQ(endianness(), NETWORK_ORDER);
+  const unsigned char* next =
+      reinterpret_cast<const unsigned char*>(data() + pos());
+  if (BytesRemaining() == 0) {
+    return VARIABLE_LENGTH_INTEGER_LENGTH_0;
+  }
+  return static_cast<uint8_t>(
+      1 << ((*next & 0b11000000) >> 6));
+}
+bool DataReader::ReadVarInt62(uint64_t* result){
+  DCHECK_EQ(endianness(),NETWORK_ORDER);
+
+  size_t remaining = BytesRemaining();
+  const unsigned char* next =
+      reinterpret_cast<const unsigned char*>(data() + pos());
+  if (remaining != 0) {
+    switch (*next & 0xc0) {
+      case 0xc0:
+        // Leading 0b11...... is 8 byte encoding
+        if (remaining >= 8) {
+          *result = (static_cast<uint64_t>((*(next)) & 0x3f) << 56) +
+                    (static_cast<uint64_t>(*(next + 1)) << 48) +
+                    (static_cast<uint64_t>(*(next + 2)) << 40) +
+                    (static_cast<uint64_t>(*(next + 3)) << 32) +
+                    (static_cast<uint64_t>(*(next + 4)) << 24) +
+                    (static_cast<uint64_t>(*(next + 5)) << 16) +
+                    (static_cast<uint64_t>(*(next + 6)) << 8) +
+                    (static_cast<uint64_t>(*(next + 7)) << 0);
+          AdvancePos(8);
+          return true;
+        }
+        return false;
+
+      case 0x80:
+        // Leading 0b10...... is 4 byte encoding
+        if (remaining >= 4) {
+          *result = (((*(next)) & 0x3f) << 24) + (((*(next + 1)) << 16)) +
+                    (((*(next + 2)) << 8)) + (((*(next + 3)) << 0));
+          AdvancePos(4);
+          return true;
+        }
+        return false;
+
+      case 0x40:
+        // Leading 0b01...... is 2 byte encoding
+        if (remaining >= 2) {
+          *result = (((*(next)) & 0x3f) << 8) + (*(next + 1));
+          AdvancePos(2);
+          return true;
+        }
+        return false;
+
+      case 0x00:
+        // Leading 0b00...... is 1 byte encoding
+        *result = (*next) & 0x3f;
+        AdvancePos(1);
+        return true;
+    }
+  }
+  return false;    
+}
+void DataReader::AdvancePos(size_t amount) {
+  DCHECK_LE(pos_, std::numeric_limits<size_t>::max() - amount);
+  DCHECK_LE(pos_, len_ - amount);
+  pos_ += amount;
+}
 bool DataReader::CanRead(uint32_t bytes){
     return bytes<=(len_-pos_);
 }
@@ -213,6 +321,79 @@ bool DataWriter::WriteUFloat16(uint64_t value){
     result = basic::HostToNet16(result);
   }
   return WriteBytes(&result, sizeof(result));
+}
+bool DataWriter::WriteVarInt62(uint64_t value){
+  DCHECK_EQ(endianness(), NETWORK_ORDER);
+
+  size_t remaining_bytes = remaining();
+  char* next = buffer() + length();
+
+  if ((value & kVarInt62ErrorMask) == 0) {
+    // We know the high 2 bits are 0 so |value| is legal.
+    // We can do the encoding.
+    if ((value & kVarInt62Mask8Bytes) != 0) {
+      // Someplace in the high-4 bytes is a 1-bit. Do an 8-byte
+      // encoding.
+      if (remaining_bytes >= 8) {
+        *(next + 0) = ((value >> 56) & 0x3f) + 0xc0;
+        *(next + 1) = (value >> 48) & 0xff;
+        *(next + 2) = (value >> 40) & 0xff;
+        *(next + 3) = (value >> 32) & 0xff;
+        *(next + 4) = (value >> 24) & 0xff;
+        *(next + 5) = (value >> 16) & 0xff;
+        *(next + 6) = (value >> 8) & 0xff;
+        *(next + 7) = value & 0xff;
+        IncreaseLength(8);
+        return true;
+      }
+      return false;
+    }
+    // The high-order-4 bytes are all 0, check for a 1, 2, or 4-byte
+    // encoding
+    if ((value & kVarInt62Mask4Bytes) != 0) {
+      // The encoding will not fit into 2 bytes, Do a 4-byte
+      // encoding.
+      if (remaining_bytes >= 4) {
+        *(next + 0) = ((value >> 24) & 0x3f) + 0x80;
+        *(next + 1) = (value >> 16) & 0xff;
+        *(next + 2) = (value >> 8) & 0xff;
+        *(next + 3) = value & 0xff;
+        IncreaseLength(4);
+        return true;
+      }
+      return false;
+    }
+    // The high-order bits are all 0. Check to see if the number
+    // can be encoded as one or two bytes. One byte encoding has
+    // only 6 significant bits (bits 0xffffffff ffffffc0 are all 0).
+    // Two byte encoding has more than 6, but 14 or less significant
+    // bits (bits 0xffffffff ffffc000 are 0 and 0x00000000 00003fc0
+    // are not 0)
+    if ((value & kVarInt62Mask2Bytes) != 0) {
+      // Do 2-byte encoding
+      if (remaining_bytes >= 2) {
+        *(next + 0) = ((value >> 8) & 0x3f) + 0x40;
+        *(next + 1) = (value)&0xff;
+        IncreaseLength(2);
+        return true;
+      }
+      return false;
+    }
+    if (remaining_bytes >= 1) {
+      // Do 1-byte encoding
+      *next = (value & 0x3f);
+      IncreaseLength(1);
+      return true;
+    }
+    return false;
+  }
+  // Can not encode, high 2 bits not 0
+  return false;
+}
+void DataWriter::IncreaseLength(size_t delta){
+    DCHECK_LE(pos_, std::numeric_limits<size_t>::max() - delta);
+    DCHECK_LE(pos_, capacity_ - delta);
+    pos_ += delta;
 }
 char* DataWriter::BeginWrite(uint32_t bytes){
     if(pos_>capacity_){

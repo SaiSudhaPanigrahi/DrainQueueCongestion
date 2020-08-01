@@ -7,15 +7,15 @@
 #include "ns3/socket.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
-#include "dqc_clock.h"
-#include "proto_stream.h"
-#include "proto_bandwidth.h"
-#include "proto_time.h"
-#include "packet_number.h"
-#include "socket_address.h"
-#include "proto_socket.h"
-#include "process_alarm_factory.h"
-#include "proto_con.h"
+#include "ns3/dqc_clock.h"
+#include "ns3/proto_stream.h"
+#include "ns3/proto_bandwidth.h"
+#include "ns3/proto_time.h"
+#include "ns3/packet_number.h"
+#include "ns3/socket_address.h"
+#include "ns3/proto_socket.h"
+#include "ns3/process_alarm_factory.h"
+#include "ns3/proto_con.h"
 namespace ns3{
 class DqcSender;
 class OneWayDelaySink{
@@ -36,8 +36,8 @@ class DqcSender: public Application,
 public dqc::ProtoStream::StreamCanWriteVisitor,
 public dqc::ProtoCon::TraceSentSeq{
 public:
-    DqcSender();
-    DqcSender(dqc::CongestionControlType cc_type); 
+    DqcSender(bool ecn=false);
+    DqcSender(dqc::CongestionControlType cc_type,bool ecn=false); 
     ~DqcSender(){}
     void SetMaxBandwidth(uint32_t bps);
     typedef Callback<void,int32_t> TraceBandwidth;
@@ -69,6 +69,7 @@ private:
     void RecvPacket(Ptr<Socket> socket);
     void Process();
     void PostProceeAfterReceiveFromPeer();
+    bool m_ecn{false};
     bool m_running{false};
     uint32_t m_id{0};
     FakePackeWriter m_writer;

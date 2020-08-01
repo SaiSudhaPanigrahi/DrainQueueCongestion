@@ -1,5 +1,5 @@
 #pragma once
-#include "proto_time.h"
+#include "ns3/proto_time.h"
 #include "ns3/simulator.h"
 namespace ns3{
 class DqcSimuClock:public dqc::ProtoClock{

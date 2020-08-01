@@ -88,14 +88,8 @@ void SendPacketManager::Retransmitted(PacketNumber number){
     }
 }
 void SendPacketManager::OnRetransmissionTimeOut(){
-    DLOG(INFO)<<"rto";
-    RetransmitRtoPackets();
-}
-//it seems network is awful, may be resend one packet,
-void SendPacketManager::RetransmitRtoPackets(){
-	DeliverPacketsToPendingQueue(2);
-	unacked_packets_.RemoveObsolete();
     ++consecutive_rto_count_;
+    //send_algorithm_->OnRetransmissionTimeout(true);
 }
 void SendPacketManager::FastRetransmit(){
 	if(has_in_flight()){
@@ -134,6 +128,9 @@ int SendPacketManager::DeliverPacketsToPendingQueue(int n){
 	delivered=count;
 	CHECK(delivered);
 	return delivered;
+}
+void SendPacketManager::UpdateEcnBytes(uint64_t ecn_ce_count){
+    send_algorithm_->OnUpdateEcnBytes(ecn_ce_count);
 }
 void SendPacketManager::OnAckStart(PacketNumber largest_acked,TimeDelta ack_delay_time,ProtoTime ack_receive_time){
     DCHECK(packets_acked_.empty());

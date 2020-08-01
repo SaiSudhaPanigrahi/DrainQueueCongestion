@@ -5,13 +5,13 @@
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/callback.h"
-#include "dqc_clock.h"
-#include "proto_types.h"
-#include "interval.h"
-#include "packet_number.h"
-#include "process_alarm_factory.h"
-#include "received_packet_manager.h"
-#include "proto_framer.h"
+#include "ns3/dqc_clock.h"
+#include "ns3/proto_types.h"
+#include "ns3/interval.h"
+#include "ns3/packet_number.h"
+#include "ns3/process_alarm_factory.h"
+#include "ns3/received_packet_manager.h"
+#include "ns3/proto_framer.h"
 namespace ns3{
 class DqcDelayAckReceiver:public Application,
 public dqc::ProtoFrameVisitor{

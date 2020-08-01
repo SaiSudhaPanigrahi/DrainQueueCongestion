@@ -30,7 +30,8 @@ void DqcReceiver::Bind(uint16_t port){
         NS_ASSERT (res == 0);
     }
     m_bindPort=port;
-    m_socket->SetRecvCallback (MakeCallback(&DqcReceiver::RecvPacket,this));    
+    m_socket->SetRecvCallback (MakeCallback(&DqcReceiver::RecvPacket,this));
+    m_socket->SetEcnCallback (MakeCallback(&DqcReceiver::RecvEcnCallback,this));    
 }
 InetSocketAddress DqcReceiver::GetLocalAddress(){
     Ptr<Node> node=GetNode();
@@ -53,6 +54,7 @@ bool DqcReceiver::OnStreamFrame(dqc::PacketStream &frame){
 void DqcReceiver::OnError(dqc::ProtoFramer* framer){
 
 }
+void DqcReceiver::OnEcnMarkCount(uint64_t ecn_ce_count){}
 bool DqcReceiver::OnAckFrameStart(dqc::PacketNumber largest_acked,
                      dqc::TimeDelta ack_delay_time){
 	return true;
@@ -126,7 +128,17 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 	if(!m_traceOwdCb.IsNull()){
 		m_traceOwdCb((uint32_t)seq.ToUint64(),owd,recv);
 	}
+    if(m_ecn_flag){
+        NS_LOG_INFO("ecn mark");
+        m_recvManager.AddEcnCount(recv);
+        m_ecn_flag=false;
+    }
     SendAckFrame();
+}
+void DqcReceiver::RecvEcnCallback(uint8_t ecn){
+    if(ecn==0x03){
+        m_ecn_flag=true;
+    }
 }
 void DqcReceiver::SendToNetwork(Ptr<Packet> p){
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
