@@ -1,4 +1,5 @@
 #include "proto_dctcp_sender.h"
+#include "unacked_packet_map.h"
 #include "rtt_stats.h"
 #include "logging.h"
 #include <algorithm>
@@ -26,10 +27,12 @@ const T& min_not_zero(const T& x, const T& y)
 ProtoDctcpSender::ProtoDctcpSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
+   const UnackedPacketMapInfoInterface* unacked_packets,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats)
     :rtt_stats_(rtt_stats),
+    unacked_packets_(unacked_packets),
     stats_(stats),
     num_connections_(kDefaultNumConnections),
     min4_mode_(false),
@@ -120,7 +123,6 @@ void ProtoDctcpSender::OnPacketSent(
   if (InSlowStart()) {
     ++(stats_->slowstart_packets_sent);
   }
-  total_bytes_sent_+=bytes;
   last_sent_packet_ = packet_number;
   if (is_retransmittable != HAS_RETRANSMITTABLE_DATA) {
     return;
@@ -383,8 +385,9 @@ void ProtoDctcpSender::UpdateRoundTripAlpha(QuicPacketNumber last_acked_packet){
     uint32_t delivered_ce=uint32_t(ecn_ce_count_-old_ce_count_);
     uint32_t alpha=alpha_;
     alpha -= min_not_zero(alpha, alpha >> dctcp_shift_g);
+    QuicByteCount total_bytes_sent=unacked_packets_->delivered();
     if(delivered_ce){
-        uint32_t delivered=uint32_t(total_bytes_sent_-old_bytes_sent_);
+        uint32_t delivered=uint32_t(total_bytes_sent-old_bytes_sent_);
         delivered_ce <<= (10 - dctcp_shift_g);
         delivered_ce /= std::max(1U, delivered);
         alpha = std::min(alpha + delivered_ce, DCTCP_MAX_ALPHA);
@@ -392,7 +395,7 @@ void ProtoDctcpSender::UpdateRoundTripAlpha(QuicPacketNumber last_acked_packet){
     }
     
     
-    old_bytes_sent_=total_bytes_sent_;
+    old_bytes_sent_=total_bytes_sent;
     old_ce_count_=ecn_ce_count_;
     current_round_trip_end_ = last_sent_packet_;
   }

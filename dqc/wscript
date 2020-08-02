@@ -86,11 +86,20 @@ def build(bld):
     'model/dqc_delay_ack_receiver.cc',
     'model/dqc_sender.cc',
     'model/dqc_receiver.cc',
-    'model/global-stream.cc',
     'model/time_tag.cc',
     'model/dqc_trace.cc',
     'model/sbd_sink.cc',
     'model/sink_manager.cc',
+    'model/ns-linux/ns3-func.cc',
+    'model/ns-linux/ns-linux-c.c',
+    'model/ns-linux/ns-linux-param.c',
+    'model/ns-linux/ns-linux-util.cc',
+    'model/ns-linux/ns-win-minmax.c',
+    'model/ns-linux/tcp_bbr.c',
+    #'model/ns-linux/tcp_bbr2.c',
+    'model/ns-linux/tcp_cong.c',
+    'model/ns-linux/tcp_congestion_manager.cc',
+
     ]
     headers = bld(features='ns3header')
     headers.module = 'dqc'
@@ -103,6 +112,12 @@ def build(bld):
     'model/dqc_trace.h',
     'model/sbd_sink.h',
     'model/sink_manager.h',
+    'model/ns-linux/ns3-func.h',
+    'model/ns-linux/ns-linux-param.h',
+    'model/ns-linux/ns-linux-types.h',
+    'model/ns-linux/ns-linux-util.h',
+    'model/ns-linux/ns-win-minmax.h',
+    'model/ns-linux/tcp_congestion_manager.h',
     'model/thirdparty/include/ack_frame.h',
     'model/thirdparty/include/alarm.h',
     'model/thirdparty/include/basic_constants.h',
@@ -207,6 +222,7 @@ def build(bld):
     module.env.append_value("CFLAGS","-fPIC")
     module.env['INCLUDES'] += [
     'model',
+    'model/ns-linux',
     'model/thirdparty/congestion',
     'model/thirdparty/include',
     'model/thirdparty/logging',

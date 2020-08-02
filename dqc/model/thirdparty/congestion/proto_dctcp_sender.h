@@ -9,6 +9,7 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
  public:
   ProtoDctcpSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
+                      const UnackedPacketMapInfoInterface* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
@@ -81,6 +82,7 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
   HybridSlowStart hybrid_slow_start_;
   PrrSender prr_;
   const RttStats* rtt_stats_;
+  const UnackedPacketMapInfoInterface* unacked_packets_;
   QuicConnectionStats* stats_;
   // Number of connections to simulate.
   uint32_t num_connections_;
@@ -131,7 +133,6 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
   QuicByteCount min_slow_start_exit_window_;
   QuicPacketNumber last_sent_packet_;
   QuicPacketNumber current_round_trip_end_;
-  QuicByteCount total_bytes_sent_{0};
   QuicByteCount old_bytes_sent_{0};
   QuicByteCount old_ce_count_{0};
   bool enc_ece_rcvd_{false};

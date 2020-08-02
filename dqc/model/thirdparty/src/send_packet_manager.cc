@@ -183,12 +183,14 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
 	last_ack_frame_.received_packet_times.clear();
     ByteCount prior_bytes_in_flight = unacked_packets_.bytes_in_flight();
     std::reverse(packets_acked_.begin(),packets_acked_.end());
+    ByteCount acked_bytes=0;
     for(auto it=packets_acked_.begin();it!=packets_acked_.end();it++){
         PacketNumber seq=it->packet_number;
         TransmissionInfo *info=unacked_packets_.GetTransmissionInfo(seq);
         if(!info){
             DLOG(WARNING)<<"acked unsent packet "<<seq;
         }else{
+            acked_bytes+=info->bytes_sent;
             if(seq==sent_seq&&(receive_time>info->sent_time)){
                 one_way_delay_.first=seq;
                 one_way_delay_.second=receive_time-info->sent_time;
@@ -214,6 +216,7 @@ AckResult SendPacketManager::OnAckEnd(ProtoTime ack_receive_time){
         }
     }
     const bool acked_new_packet = !packets_acked_.empty();
+    unacked_packets_.AddDelivered(acked_bytes);
     PostProcessNewlyAckedPackets(ack_receive_time,rtt_updated_,prior_bytes_in_flight);
     sent_time_=ProtoTime::Zero();
     recv_time_=ProtoTime::Zero();
