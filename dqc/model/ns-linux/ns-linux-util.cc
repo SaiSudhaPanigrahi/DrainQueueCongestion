@@ -17,9 +17,6 @@
  */
 #include <string.h>
 #include "ns-linux-util.h"
-u32 tcp_time_stamp=0;
-s64 ktime_get_real=0;
-
 struct list_head ns_tcp_cong_list={&ns_tcp_cong_list, &ns_tcp_cong_list};
 struct list_head *last_added = &ns_tcp_cong_list;
 

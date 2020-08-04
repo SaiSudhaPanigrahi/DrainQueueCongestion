@@ -42,9 +42,6 @@ extern "C" {
         printf("%s %d  ",__FUNCTION__,__LINE__);\
         printf(format);}\
 })
-#ifdef __cplusplus
-}
-#endif
 //For sharing Reno
 
 extern u32 tcp_reno_ssthresh(struct sock *sk);
@@ -56,9 +53,6 @@ bool tcp_in_slow_start(const struct tcp_sock *tp);
 #define max(x,y) (((x)>(y))?(x):(y))
 #define before(seq1,seq2) ((seq2)>(seq1))
 #define after(seq1,seq2) ((seq2)<(seq1))
-
-
-#define HZ 1000
 
 // Shortcuts
 #define THIS_MODULE 0
@@ -171,71 +165,9 @@ struct rtattr {};
  * fls: find last bit set.
  */
 
-extern int fls(int x);
-extern int fls64(__u64 x);
-
-///// For 64 bit division from include/asm-generic/div64.h ////
-#define do_div(n,base) ({                                      \
-        uint32_t __base = (base);                               \
-        uint32_t __rem;                                         \
-        __rem = ((uint64_t)(n)) % __base;                       \
-        (n) = ((uint64_t)(n)) / __base;                         \
-        __rem;                                                  \
- })
 
 
-static inline u64 div_u64_rem(u64 dividend, u32 divisor, u32 *remainder)
-{
-	union {
-		u64 v64;
-		u32 v32[2];
-	} d = { dividend };
-	u32 upper;
-
-	upper = d.v32[1];
-	d.v32[1] = 0;
-	if (upper >= divisor) {
-		d.v32[1] = upper / divisor;
-		upper %= divisor;
-	}
-	asm ("divl %2" : "=a" (d.v32[0]), "=d" (*remainder) :
-		"rm" (divisor), "0" (d.v32[0]), "1" (upper));
-	return d.v64;
-}
-static inline s64 div_s64_rem(s64 dividend, s32 divisor, s32 *remainder){
-	u64 quotient;
-
-	if (dividend < 0) {
-		quotient = div_u64_rem(-dividend, abs(divisor), (u32 *)remainder);
-		*remainder = -*remainder;
-		if (divisor > 0)
-			quotient = -quotient;
-	} else {
-		quotient = div_u64_rem(dividend, abs(divisor), (u32 *)remainder);
-		if (divisor < 0)
-			quotient = -quotient;
-	}
-	return quotient;    
-}
-static inline s64 div_s64(s64 dividend, s32 divisor)
-{
-	s32 remainder;
-	return div_s64_rem(dividend, divisor, &remainder);
-}
-static inline u64 div_u64(u64 dividend, u32 divisor)
-{
-	u32 remainder;
-	return div_u64_rem(dividend, divisor, &remainder);
-}
-
-u64 div64_u64(u64 dividend, u64 divisor);
-s64 div64_s64(s64 dividend, s64 divisor);
-
-#define div64_long(x, y) div64_s64((x), (y))
-#define div64_ul(x, y)   div64_u64((x), (y))
 #define CONG_NUM 0
-
-#define jiffies tcp_time_stamp
 
 #define pr_debug(args...) {if ((debug_level+'0') <= KERN_NOTICE[1]) printf(args);}
 
@@ -249,18 +181,7 @@ extern uint64_t div64_64(uint64_t dividend, uint64_t divisor);
 extern int tcp_register_congestion_control(struct tcp_congestion_ops *ca);
 extern u32 tcp_slow_start(struct tcp_sock *tp, u32 acked);
 extern void tcp_unregister_congestion_control(struct tcp_congestion_ops *ca);
-
-void tcp_update_rtt_min(struct sock *sk, u32 rtt_us);
-/* Minimum RTT in usec. ~0 means not available. */
-static inline u32 tcp_min_rtt(const struct tcp_sock *tp)
-{
-	return minmax_get(&tp->rtt_min);
+#ifdef __cplusplus
 }
-static inline u32 tcp_stamp_us_delta(u64 t1, u64 t0)
-{
-	return max_t(s64, t1 - t0, 0);
-}
-static inline unsigned int tcp_packets_in_flight(const struct tcp_sock *tp){
-    return tp->packets_out + tp->retrans_out;
-}
+#endif
 #endif

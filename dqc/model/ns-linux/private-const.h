@@ -1,3 +1,4 @@
+#pragma once
 #define MSEC_PER_SEC	1000L
 #define USEC_PER_MSEC	1000L
 #define NSEC_PER_USEC	1000L

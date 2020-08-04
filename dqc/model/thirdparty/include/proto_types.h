@@ -120,7 +120,7 @@ kWebRTCVivace,kVegas,
 kLedbat,kLpTcp,kLpBBR,kLpBBRNo,
 kLearningBytes,kLearningBytesHalf,
 kHunnanBytes,kXmpBytes,
-kDctcp};
+kDctcp,kLinuxBBR};
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
 ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq);

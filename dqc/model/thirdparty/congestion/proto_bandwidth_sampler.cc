@@ -99,11 +99,12 @@ BandwidthSample BandwidthSampler::OnPacketAcknowledgedInner(
   // Infinite rate indicates that the sampler is supposed to discard the
   // current send rate sample and use only the ack rate.
   QuicBandwidth send_rate = QuicBandwidth::Infinite();
+  TimeDelta sent_time_interval=TimeDelta::Zero();
   if (sent_packet.sent_time > sent_packet.last_acked_packet_sent_time) {
+    sent_time_interval=sent_packet.sent_time - sent_packet.last_acked_packet_sent_time;
     send_rate = QuicBandwidth::FromBytesAndTimeDelta(
         sent_packet.send_time_state.total_bytes_sent -
-            sent_packet.total_bytes_sent_at_last_acked_packet,
-        sent_packet.sent_time - sent_packet.last_acked_packet_sent_time);
+            sent_packet.total_bytes_sent_at_last_acked_packet,sent_time_interval);
   }
 
   // During the slope calculation, ensure that ack time of the current packet is
@@ -124,9 +125,11 @@ BandwidthSample BandwidthSampler::OnPacketAcknowledgedInner(
                     << ack_time.ToDebuggingValue();
     return BandwidthSample();
   }
+    TimeDelta recv_time_interval=TimeDelta::Zero();
+    recv_time_interval=ack_time - sent_packet.last_acked_packet_ack_time;
   QuicBandwidth ack_rate = QuicBandwidth::FromBytesAndTimeDelta(
       total_bytes_acked_ - sent_packet.send_time_state.total_bytes_acked,
-      ack_time - sent_packet.last_acked_packet_ack_time);
+      recv_time_interval);
 
   BandwidthSample sample;
   sample.bandwidth = std::min(send_rate, ack_rate);
@@ -134,6 +137,8 @@ BandwidthSample BandwidthSampler::OnPacketAcknowledgedInner(
   // means that the RTT measurements here can be artificially high, especially
   // on low bandwidth connections.
   sample.rtt = ack_time - sent_packet.sent_time;
+  sample.sent_time_interval=sent_time_interval;
+  sample.recv_time_interval=recv_time_interval;
   sample.sent_time=sent_packet.sent_time;
   SentPacketToSendTimeState(sent_packet, &sample.state_at_send);
   return sample;

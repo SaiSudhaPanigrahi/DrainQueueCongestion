@@ -5,6 +5,8 @@ extern "C" {
 #endif
 //Returns: pseudo-random number in interval [0, ep_ro)
 u32 prandom_u32_max(u32 ep_ro);
+void update_tcp_time();
 #ifdef __cplusplus
 }
 #endif
+

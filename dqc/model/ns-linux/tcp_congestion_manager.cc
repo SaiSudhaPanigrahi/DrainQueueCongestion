@@ -39,6 +39,13 @@ void CongestionControlManager::dump() {
 	}
 	printf("\n");
 };
-
-    
+CongestionControlManager *g_cc_manager=nullptr;
+CongestionControlManager* RegisterCCManager(CongestionControlManager *manager){
+    CongestionControlManager *prev=g_cc_manager;
+    g_cc_manager=manager;
+    return prev;
+}
+CongestionControlManager* GetCCManager(){
+    return g_cc_manager;
+}
 }

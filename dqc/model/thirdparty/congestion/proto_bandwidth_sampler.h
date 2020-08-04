@@ -53,12 +53,18 @@ struct BandwidthSample {
   // The RTT measurement at this particular sample.  Zero if no RTT sample is
   // available.  Does not correct for delayed ack time.
   TimeDelta rtt;
+  TimeDelta sent_time_interval;
+  TimeDelta recv_time_interval;
   ProtoTime sent_time;
   // States captured when the packet was sent.
   SendTimeState state_at_send;
 
   BandwidthSample()
-      : bandwidth(QuicBandwidth::Zero()),rtt(TimeDelta::Zero()),sent_time(ProtoTime::Zero()) {}
+      : bandwidth(QuicBandwidth::Zero()),
+      rtt(TimeDelta::Zero()),
+      sent_time_interval(TimeDelta::Zero()),
+      recv_time_interval(TimeDelta::Zero()),
+      sent_time(ProtoTime::Zero()) {}
 };
 
 // An interface common to any class that can provide bandwidth samples from the

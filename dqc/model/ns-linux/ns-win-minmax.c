@@ -1,5 +1,5 @@
 #include "ns-win-minmax.h"
-#include "private_const.h"
+#include "private-const.h"
 /* As time advances, update the 1st, 2nd, and 3rd choices. */
 static u32 minmax_subwin_update(struct minmax *m, u32 win,
 				const struct minmax_sample *val)

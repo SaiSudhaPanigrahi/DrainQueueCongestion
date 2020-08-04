@@ -15,5 +15,6 @@ private:
 	int num_{0};
 	struct tcp_congestion_ops** ops_list;
 };
-extern CongestionControlManager cong_ops_manager;    
+CongestionControlManager* RegisterCCManager(CongestionControlManager *manager);
+CongestionControlManager* GetCCManager();
 }
