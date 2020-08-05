@@ -32,6 +32,9 @@ class RttStats
     TimeDelta SmoothedOrInitialRtt() const {
     return smoothed_rtt_.IsZero() ? initial_rtt_ : smoothed_rtt_;
   }
+    TimeDelta MinOrInitialRtt() const {
+    return min_rtt_.IsZero() ? initial_rtt_ : min_rtt_;
+   }
     // Sets an initial RTT to be used for SmoothedRtt before any RTT updates.
     void set_initial_rtt(TimeDelta initial_rtt);
 

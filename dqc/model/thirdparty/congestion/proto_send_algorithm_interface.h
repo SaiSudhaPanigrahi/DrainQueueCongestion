@@ -46,7 +46,7 @@ public:
                             QuicPacketNumber packet_number,
                             QuicByteCount bytes,
                             HasRetransmittableData is_retransmittable) = 0;
-
+  virtual void OnPacketNeutered(QuicPacketNumber packet_number){}
   // Called when the retransmission timeout fires.  Neither OnPacketAbandoned
   // nor OnPacketLost will be called for these packets.
   virtual void OnRetransmissionTimeout(bool packets_retransmitted) = 0;

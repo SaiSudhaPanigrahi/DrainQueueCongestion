@@ -1,6 +1,17 @@
-#pragma once
+// Copyright 2019 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR2_PROBE_BW_H_
+#define QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR2_PROBE_BW_H_
+
 #include <cstdint>
-#include "bbr2_misc.h"
+
+#include "quic_bbr2_misc.h"
+#include "proto_time.h"
+#include "proto_types.h"
+#include "quic_export.h"
+
 namespace dqc {
 
 class Bbr2Sender;
@@ -8,18 +19,24 @@ class QUIC_EXPORT_PRIVATE Bbr2ProbeBwMode final : public Bbr2ModeBase {
  public:
   using Bbr2ModeBase::Bbr2ModeBase;
 
-  void Enter(const Bbr2CongestionEvent& congestion_event) override;
+  void Enter(QuicTime now,
+             const Bbr2CongestionEvent* congestion_event) override;
+  void Leave(QuicTime /*now*/,
+             const Bbr2CongestionEvent* /*congestion_event*/) override {}
 
   Bbr2Mode OnCongestionEvent(
       QuicByteCount prior_in_flight,
-      ProtoTime event_time,
+      QuicTime event_time,
       const AckedPacketVector& acked_packets,
       const LostPacketVector& lost_packets,
       const Bbr2CongestionEvent& congestion_event) override;
 
-  Limits<QuicByteCount> GetCwndLimits() const override;
+  QuicLimits<QuicByteCount> GetCwndLimits() const override;
 
   bool IsProbingForBandwidth() const override;
+
+  Bbr2Mode OnExitQuiescence(QuicTime now,
+                            QuicTime quiescence_start_time) override;
 
   enum class CyclePhase : uint8_t {
     PROBE_NOT_STARTED,
@@ -31,10 +48,10 @@ class QUIC_EXPORT_PRIVATE Bbr2ProbeBwMode final : public Bbr2ModeBase {
 
   static const char* CyclePhaseToString(CyclePhase phase);
 
-  struct DebugState {
+  struct QUIC_EXPORT_PRIVATE DebugState {
     CyclePhase phase;
-    ProtoTime cycle_start_time = ProtoTime::Zero();
-    ProtoTime phase_start_time = ProtoTime::Zero();
+    QuicTime cycle_start_time = QuicTime::Zero();
+    QuicTime phase_start_time = QuicTime::Zero();
   };
 
   DebugState ExportDebugState() const;
@@ -64,14 +81,13 @@ class QUIC_EXPORT_PRIVATE Bbr2ProbeBwMode final : public Bbr2ModeBase {
 
   void EnterProbeDown(bool probed_too_high,
                       bool stopped_risky_probe,
-                      const Bbr2CongestionEvent& congestion_event);
-  void EnterProbeCruise(const Bbr2CongestionEvent& congestion_event);
-  void EnterProbeRefill(uint64_t probe_up_rounds,
-                        const Bbr2CongestionEvent& congestion_event);
-  void EnterProbeUp(const Bbr2CongestionEvent& congestion_event);
+                      QuicTime now);
+  void EnterProbeCruise(QuicTime now);
+  void EnterProbeRefill(uint64_t probe_up_rounds, QuicTime now);
+  void EnterProbeUp(QuicTime now);
 
   // Call right before the exit of PROBE_DOWN.
-  void ExitProbeDown(const Bbr2CongestionEvent& congestion_event);
+  void ExitProbeDown();
 
   float PercentTimeElapsedToProbeBandwidth(
       const Bbr2CongestionEvent& congestion_event) const;
@@ -91,11 +107,11 @@ class QUIC_EXPORT_PRIVATE Bbr2ProbeBwMode final : public Bbr2ModeBase {
   void RaiseInflightHighSlope();
   void ProbeInflightHighUpward(const Bbr2CongestionEvent& congestion_event);
 
-  struct Cycle {
-    ProtoTime cycle_start_time = ProtoTime::Zero();
+  struct QUIC_EXPORT_PRIVATE Cycle {
+    QuicTime cycle_start_time = QuicTime::Zero();
     CyclePhase phase = CyclePhase::PROBE_NOT_STARTED;
     uint64_t rounds_in_phase = 0;
-    ProtoTime phase_start_time = ProtoTime::Zero();
+    QuicTime phase_start_time = QuicTime::Zero();
     QuicRoundTripCount rounds_since_probe = 0;
     TimeDelta probe_wait_time = TimeDelta::Zero();
     uint64_t probe_up_rounds = 0;
@@ -121,3 +137,4 @@ QUIC_EXPORT_PRIVATE std::ostream& operator<<(
 
 }  // namespace quic
 
+#endif  // QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR2_PROBE_BW_H_

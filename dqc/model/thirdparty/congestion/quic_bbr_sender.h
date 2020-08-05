@@ -1,12 +1,34 @@
-#pragma once
+// Copyright 2016 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// BBR (Bottleneck Bandwidth and RTT) congestion control algorithm.
+
+#ifndef QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR_SENDER_H_
+#define QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR_SENDER_H_
+
+#include <cstdint>
 #include <ostream>
+#include <string>
+
+#include "quic_bandwidth_sampler.h"
 #include "proto_send_algorithm_interface.h"
-#include "proto_bandwidth_sampler.h"
-#include "proto_windowed_filter.h"
 #include "logging.h"
-namespace dqc{
+#include "quic_export.h"
+namespace dqc {
+
 class RttStats;
-class ProtoBbrSender : public SendAlgorithmInterface {
+
+// QuicBbrSender implements BBR congestion control algorithm.  BBR aims to estimate
+// the current available Bottleneck Bandwidth and RTT (hence the name), and
+// regulates the pacing rate and the size of the congestion window based on
+// those signals.
+//
+// BBR relies on pacing in order to function properly.  Do not use BBR when
+// pacing is disabled.
+//
+// TODO(vasilvv): implement traffic policer (long-term sampling) mode.
+class QUIC_EXPORT_PRIVATE QuicBbrSender : public SendAlgorithmInterface {
  public:
   enum Mode {
     // Startup phase of the connection.
@@ -32,10 +54,10 @@ class ProtoBbrSender : public SendAlgorithmInterface {
     GROWTH
   };
 
- // Debug state can be exported in order to troubleshoot potential congestion
+  // Debug state can be exported in order to troubleshoot potential congestion
   // control issues.
-  struct DebugState {
-    explicit DebugState(const ProtoBbrSender& sender);
+  struct QUIC_EXPORT_PRIVATE DebugState {
+    explicit DebugState(const QuicBbrSender& sender);
     DebugState(const DebugState& state);
 
     Mode mode;
@@ -58,26 +80,29 @@ class ProtoBbrSender : public SendAlgorithmInterface {
     QuicPacketNumber end_of_app_limited_phase;
   };
 
-  ProtoBbrSender(ProtoTime now,
+  QuicBbrSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMap* unacked_packets,
+            const QuicUnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
-            Random* random,bool drain_to_target);
-  ProtoBbrSender(const ProtoBbrSender&) = delete;
-  ProtoBbrSender& operator=(const ProtoBbrSender&) = delete;
-  ~ProtoBbrSender() override;
+            Random* random,QuicConnectionStats* stats);
+  QuicBbrSender(const QuicBbrSender&) = delete;
+  QuicBbrSender& operator=(const QuicBbrSender&) = delete;
+  ~QuicBbrSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   bool InSlowStart() const override;
   bool InRecovery() const override;
   bool ShouldSendProbingPacket() const override;
 
+  /*void SetFromConfig(const QuicConfig& config,
+                     Perspective perspective) override;
+  void ApplyConnectionOptions(const QuicTagVector& connection_options) override;*/
 
   void AdjustNetworkParameters(QuicBandwidth bandwidth,
-                               TimeDelta rtt,
-                               bool allow_cwnd_to_decrease) override;
-  void SetNumEmulatedConnections(int num_connections) override {}
+                                        TimeDelta rtt,
+                                        bool allow_cwnd_to_decrease) override;
+  void SetNumEmulatedConnections(int num_connections) override{}
   void SetInitialCongestionWindowInPackets(
       QuicPacketCount congestion_window) override;
   void OnCongestionEvent(bool rtt_updated,
@@ -90,7 +115,8 @@ class ProtoBbrSender : public SendAlgorithmInterface {
                     QuicPacketNumber packet_number,
                     QuicByteCount bytes,
                     HasRetransmittableData is_retransmittable) override;
-  void OnRetransmissionTimeout(bool packets_retransmitted) override {}
+  //void OnPacketNeutered(QuicPacketNumber packet_number) override;
+  void OnRetransmissionTimeout(bool /*packets_retransmitted*/) override {}
   void OnConnectionMigration() override {}
   bool CanSend(QuicByteCount bytes_in_flight) override;
   QuicBandwidth PacingRate(QuicByteCount bytes_in_flight) const override;
@@ -100,6 +126,7 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   CongestionControlType GetCongestionControlType() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
+  //void PopulateConnectionStats(QuicConnectionStats* stats) const override;
   // End implementation of SendAlgorithmInterface.
 
   // Gets the number of RTTs BBR remains in STARTUP phase.
@@ -139,6 +166,9 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   DebugState ExportDebugState() const;
 
  private:
+  // For switching send algorithm mid connection.
+  friend class Bbr2Sender;
+
   typedef WindowedFilter<QuicBandwidth,
                          MaxFilter<QuicBandwidth>,
                          QuicRoundTripCount,
@@ -161,28 +191,24 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   // Returns true if the current min_rtt should be kept and we should not enter
   // PROBE_RTT immediately.
   bool ShouldExtendMinRttExpiry() const;
+  bool MaybeUpdateMinRtt(ProtoTime now, TimeDelta sample_min_rtt);
 
   // Enters the STARTUP mode.
   void EnterStartupMode(ProtoTime now);
   // Enters the PROBE_BW mode.
   void EnterProbeBandwidthMode(ProtoTime now);
 
-  // Discards the lost packets from BandwidthSampler state.
-  void DiscardLostPackets(const LostPacketVector& lost_packets);
   // Updates the round-trip counter if a round-trip has passed.  Returns true if
   // the counter has been advanced.
   bool UpdateRoundTripCounter(QuicPacketNumber last_acked_packet);
-  // Updates the current bandwidth and min_rtt estimate based on the samples for
-  // the received acknowledgements.  Returns true if min_rtt has expired.
-  bool UpdateBandwidthAndMinRtt(ProtoTime now,
-                                const AckedPacketVector& acked_packets);
+
   // Updates the current gain used in PROBE_BW mode.
   void UpdateGainCyclePhase(ProtoTime now,
                             QuicByteCount prior_in_flight,
                             bool has_losses);
   // Tracks for how many round-trips the bandwidth has not increased
   // significantly.
-  void CheckIfFullBandwidthReached();
+  void CheckIfFullBandwidthReached(const QuicSendTimeState& last_packet_send_state);
   // Transitions from STARTUP to DRAIN and from DRAIN to PROBE_BW if
   // appropriate.
   void MaybeExitStartupOrDrain(ProtoTime now);
@@ -203,7 +229,7 @@ class ProtoBbrSender : public SendAlgorithmInterface {
                                           QuicByteCount newly_acked_bytes);
 
   // Determines the appropriate pacing rate for the connection.
-  void CalculatePacingRate();
+  void CalculatePacingRate(QuicByteCount bytes_lost);
   // Determines the appropriate congestion window for the connection.
   void CalculateCongestionWindow(QuicByteCount bytes_acked,
                                  QuicByteCount excess_acked);
@@ -219,15 +245,20 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   // Called right before exiting STARTUP.
   void OnExitStartup(ProtoTime now);
 
+  // Return whether we should exit STARTUP due to excessive loss.
+  bool ShouldExitStartupDueToLoss(
+      const QuicSendTimeState& last_packet_send_state) const;
+
   const RttStats* rtt_stats_;
   const UnackedPacketMap* unacked_packets_;
   Random* random_;
+  QuicConnectionStats* stats_;
 
   Mode mode_;
 
   // Bandwidth sampler provides BBR with the bandwidth measurements at
   // individual points.
-  BandwidthSampler sampler_;
+  QuicBandwidthSampler sampler_;
 
   // The number of the round trips that have occurred during the connection.
   QuicRoundTripCount round_trip_count_;
@@ -238,16 +269,15 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   // the round trip counter to advance.
   QuicPacketNumber current_round_trip_end_;
 
+  // Number of congestion events with some losses, in the current round.
+  int64_t num_loss_events_in_round_;
+
+  // Number of total bytes lost in the current round.
+  QuicByteCount bytes_lost_in_round_;
+
   // The filter that tracks the maximum bandwidth over the multiple recent
   // round-trips.
   MaxBandwidthFilter max_bandwidth_;
-
-  // Tracks the maximum number of bytes acked faster than the sending rate.
-  MaxAckHeightFilter max_ack_height_;
-
-  // The time this aggregation started and the number of bytes acked during it.
-  ProtoTime aggregation_epoch_start_time_;
-  QuicByteCount aggregation_epoch_bytes_;
 
   // Minimum RTT estimate.  Automatically expires within 10 seconds (and
   // triggers PROBE_RTT mode) if no new value is sampled during that period.
@@ -289,9 +319,6 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   const float congestion_window_gain_constant_;
   // The number of RTTs to stay in STARTUP mode.  Defaults to 3.
   QuicRoundTripCount num_startup_rtts_;
-  // If true, exit startup if 1RTT has passed with no bandwidth increase and
-  // the connection is in recovery.
-  bool exit_startup_on_loss_;
 
   // Number of round-trips in PROBE_BW mode, used for determining the current
   // pacing gain cycle.
@@ -340,11 +367,6 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   bool slower_startup_;
   // When true, disables packet conservation in STARTUP.
   bool rate_based_startup_;
-  // When non-zero, decreases the rate in STARTUP by the total number of bytes
-  // lost in STARTUP divided by CWND.
-  uint8_t startup_rate_reduction_multiplier_;
-  // Sum of bytes lost in STARTUP.
-  QuicByteCount startup_bytes_lost_;
 
   // When true, add the most recent ack aggregation measurement during STARTUP.
   bool enable_ack_aggregation_during_startup_;
@@ -356,26 +378,28 @@ class ProtoBbrSender : public SendAlgorithmInterface {
   // or it's time for high gain mode.
   bool drain_to_target_;
 
-  // If true, use a CWND of 0.75*BDP during probe_rtt instead of 4 packets.
-  bool probe_rtt_based_on_bdp_;
-  // If true, skip probe_rtt and update the timestamp of the existing min_rtt to
-  // now if min_rtt over the last cycle is within 12.5% of the current min_rtt.
-  // Even if the min_rtt is 12.5% too low, the 25% gain cycling and 2x CWND gain
-  // should overcome an overly small min_rtt.
-  bool probe_rtt_skipped_if_similar_rtt_;
-  // If true, disable PROBE_RTT entirely as long as the connection was recently
-  // app limited.
-  bool probe_rtt_disabled_if_app_limited_;
-  bool app_limited_since_last_probe_rtt_;
-  TimeDelta min_rtt_since_last_probe_rtt_;
+  // If true, slow down pacing rate in STARTUP when overshooting is detected.
+  bool detect_overshooting_;
+  // Bytes lost while detect_overshooting_ is true.
+  QuicByteCount bytes_lost_while_detecting_overshooting_;
+  // Slow down pacing rate if
+  // bytes_lost_while_detecting_overshooting_ *
+  // bytes_lost_multiplier_while_detecting_overshooting_ > IW.
+  uint8_t bytes_lost_multiplier_while_detecting_overshooting_;
+  // When overshooting is detected, do not drop pacing_rate_ below this value /
+  // min_rtt.
+  QuicByteCount cwnd_to_calculate_min_pacing_rate_;
 
-  // Latched value of --quic_always_get_bw_sample_when_acked.
-  const bool always_get_bw_sample_when_acked_;
+  // Max congestion window when adjusting network parameters.
+  QuicByteCount max_congestion_window_with_network_parameters_adjusted_;
 };
 
- std::ostream& operator<<(std::ostream& os,
-                                             const ProtoBbrSender::Mode& mode);
- std::ostream& operator<<(
+QUIC_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
+                                             const QuicBbrSender::Mode& mode);
+QUIC_EXPORT_PRIVATE std::ostream& operator<<(
     std::ostream& os,
-    const ProtoBbrSender::DebugState& state);
-}
+    const QuicBbrSender::DebugState& state);
+
+}  // namespace quic
+
+#endif  // QUICHE_QUIC_CORE_CONGESTION_CONTROL_BBR_SENDER_H_

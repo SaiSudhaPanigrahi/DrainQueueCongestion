@@ -29,8 +29,8 @@ inline std::string GetFlagImpl(const std::string& flag) {
 // ------------------------------------------------------------------------
 // QUIC feature flags implementation.
 // ------------------------------------------------------------------------
-#define RELOADABLE_FLAG(flag) FLAG_quic_reloadable_flag_##flag
-#define RESTART_FLAG(flag) FLAG_quic_restart_flag_##flag
+#define RELOADABLE_FLAG(flag) FLAGS_quic_reloadable_flag_##flag
+#define RESTART_FLAG(flag) FLAGS_quic_restart_flag_##flag
 
 #define GetQuicFlag(flag) GetFlagImpl(flag)
 

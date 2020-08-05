@@ -1,12 +1,15 @@
-#include "bbr2_drain.h"
-#include "bbr2_sender.h"
-namespace dqc {
+// Copyright 2019 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
-void Bbr2DrainMode::Enter(const Bbr2CongestionEvent& /*congestion_event*/) {}
+#include "quic_bbr2_drain.h"
+#include "quic_bbr2_sender.h"
+#include "quic_logging.h"
+namespace dqc {
 
 Bbr2Mode Bbr2DrainMode::OnCongestionEvent(
     QuicByteCount /*prior_in_flight*/,
-    ProtoTime /*event_time*/,
+    QuicTime /*event_time*/,
     const AckedPacketVector& /*acked_packets*/,
     const LostPacketVector& /*lost_packets*/,
     const Bbr2CongestionEvent& congestion_event) {
@@ -18,19 +21,19 @@ Bbr2Mode Bbr2DrainMode::OnCongestionEvent(
 
   QuicByteCount drain_target = DrainTarget();
   if (congestion_event.bytes_in_flight <= drain_target) {
-    /*QUIC_DVLOG(3) << sender_ << " Exiting DRAIN. bytes_in_flight:"
+    QUIC_DVLOG(3) << sender_ << " Exiting DRAIN. bytes_in_flight:"
                   << congestion_event.bytes_in_flight
                   << ", bdp:" << model_->BDP(model_->MaxBandwidth())
                   << ", drain_target:" << drain_target << "  @ "
-                  << congestion_event.event_time;*/
+                  << congestion_event.event_time;
     return Bbr2Mode::PROBE_BW;
   }
 
-  /*QUIC_DVLOG(3) << sender_ << " Staying in DRAIN. bytes_in_flight:"
+  QUIC_DVLOG(3) << sender_ << " Staying in DRAIN. bytes_in_flight:"
                 << congestion_event.bytes_in_flight
                 << ", bdp:" << model_->BDP(model_->MaxBandwidth())
                 << ", drain_target:" << drain_target << "  @ "
-                << congestion_event.event_time;*/
+                << congestion_event.event_time;
   return Bbr2Mode::DRAIN;
 }
 
@@ -56,4 +59,3 @@ const Bbr2Params& Bbr2DrainMode::Params() const {
 }
 
 }  // namespace quic
-

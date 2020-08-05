@@ -28,6 +28,7 @@ typedef uint16_t PacketLength;
 typedef PacketLength QuicPacketLength;
 typedef QuicPacketNumber PacketNumber ;
 typedef uint64_t TimeType;
+typedef ProtoTime QuicTime;
 struct AckedPacket;
 // Information about a newly lost packet.
 struct LostPacket {
@@ -120,7 +121,7 @@ kWebRTCVivace,kVegas,
 kLedbat,kLpTcp,kLpBBR,kLpBBRNo,
 kLearningBytes,kLearningBytesHalf,
 kHunnanBytes,kXmpBytes,
-kDctcp,kLinuxBBR};
+kDctcp,kLinuxBBR,kQuicBBR};
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
 ProtoPacketNumberLength GetMinPktNumLen(PacketNumber seq);
