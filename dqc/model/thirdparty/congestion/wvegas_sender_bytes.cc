@@ -34,7 +34,7 @@ static inline uint64_t mptcp_wvegas_rate(uint32_t cwnd, uint32_t rtt_us)
 WvegasSender::WvegasSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
-    const UnackedPacketMapInfoInterface* unacked_packets,
+    const UnackedPacketMap* unacked_packets,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats)

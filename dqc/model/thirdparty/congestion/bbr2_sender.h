@@ -5,7 +5,6 @@
 #include "bbr2_probe_bw.h"
 #include "bbr2_probe_rtt.h"
 #include "bbr2_startup.h"
-#include "proto_send_algorithm_interface.h"
 #include "random.h"
 namespace dqc {
 
@@ -13,7 +12,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
  public:
   Bbr2Sender(ProtoTime now,
              const RttStats* rtt_stats,
-             const UnackedPacketMapInfoInterface* unacked_packets,
+             const UnackedPacketMap* unacked_packets,
              QuicPacketCount initial_cwnd_in_packets,
              QuicPacketCount max_cwnd_in_packets,
              Random* random,
@@ -141,7 +140,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
   Bbr2Mode mode_;
 
   const RttStats* const rtt_stats_;
-  const UnackedPacketMapInfoInterface* const unacked_packets_;
+  const UnackedPacketMap* const unacked_packets_;
   Random* random_;
 
   const Bbr2Params params_;

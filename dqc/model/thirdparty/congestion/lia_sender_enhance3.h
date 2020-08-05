@@ -7,7 +7,6 @@
 #include <list>
 namespace dqc{
 class RttStats;
-typedef uint64_t QuicRoundTripCount;
 class LiaSenderEnhance3 : public SendAlgorithmInterface {
 public:
     enum Mode {
@@ -22,7 +21,7 @@ public:
     };
   LiaSenderEnhance3(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      const UnackedPacketMapInfoInterface* unacked_packets,
+                      const UnackedPacketMap* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
@@ -111,7 +110,7 @@ public:
 private:
     PrrSender prr_;
     const RttStats* rtt_stats_;
-    const UnackedPacketMapInfoInterface* unacked_packets_;
+    const UnackedPacketMap* unacked_packets_;
     QuicConnectionStats* stats_;
     // Number of connections to simulate.
     uint32_t num_connections_;

@@ -76,7 +76,7 @@ BbrSender::DebugState::DebugState(const DebugState& state) = default;
 
 BbrSender::BbrSender(ProtoTime now,
                      const RttStats* rtt_stats,
-                     const UnackedPacketMapInfoInterface* unacked_packets,
+                     const UnackedPacketMap* unacked_packets,
                      QuicPacketCount initial_tcp_congestion_window,
                      QuicPacketCount max_tcp_congestion_window,
                      Random* random,bool drain_to_target)

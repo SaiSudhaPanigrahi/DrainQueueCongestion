@@ -8,7 +8,6 @@
 #include "optional.h"
 namespace dqc{
 class RttStats;
-typedef uint64_t QuicRoundTripCount;
 class LpBbrSender : public SendAlgorithmInterface {
  public:
   enum Mode {
@@ -62,7 +61,7 @@ class LpBbrSender : public SendAlgorithmInterface {
 
   LpBbrSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMapInfoInterface* unacked_packets,
+            const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random,bool lp_mode);
@@ -233,7 +232,7 @@ class LpBbrSender : public SendAlgorithmInterface {
   bool ShouldReduceBacklogedPacket();
   bool IsAllflowsInProbeMode () const;
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   Random* random_;
   Mode mode_;
 

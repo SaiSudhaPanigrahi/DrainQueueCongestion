@@ -98,7 +98,7 @@ PccSender::DebugState::DebugState(const PccSender& sender)
       bandwidth(sender.BandwidthEstimateInner()) {}
 
 PccSender::PccSender(const RttStats* rtt_stats,
-                     const UnackedPacketMapInfoInterface* unacked_packets,
+                     const UnackedPacketMap* unacked_packets,
                      QuicPacketCount initial_congestion_window,
                      QuicPacketCount max_congestion_window,
                      Random* random,UtilityFunctionVariant fun_type)

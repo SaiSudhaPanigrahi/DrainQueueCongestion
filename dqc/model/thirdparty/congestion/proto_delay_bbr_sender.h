@@ -6,7 +6,6 @@
 #include "logging.h"
 namespace dqc{
 class RttStats;
-typedef uint64_t QuicRoundTripCount;
 // DelayBbrSender implements BBR congestion control algorithm.  BBR aims to estimate
 // the current available Bottleneck Bandwidth and RTT (hence the name), and
 // regulates the pacing rate and the size of the congestion window based on
@@ -70,7 +69,7 @@ class DelayBbrSender : public SendAlgorithmInterface {
 
   DelayBbrSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMapInfoInterface* unacked_packets,
+            const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
@@ -232,7 +231,7 @@ class DelayBbrSender : public SendAlgorithmInterface {
   void OnExitStartup(ProtoTime now);
 
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   Random* random_;
 
   Mode mode_;

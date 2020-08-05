@@ -24,7 +24,7 @@ void init_sock(tcp_sock *tcp){
 }
 LinuxSender::LinuxSender(ProtoTime now,
                      const RttStats* rtt_stats,
-                     const UnackedPacketMapInfoInterface* unacked_packets,
+                     const UnackedPacketMap* unacked_packets,
                      QuicPacketCount initial_tcp_congestion_window,
                      QuicPacketCount max_tcp_congestion_window,
                      Random* random)

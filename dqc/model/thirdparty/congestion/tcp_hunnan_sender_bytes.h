@@ -9,7 +9,6 @@
 #include "rtt_stats.h"
 #include "optional.h"
 namespace dqc{
-typedef uint64_t QuicRoundTripCount;
 class TcpHunnanSenderBytes : public SendAlgorithmInterface {
 public:
     enum Mode {
@@ -19,7 +18,7 @@ public:
     };
   TcpHunnanSenderBytes(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      const UnackedPacketMapInfoInterface* unacked_packets,
+                      const UnackedPacketMap* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats,Random* random);
@@ -104,7 +103,7 @@ private:
     const ProtoClock *clock_;
     PrrSender prr_;
     const RttStats* rtt_stats_;
-    const UnackedPacketMapInfoInterface* unacked_packets_;
+    const UnackedPacketMap* unacked_packets_;
     QuicConnectionStats* stats_;
     Random *random_;
     bool half_cwnd_on_loss_{true};

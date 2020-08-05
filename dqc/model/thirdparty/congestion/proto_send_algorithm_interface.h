@@ -4,17 +4,17 @@
 #include "proto_bandwidth.h"
 #include "proto_connection_stats.h"
 namespace dqc{
+typedef uint64_t QuicRoundTripCount;
 class RttStats;
 class Random;
 class UnackedPacketMap;
-class UnackedPacketMapInfoInterface;
 const QuicPacketCount kDefaultMaxCongestionWindowPackets = 2000;
 class SendAlgorithmInterface{
 public:
     static SendAlgorithmInterface* Create(
         const ProtoClock *clock,
         const RttStats *rtt_stats,
-        const UnackedPacketMapInfoInterface* unacked_packets,
+        const UnackedPacketMap* unacked_packets,
         CongestionControlType type,
         Random *random,
  		QuicConnectionStats* stats,

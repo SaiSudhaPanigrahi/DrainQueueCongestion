@@ -26,7 +26,7 @@ const uint32_t kNoiseFilterLen=4;
 LpTcpSender::LpTcpSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
-    const UnackedPacketMapInfoInterface* unacked_packets,
+    const UnackedPacketMap* unacked_packets,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats)

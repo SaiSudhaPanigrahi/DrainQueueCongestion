@@ -8,12 +8,11 @@
 #include "proto_time.h"
 #include "proto_bandwidth.h"
 #include "proto_windowed_filter.h"
+#include "proto_send_algorithm_interface.h"
 #include "logging.h"
 namespace dqc{
 #define NOTREACHED() DCHECK(false)
 #define QUIC_NOTREACHED() NOTREACHED()
-typedef uint64_t QuicRoundTripCount;
-
 template <typename T>
 class QUIC_EXPORT_PRIVATE Limits {
  public:

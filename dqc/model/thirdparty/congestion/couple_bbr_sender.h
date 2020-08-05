@@ -9,7 +9,6 @@ namespace dqc{
 class RttStats;
 //Implementation according to paper: Leveraging Coupled BBR and Adaptive Packet Scheduling to Boost MPTCP
 // https://arxiv.org/pdf/2002.06284.pdf
-typedef uint64_t QuicRoundTripCount;
 class CoupleBbrSender : public SendAlgorithmInterface {
  public:
   enum Mode {
@@ -64,7 +63,7 @@ class CoupleBbrSender : public SendAlgorithmInterface {
 
   CoupleBbrSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMapInfoInterface* unacked_packets,
+            const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
@@ -230,7 +229,7 @@ class CoupleBbrSender : public SendAlgorithmInterface {
   void CalculateAlphaPacingGain();
   bool ShouldBehaveFriendlyToSinglepath() const;
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   Random* random_;
 
   Mode mode_;

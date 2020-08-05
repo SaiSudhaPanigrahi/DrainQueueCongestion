@@ -8,7 +8,6 @@
 #include "proto_send_algorithm_interface.h"
 namespace dqc{
 class RttStats;
-typedef uint64_t QuicRoundTripCount;
 class CubicPlusSender : public SendAlgorithmInterface {
  public:
 	  enum Mode {
@@ -25,7 +24,7 @@ class CubicPlusSender : public SendAlgorithmInterface {
 	  };
   CubicPlusSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-					  const UnackedPacketMapInfoInterface* unacked_packets,
+					  const UnackedPacketMap* unacked_packets,
                       bool reno,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
@@ -142,7 +141,7 @@ class CubicPlusSender : public SendAlgorithmInterface {
      MaxAckHeightFilter;
  const RttStats* rtt_stats_;
  QuicConnectionStats* stats_;
- const UnackedPacketMapInfoInterface* unacked_packets_;
+ const UnackedPacketMap* unacked_packets_;
  Random* random_;
  Mode mode_;
  // Bandwidth sampler provides BBR with the bandwidth measurements at

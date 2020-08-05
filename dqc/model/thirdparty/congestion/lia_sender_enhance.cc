@@ -42,7 +42,7 @@ static inline uint64_t mptcp_ccc_scale(uint32_t val, int scale)
 LiaSenderEnhance::LiaSenderEnhance(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
-    const UnackedPacketMapInfoInterface* unacked_packets,
+    const UnackedPacketMap* unacked_packets,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats,bool loss_diff)

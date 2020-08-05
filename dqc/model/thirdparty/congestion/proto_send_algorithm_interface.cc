@@ -39,7 +39,7 @@ namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
         const RttStats *rtt_stats,
-        const UnackedPacketMapInfoInterface* unacked_packets,
+        const UnackedPacketMap* unacked_packets,
         CongestionControlType type,
         Random *random,
 		QuicConnectionStats* stats,

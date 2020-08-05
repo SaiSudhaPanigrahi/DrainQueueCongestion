@@ -37,7 +37,7 @@ const size_t kGainCycleLength=8;
 CubicPlusSender::CubicPlusSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
-	const UnackedPacketMapInfoInterface* unacked_packets,
+	const UnackedPacketMap* unacked_packets,
     bool reno,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,

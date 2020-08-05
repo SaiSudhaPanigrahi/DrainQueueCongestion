@@ -14,7 +14,7 @@ class CopaSender : public SendAlgorithmInterface {
 public:
   CopaSender(ProtoTime now,
             const RttStats* rtt_stats,
-            const UnackedPacketMapInfoInterface* unacked_packets,
+            const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_tcp_congestion_window,
             QuicPacketCount max_tcp_congestion_window,
             Random* random);
@@ -82,7 +82,7 @@ private:
   // Determines the appropriate pacing rate for the connection.
   void CalculatePacingRate();
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   Random* random_;
   // Track the largest packet that has been sent.
   QuicPacketNumber largest_sent_packet_number_;

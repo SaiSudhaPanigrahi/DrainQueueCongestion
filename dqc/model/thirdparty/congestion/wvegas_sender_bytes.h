@@ -8,7 +8,7 @@ class WvegasSender : public SendAlgorithmInterface {
  public:
   WvegasSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      const UnackedPacketMapInfoInterface* unacked_packets,
+                      const UnackedPacketMap* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
@@ -81,7 +81,7 @@ class WvegasSender : public SendAlgorithmInterface {
   void CalculateWvegasWeight();
  private:
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   QuicConnectionStats* stats_;
   // Number of connections to simulate.
   uint32_t num_connections_;

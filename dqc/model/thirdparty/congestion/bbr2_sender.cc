@@ -41,7 +41,7 @@ const int kMaxModeChangesPerCongestionEvent = 4;
 
 Bbr2Sender::Bbr2Sender(ProtoTime now,
                        const RttStats* rtt_stats,
-                       const UnackedPacketMapInfoInterface* unacked_packets,
+                       const UnackedPacketMap* unacked_packets,
                        QuicPacketCount initial_cwnd_in_packets,
                        QuicPacketCount max_cwnd_in_packets,
                        Random* random,

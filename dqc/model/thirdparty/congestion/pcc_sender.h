@@ -12,8 +12,6 @@
 #include "proto_types.h"
 #include "pcc_utility_manager.h"
 namespace dqc {
-
-
 class RttStats;
 enum UtilityFunctionVariant:uint8_t{
     kPccUtility,
@@ -84,7 +82,7 @@ class  PccSender
   };
 
   PccSender(const RttStats* rtt_stats,
-            const UnackedPacketMapInfoInterface* unacked_packets,
+            const UnackedPacketMap* unacked_packets,
             QuicPacketCount initial_congestion_window,
             QuicPacketCount max_congestion_window, Random* random,UtilityFunctionVariant fun_type=kPccUtility);
   PccSender(const PccSender&) = delete;
@@ -198,7 +196,7 @@ class  PccSender
   QuicByteCount max_cwnd_bytes_;
   QuicByteCount min_cwnd_bytes_;
   const RttStats* rtt_stats_;
-  const UnackedPacketMapInfoInterface* unacked_packets_;
+  const UnackedPacketMap* unacked_packets_;
   Random* random_;
 
   // Bandwidth sample provides the bandwidth measurement that is used when

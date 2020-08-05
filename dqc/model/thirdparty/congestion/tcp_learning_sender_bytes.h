@@ -8,7 +8,6 @@
 #include "proto_send_algorithm_interface.h"
 #include "rtt_stats.h"
 namespace dqc{
-typedef uint64_t QuicRoundTripCount;
 const size_t kActionTableSize=5;
 class ActionTrace{
 public:
@@ -55,7 +54,7 @@ public:
     };
   TcpLearningSenderBytes(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      const UnackedPacketMapInfoInterface* unacked_packets,
+                      const UnackedPacketMap* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats,Random* random,bool half);
@@ -143,7 +142,7 @@ private:
     const ProtoClock *clock_;
     PrrSender prr_;
     const RttStats* rtt_stats_;
-    const UnackedPacketMapInfoInterface* unacked_packets_;
+    const UnackedPacketMap* unacked_packets_;
     QuicConnectionStats* stats_;
     Random *random_;
     bool half_cwnd_on_loss_{false};
