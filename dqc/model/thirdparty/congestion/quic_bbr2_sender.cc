@@ -59,6 +59,7 @@ Bbr2Sender::Bbr2Sender(QuicTime now,
                        QuicPacketCount max_cwnd_in_packets,
                        Random* random,
                        QuicConnectionStats* stats,
+                       bool enable_ecn,
                        QuicBbrSender* old_sender)
     : mode_(Bbr2Mode::STARTUP),
       rtt_stats_(rtt_stats),
@@ -87,6 +88,7 @@ Bbr2Sender::Bbr2Sender(QuicTime now,
   QUIC_DVLOG(2) << this << " Initializing Bbr2Sender. mode:" << mode_
                 << ", PacingRate:" << pacing_rate_ << ", Cwnd:" << cwnd_
                 << ", CwndLimits:" << cwnd_limits() << "  @ " << now;
+  params_.enable_ecn=enable_ecn;
   DCHECK_EQ(mode_, Bbr2Mode::STARTUP);
 }
 
@@ -140,7 +142,9 @@ void Bbr2Sender::OnCongestionEvent(bool /*rtt_updated*/,
 
   model_.OnCongestionEventStart(event_time, acked_packets, lost_packets,
                                 &congestion_event);
-
+  if (congestion_event.end_of_round_trip&&params_.enable_ecn){
+      UpdateRoundTripAlpha();
+  }
   // Number of mode changes allowed for this congestion event.
   int mode_changes_allowed = kMaxModeChangesPerCongestionEvent;
   while (true) {
@@ -172,6 +176,9 @@ void Bbr2Sender::OnCongestionEvent(bool /*rtt_updated*/,
 
   model_.OnCongestionEventFinish(unacked_packets_->GetLeastUnacked(),
                                  congestion_event);
+  if (congestion_event.end_of_round_trip) {
+    bytes_ecn_in_round_=0;
+  }
   last_sample_is_app_limited_ = congestion_event.last_sample_is_app_limited;
   if (congestion_event.bytes_in_flight == 0 &&
       params().avoid_unnecessary_probe_rtt) {
@@ -306,7 +313,14 @@ void Bbr2Sender::OnApplicationLimited(QuicByteCount bytes_in_flight) {
                 << model_.last_sent_packet()
                 << ", CWND: " << GetCongestionWindow();
 }
-
+void Bbr2Sender::OnUpdateEcnBytes(uint64_t ecn_ce_count){
+    QuicByteCount previous=ecn_ce_count_;
+    if(ecn_ce_count>previous&&params_.enable_ecn){
+        ecn_ce_count_=ecn_ce_count;
+        bytes_ecn_in_round_+=(ecn_ce_count_-previous);
+        model_.OnEcnUpdate();
+    }
+}
 QuicByteCount Bbr2Sender::GetTargetBytesInflight() const {
   QuicByteCount bdp = model_.BDP(model_.BandwidthEstimate());
   return std::min(bdp, GetCongestionWindow());
@@ -371,7 +385,26 @@ bool Bbr2Sender::IsPipeSufficientlyFull() const {
   // possible to observe the same or more bandwidth if it's available.
   return bytes_in_flight >= GetTargetCongestionWindow(1.1);
 }
-
+void Bbr2Sender::UpdateRoundTripAlpha(){
+    uint32_t delivered_ce=uint32_t(ecn_ce_count_-alpha_last_delivered_ce_);
+    QuicByteCount total_bytes_sent=unacked_packets_->delivered();
+    uint32_t delivered=0;
+    if(total_bytes_sent>=alpha_last_delivered_){
+        delivered=total_bytes_sent-alpha_last_delivered_;
+    }
+    if(delivered==0){return;}
+	uint64_t ce_ratio = (uint64_t)delivered_ce << BBR_SCALE;
+	ce_ratio=ce_ratio/delivered;
+	uint32_t gain =params_.ecn_alpha_gain;
+	uint64_t alpha = ((BBR_UNIT - gain) * params_.ecn_alpha) >> BBR_SCALE;
+	alpha += (gain * ce_ratio) >> BBR_SCALE;
+	params_.ecn_alpha = std::min((uint32_t)alpha, (uint32_t)BBR_UNIT);
+    alpha_last_delivered_=total_bytes_sent;
+    alpha_last_delivered_ce_=ecn_ce_count_;
+    if(mode_==Bbr2Mode::STARTUP){
+        startup_.CheckEcnTooHigh(ce_ratio);
+    }
+}
 std::string Bbr2Sender::GetDebugState() const {
   std::ostringstream stream;
   stream << ExportDebugState();

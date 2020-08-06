@@ -62,7 +62,8 @@ QUIC_EXPORT_PRIVATE inline std::ostream& operator<<(std::ostream& os,
                                                     const QuicLimits<T>& limits) {
   return os << "[" << limits.Min() << ", " << limits.Max() << "]";
 }
-
+#define BBR_SCALE 8	/* scaling factor for fractions in BBR (e.g. gains) */
+#define BBR_UNIT (1 << BBR_SCALE)
 // Bbr2Params contains all parameters of a Bbr2Sender.
 struct QUIC_EXPORT_PRIVATE Bbr2Params {
   Bbr2Params(QuicByteCount cwnd_min, QuicByteCount cwnd_max);
@@ -182,6 +183,12 @@ struct QUIC_EXPORT_PRIVATE Bbr2Params {
 
   // Can be enabled by connection optoin 'B2HI'.
   bool limit_inflight_hi_by_cwnd = false;
+  bool enable_ecn{false};
+  uint32_t full_ecn_count{2};
+  uint32_t ecn_alpha_gain{BBR_UNIT * 1 / 16};//
+  uint32_t ecn_factor{BBR_UNIT * 1 / 3};//
+  uint32_t ecn_thresh{BBR_UNIT * 1 / 2};//
+  uint32_t ecn_alpha{BBR_UNIT};
 };
 
 class QUIC_EXPORT_PRIVATE RoundTripCounter {
@@ -336,7 +343,7 @@ class QUIC_EXPORT_PRIVATE Bbr2NetworkModel {
   void AdvanceMaxBandwidthFilter() { max_bandwidth_filter_.Advance(); }
 
   void OnApplicationLimited() { bandwidth_sampler_.OnAppLimited(); }
-
+  void OnEcnUpdate();
   QuicByteCount BDP(QuicBandwidth bandwidth) const {
     return bandwidth * MinRtt();
   }
@@ -392,7 +399,8 @@ class QUIC_EXPORT_PRIVATE Bbr2NetworkModel {
 
   // TODO(wub): Replace this by a new version which takes two thresholds, one
   // is the number of loss events, the other is the percentage of bytes lost.
-  bool IsInflightTooHigh(const Bbr2CongestionEvent& congestion_event) const;
+  bool IsInflightTooHigh(const Bbr2CongestionEvent& congestion_event,
+                         QuicByteCount delivered_ce) const;
 
   QuicPacketNumber last_sent_packet() const {
     return round_trip_counter_.last_sent_packet();
@@ -481,7 +489,7 @@ class QUIC_EXPORT_PRIVATE Bbr2NetworkModel {
 
   float cwnd_gain_;
   float pacing_gain_;
-
+  uint32_t ecn_in_round_=0;
   const bool improve_adjust_network_parameters_ =false;
      // GetQuicReloadableFlag(quic_bbr2_improve_adjust_network_parameters);
 };

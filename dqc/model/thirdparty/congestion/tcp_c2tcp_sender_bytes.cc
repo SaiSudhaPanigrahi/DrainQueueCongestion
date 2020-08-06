@@ -1,101 +1,115 @@
-#include "proto_dctcp_sender.h"
-#include "unacked_packet_map.h"
+#include "tcp_c2tcp_sender_bytes.h"
 #include "rtt_stats.h"
 #include "logging.h"
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <iostream>
+
 namespace dqc{
 
 namespace {
-const float kRenoBeta = 0.5f;
+// Maximum window to allow when doing bandwidth resumption.
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
+// Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
+const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
+// The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
+// fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
-const uint32_t dctcp_shift_g=4;
-#define DCTCP_MAX_ALPHA	1024U
-template<class T> 
-const T& min_not_zero(const T& x, const T& y)
+#define TCP_C2TCP_X_SCALE 100
+#define TCP_C2TCP_ALPHA_INIT 150
+#define DEFAULT_CODEL_LIMIT 1000
+#define REC_INV_SQRT_BITS (8 * sizeof(uint16_t))
+#define REC_INV_SQRT_SHIFT (32 - REC_INV_SQRT_BITS)
+uint16_t NewtonStep (uint16_t recInvSqrt, uint32_t count)
 {
-   T __x = (x);
-   T __y = (y);
-   return __x == 0 ? __y : ((__y == 0) ? __x : std::min(__x, __y));
+  uint32_t invsqrt = ((uint32_t) recInvSqrt) << REC_INV_SQRT_SHIFT;
+  uint32_t invsqrt2 = ((uint64_t) invsqrt * invsqrt) >> 32;
+  uint64_t val = (3ll << 32) - ((uint64_t) count * invsqrt2);
+
+  val >>= 2; /* avoid overflow */
+  val = (val * invsqrt) >> (32 - 2 + 1);
+  return static_cast<uint16_t>(val >> REC_INV_SQRT_SHIFT);
 }
+/* borrowed from the linux kernel */
+static inline uint32_t ReciprocalDivide (uint32_t A, uint32_t R)
+{
+  return (uint32_t)(((uint64_t)A * R) >> 32);
+}
+ uint32_t ControlLaw (uint32_t t, uint32_t interval, uint32_t recInvSqrt)
+{
+  return t + ReciprocalDivide (interval, recInvSqrt << REC_INV_SQRT_SHIFT);
+}
+
 }  // namespace
 
-ProtoDctcpSender::ProtoDctcpSender(
+TcpC2tcpSenderBytes::TcpC2tcpSenderBytes(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
-   const UnackedPacketMap* unacked_packets,
     QuicPacketCount initial_tcp_congestion_window,
     QuicPacketCount max_congestion_window,
     QuicConnectionStats* stats)
-    :rtt_stats_(rtt_stats),
-    unacked_packets_(unacked_packets),
-    stats_(stats),
-    num_connections_(kDefaultNumConnections),
-    min4_mode_(false),
-    last_cutback_exited_slowstart_(false),
-    slow_start_large_reduction_(false),
-    no_prr_(false),
-    num_acked_packets_(0),
-    congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
-    min_congestion_window_(kDefaultMinimumCongestionWindow),
-    max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
-    slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
-    initial_tcp_congestion_window_(initial_tcp_congestion_window *
-                                   kDefaultTCPMSS),
-    initial_max_tcp_congestion_window_(max_congestion_window *
-                                       kDefaultTCPMSS),
-    min_slow_start_exit_window_(min_congestion_window_){
-        alpha_=DCTCP_MAX_ALPHA;
-    }
+    : rtt_stats_(rtt_stats),
+      stats_(stats),
+      num_connections_(kDefaultNumConnections),
+      min4_mode_(false),
+      last_cutback_exited_slowstart_(false),
+      slow_start_large_reduction_(false),
+      no_prr_(false),
+      cubic_(clock),
+      num_acked_packets_(0),
+      congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
+      min_congestion_window_(kDefaultMinimumCongestionWindow),
+      max_congestion_window_(max_congestion_window * kDefaultTCPMSS),
+      slowstart_threshold_(max_congestion_window * kDefaultTCPMSS),
+      initial_tcp_congestion_window_(initial_tcp_congestion_window *
+                                     kDefaultTCPMSS),
+      initial_max_tcp_congestion_window_(max_congestion_window *
+                                         kDefaultTCPMSS),
+      min_slow_start_exit_window_(min_congestion_window_) {
+          c2tcp_alpha_=TCP_C2TCP_ALPHA_INIT;
+      }
 
-ProtoDctcpSender::~ProtoDctcpSender() {}
-void ProtoDctcpSender::AdjustNetworkParameters(
+TcpC2tcpSenderBytes::~TcpC2tcpSenderBytes() {}
+void TcpC2tcpSenderBytes::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
+  if (bandwidth.IsZero() || rtt.IsZero()) {
+    return;
+  }
+
+  SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
-float ProtoDctcpSender::RenoBeta() const {
-  // kNConnectionBeta is the backoff factor after loss for our N-connection
-  // emulation, which emulates the effective backoff of an ensemble of N
-  // TCP-Reno connections on a single loss event. The effective multiplier is
-  // computed as:
+
+float TcpC2tcpSenderBytes::RenoBeta() const {
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
-void ProtoDctcpSender::OnCongestionEvent(
+
+void TcpC2tcpSenderBytes::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
     const AckedPacketVector& acked_packets,
     const LostPacketVector& lost_packets) {
-    if (rtt_updated && InSlowStart() &&
-        hybrid_slow_start_.ShouldExitSlowStart(
-        rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
-        GetCongestionWindow() / kDefaultTCPMSS)){
-        ExitSlowstart();
+  if (rtt_updated && InSlowStart() &&
+      hybrid_slow_start_.ShouldExitSlowStart(
+          rtt_stats_->latest_rtt(), rtt_stats_->min_rtt(),
+          GetCongestionWindow() / kDefaultTCPMSS)) {
+    ExitSlowstart();
   }
-
-    QuicPacketNumber last_acked_packet = acked_packets.rbegin()->packet_number;
-    UpdateRoundTripAlpha(last_acked_packet);
-  
   for (const LostPacket& lost_packet : lost_packets) {
     OnPacketLost(lost_packet.packet_number, lost_packet.bytes_lost,
                  prior_in_flight);
   }
-  if(enc_ece_rcvd_){
-      OnReduceCongstionWindow(last_acked_packet,prior_in_flight);
-      enc_ece_rcvd_=false;
-  }
   for (const AckedPacket acked_packet : acked_packets) {
+    C2TcpPacketAcked(event_time,acked_packet.packet_number,prior_in_flight);
     OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
                   prior_in_flight, event_time);
   }
 }
 
-void ProtoDctcpSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void TcpC2tcpSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
@@ -114,7 +128,7 @@ void ProtoDctcpSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
   }
 }
 
-void ProtoDctcpSender::OnPacketSent(
+void TcpC2tcpSenderBytes::OnPacketSent(
     ProtoTime /*sent_time*/,
     QuicByteCount /*bytes_in_flight*/,
     QuicPacketNumber packet_number,
@@ -123,7 +137,7 @@ void ProtoDctcpSender::OnPacketSent(
   if (InSlowStart()) {
     ++(stats_->slowstart_packets_sent);
   }
-  last_sent_packet_ = packet_number;
+
   if (is_retransmittable != HAS_RETRANSMITTABLE_DATA) {
     return;
   }
@@ -137,7 +151,7 @@ void ProtoDctcpSender::OnPacketSent(
   hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
-bool ProtoDctcpSender::CanSend(QuicByteCount bytes_in_flight) {
+bool TcpC2tcpSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -152,15 +166,18 @@ bool ProtoDctcpSender::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth ProtoDctcpSender::PacingRate(
+QuicBandwidth TcpC2tcpSenderBytes::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
+  // We pace at twice the rate of the underlying sender's bandwidth estimate
+  // during slow start and 1.25x during congestion avoidance to ensure pacing
+  // doesn't prevent us from filling the window.
   TimeDelta srtt = rtt_stats_->SmoothedOrInitialRtt();
   const QuicBandwidth bandwidth =
       QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
   return bandwidth * (InSlowStart() ? 2 : (no_prr_ && InRecovery() ? 1 : 1.25));
 }
 
-QuicBandwidth ProtoDctcpSender::BandwidthEstimate() const {
+QuicBandwidth TcpC2tcpSenderBytes::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if (srtt.IsZero()) {
     // If we haven't measured an rtt, the bandwidth estimate is unknown.
@@ -169,11 +186,11 @@ QuicBandwidth ProtoDctcpSender::BandwidthEstimate() const {
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
 
-bool ProtoDctcpSender::InSlowStart() const {
+bool TcpC2tcpSenderBytes::InSlowStart() const {
   return GetCongestionWindow() < GetSlowStartThreshold();
 }
 
-bool ProtoDctcpSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool TcpC2tcpSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -184,17 +201,17 @@ bool ProtoDctcpSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool ProtoDctcpSender::InRecovery() const {
+bool TcpC2tcpSenderBytes::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool ProtoDctcpSender::ShouldSendProbingPacket() const {
+bool TcpC2tcpSenderBytes::ShouldSendProbingPacket() const {
   return false;
 }
 
-void ProtoDctcpSender::OnRetransmissionTimeout(bool packets_retransmitted) {
+void TcpC2tcpSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -203,37 +220,43 @@ void ProtoDctcpSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   HandleRetransmissionTimeout();
 }
 
-std::string ProtoDctcpSender::GetDebugState() const {
+std::string TcpC2tcpSenderBytes::GetDebugState() const {
   return "";
 }
 
-void ProtoDctcpSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
-void ProtoDctcpSender::OnUpdateEcnBytes(uint64_t ecn_ce_count){
-    QuicByteCount temp=ecn_ce_count_;
-    ecn_ce_count_=ecn_ce_count;
-    if(temp!=ecn_ce_count_){
-        enc_ece_rcvd_=true;
-    }
+void TcpC2tcpSenderBytes::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+
+void TcpC2tcpSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
+    QuicBandwidth bandwidth,
+    TimeDelta rtt) {
+  QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
+  // Limit new CWND if needed.
+  congestion_window_ =
+      std::max(min_congestion_window_,
+               std::min(new_congestion_window,
+                        kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
-void ProtoDctcpSender::SetInitialCongestionWindowInPackets(
+
+void TcpC2tcpSenderBytes::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void ProtoDctcpSender::SetMinCongestionWindowInPackets(
+void TcpC2tcpSenderBytes::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void ProtoDctcpSender::SetNumEmulatedConnections(int num_connections) {
+void TcpC2tcpSenderBytes::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
+  cubic_.SetNumConnections(num_connections_);
 }
 
-void ProtoDctcpSender::ExitSlowstart() {
+void TcpC2tcpSenderBytes::ExitSlowstart() {
   slowstart_threshold_ = congestion_window_;
 }
 
-void ProtoDctcpSender::OnPacketLost(QuicPacketNumber packet_number,
+void TcpC2tcpSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -271,72 +294,28 @@ void ProtoDctcpSender::OnPacketLost(QuicPacketNumber packet_number,
       min_slow_start_exit_window_ = congestion_window_ / 2;
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
-  } else{
-        congestion_window_ = congestion_window_ * RenoBeta();
+  } else {
+    congestion_window_ =
+        cubic_.CongestionWindowAfterPacketLoss(congestion_window_);
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
   }
   slowstart_threshold_ = congestion_window_;
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
-  num_acked_packets_ = 0;
-  DLOG(INFO)<< "Incoming loss; congestion window: " << congestion_window_
-                << " slowstart threshold: " << slowstart_threshold_;
 }
-void ProtoDctcpSender::OnReduceCongstionWindow(QuicPacketNumber packet_number,
-                                QuicByteCount prior_in_flight){
-  QuicByteCount lost_bytes=0;
-  if (largest_sent_at_last_cutback_.IsInitialized() &&
-      packet_number <= largest_sent_at_last_cutback_) {
-    if (last_cutback_exited_slowstart_) {
-      ++stats_->slowstart_packets_lost;
-      stats_->slowstart_bytes_lost += lost_bytes;
-      if (slow_start_large_reduction_) {
-        // Reduce congestion window by lost_bytes for every loss.
-        congestion_window_ = std::max(congestion_window_ - lost_bytes,
-                                      min_slow_start_exit_window_);
-        slowstart_threshold_ = congestion_window_;
-      }
-    }
-    /*QUIC_DVLOG(1)*/DLOG(INFO)<< "Ignoring loss for largest_missing:" << packet_number
-                  << " because it was sent prior to the last CWND cutback.";
-    return;
-  }
-  last_cutback_exited_slowstart_ = InSlowStart();
-  if (!no_prr_) {
-    prr_.OnPacketLost(prior_in_flight);
-  }
 
-  // TODO(b/77268641): Separate out all of slow start into a separate class.
-  if (slow_start_large_reduction_ && InSlowStart()) {
-    DCHECK_LT(kDefaultTCPMSS, congestion_window_);
-    if (congestion_window_ >= 2 * initial_tcp_congestion_window_) {
-      min_slow_start_exit_window_ = congestion_window_ / 2;
-    }
-    congestion_window_ = congestion_window_ - kDefaultTCPMSS;
-  } else{
-    //DCTCP Method
-    QuicByteCount temp=congestion_window_-((congestion_window_*alpha_)>>11U);
-    congestion_window_ =temp;
-  }
-  if (congestion_window_ < min_congestion_window_) {
-    congestion_window_ = min_congestion_window_;
-  }
-  slowstart_threshold_ = congestion_window_;
-  largest_sent_at_last_cutback_ = largest_sent_packet_number_;
-  num_acked_packets_ = 0;    
-}
-QuicByteCount ProtoDctcpSender::GetCongestionWindow() const {
+QuicByteCount TcpC2tcpSenderBytes::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount ProtoDctcpSender::GetSlowStartThreshold() const {
+QuicByteCount TcpC2tcpSenderBytes::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void ProtoDctcpSender::MaybeIncreaseCwnd(
+void TcpC2tcpSenderBytes::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -345,6 +324,7 @@ void ProtoDctcpSender::MaybeIncreaseCwnd(
   // Do not increase the congestion window unless the sender is close to using
   // the current window.
   if (!IsCwndLimited(prior_in_flight)) {
+    cubic_.OnApplicationLimited();
     return;
   }
   if (congestion_window_ >= max_congestion_window_) {
@@ -358,61 +338,72 @@ void ProtoDctcpSender::MaybeIncreaseCwnd(
     return;
   }
   // Congestion avoidance.
-  if (true) {
-    // Classic Reno congestion avoidance.
-    ++num_acked_packets_;
-    // Divide by num_connections to smoothly increase the CWND at a faster rate
-    // than conventional Reno.
-    if (num_acked_packets_ * num_connections_ >=
-        congestion_window_ / kDefaultTCPMSS) {
-      congestion_window_ += kDefaultTCPMSS;
-      num_acked_packets_ = 0;
-    }
-
-    /*QUIC_DVLOG(1) */DLOG(INFO)<< "Reno; congestion window: " << congestion_window_
-                  << " slowstart threshold: " << slowstart_threshold_
-                  << " congestion window count: " << num_acked_packets_;
-  }
+    congestion_window_ = std::min(
+        max_congestion_window_,
+        cubic_.CongestionWindowAfterAck(acked_bytes, congestion_window_,
+                                        rtt_stats_->min_rtt(), event_time));
 }
 
-void ProtoDctcpSender::HandleRetransmissionTimeout() {
+void TcpC2tcpSenderBytes::HandleRetransmissionTimeout() {
+  cubic_.ResetCubicState();
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
-void ProtoDctcpSender::UpdateRoundTripAlpha(QuicPacketNumber last_acked_packet){
-  if (!current_round_trip_end_.IsInitialized()||
-      last_acked_packet > current_round_trip_end_) {
-    uint32_t delivered_ce=uint32_t(ecn_ce_count_-old_ce_count_);
-    uint32_t alpha=alpha_;
-    alpha -= min_not_zero(alpha, alpha >> dctcp_shift_g);
-    QuicByteCount total_bytes_sent=unacked_packets_->delivered();
-    uint32_t delivered=uint32_t(total_bytes_sent-old_bytes_sent_);
-    if(delivered_ce){
-        delivered_ce <<= (10 - dctcp_shift_g);
-        delivered_ce /= std::max(1U, delivered);
-        alpha = std::min(alpha + delivered_ce, DCTCP_MAX_ALPHA);
-        
-    }
-    alpha_=alpha;
-    old_bytes_sent_=total_bytes_sent;
-    old_ce_count_=ecn_ce_count_;
-    current_round_trip_end_ = last_sent_packet_;
-  }
-}
-void ProtoDctcpSender::OnConnectionMigration() {
+
+void TcpC2tcpSenderBytes::OnConnectionMigration() {
   hybrid_slow_start_.Restart();
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
   largest_acked_packet_number_.Clear();
   largest_sent_at_last_cutback_.Clear();
   last_cutback_exited_slowstart_ = false;
+  cubic_.ResetCubicState();
   num_acked_packets_ = 0;
   congestion_window_ = initial_tcp_congestion_window_;
   max_congestion_window_ = initial_max_tcp_congestion_window_;
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType ProtoDctcpSender::GetCongestionControlType() const {
-  return kDctcp;
+CongestionControlType TcpC2tcpSenderBytes::GetCongestionControlType() const {
+  return  kC2TcpBytes;
+}
+void TcpC2tcpSenderBytes::C2TcpPacketAcked(ProtoTime event_time,
+                    QuicPacketNumber packet_number,
+                    QuicByteCount prior_in_flight){
+    uint64_t rtt_us=rtt_stats_->latest_rtt().ToMicroseconds();
+    if(rtt_us==0){return;}
+    if(c2tcp_min_urtt_==0||c2tcp_min_urtt_>rtt_us){
+        c2tcp_min_urtt_=rtt_us;
+    }
+    uint32_t min_rtt_ms=c2tcp_min_urtt_/1000;
+    uint32_t interval,set_point;
+    set_point=min_rtt_ms*c2tcp_alpha_/TCP_C2TCP_X_SCALE;
+    interval=set_point;
+    uint32_t now=(event_time-ProtoTime::Zero()).ToMilliseconds();
+    uint32_t rtt_ms=rtt_us/1000;
+    if(set_point>rtt_ms){
+        first_above_time_=0;
+        N_=1;
+        uint32_t temp=set_point/rtt_ms;
+        num_acked_packets_+=temp;
+        if(num_acked_packets_>=congestion_window_ / kDefaultTCPMSS){
+            congestion_window_ += kDefaultTCPMSS;
+            num_acked_packets_=0;
+            congestion_window_=std::min(congestion_window_,max_congestion_window_);
+        }
+    }else if(first_above_time_==0){
+        first_above_time_=now+interval;
+        next_time_=first_above_time_;
+        N_=1;
+        rec_inv_sqrt_=~0U >> REC_INV_SQRT_SHIFT;
+        rec_inv_sqrt_=NewtonStep(rec_inv_sqrt_,N_);
+    }else if(now>next_time_){
+        next_time_=ControlLaw(now,interval,rec_inv_sqrt_);
+        N_+=1;
+        rec_inv_sqrt_=NewtonStep(rec_inv_sqrt_,N_);
+        OnPacketLost(packet_number,0,prior_in_flight);
+        //TO Test, tp->snd_cwnd = 1;
+        num_acked_packets_=0;
+    }
 }
 }

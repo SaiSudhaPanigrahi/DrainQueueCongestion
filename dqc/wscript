@@ -83,6 +83,7 @@ def build(bld):
     'model/thirdparty/congestion/quic_bbr2_probe_rtt.cc',
     'model/thirdparty/congestion/quic_bbr2_sender.cc',
     'model/thirdparty/congestion/quic_bbr2_startup.cc',
+    'model/thirdparty/congestion/tcp_c2tcp_sender_bytes.cc',
     'model/thirdparty/congestion/tcp_cubic_sender_bytes.cc',
     'model/thirdparty/congestion/tcp_elastic_sender_bytes.cc',
     'model/thirdparty/congestion/tcp_hunnan_sender_bytes.cc',

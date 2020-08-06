@@ -33,6 +33,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
              QuicPacketCount max_cwnd_in_packets,
              Random* random,
              QuicConnectionStats* stats,
+             bool enable_ecn=false,
              QuicBbrSender* old_sender=nullptr);
 
   ~Bbr2Sender() override = default;
@@ -96,7 +97,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
   std::string GetDebugState() const override;
 
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
-
+  void OnUpdateEcnBytes(uint64_t ecn_ce_count) override;
   //void PopulateConnectionStats(QuicConnectionStats* stats) const override;
   // End implementation of SendAlgorithmInterface.
 
@@ -112,7 +113,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
   bool IsBandwidthOverestimateAvoidanceEnabled() const {
     return model_.IsBandwidthOverestimateAvoidanceEnabled();
   }
-
+  QuicByteCount GetBytesEcnInRounds() const{return bytes_ecn_in_round_;}
   struct QUIC_EXPORT_PRIVATE DebugState {
     Bbr2Mode mode;
 
@@ -173,7 +174,7 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
   const QuicLimits<QuicByteCount>& cwnd_limits() const;
 
   const Bbr2Params& params() const { return params_; }
-
+  void UpdateRoundTripAlpha();
   Bbr2Mode mode_;
 
   const RttStats* const rtt_stats_;
@@ -202,7 +203,11 @@ class QUIC_EXPORT_PRIVATE Bbr2Sender final : public SendAlgorithmInterface {
 
   // Debug only.
   bool last_sample_is_app_limited_;
-
+  
+  QuicByteCount ecn_ce_count_{0};
+  QuicByteCount alpha_last_delivered_{0};
+  QuicByteCount alpha_last_delivered_ce_{0};
+  QuicByteCount bytes_ecn_in_round_{0};
   friend class Bbr2StartupMode;
   friend class Bbr2DrainMode;
   friend class Bbr2ProbeBwMode;

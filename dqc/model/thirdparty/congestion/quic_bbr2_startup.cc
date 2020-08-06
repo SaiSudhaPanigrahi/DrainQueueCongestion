@@ -82,7 +82,21 @@ void Bbr2StartupMode::CheckFullBandwidthReached(
                 << " full_bw_reached:" << full_bandwidth_reached_ << "  @ "
                 << congestion_event.event_time;
 }
-
+void Bbr2StartupMode::CheckEcnTooHigh(uint32_t ce_ratio){
+    if(full_bandwidth_reached_||!Params().enable_ecn){
+        return;
+    }
+    if(ce_ratio>=Params().ecn_thresh){
+        rounds_ecn_++;
+    }else{
+        rounds_ecn_=0;
+    }
+    if(rounds_ecn_>=Params().full_ecn_count){
+        const QuicByteCount bdp = model_->BDP(model_->MaxBandwidth());
+        model_->set_inflight_hi(bdp);
+        full_bandwidth_reached_ = true;
+    }
+}
 void Bbr2StartupMode::CheckExcessiveLosses(
     const Bbr2CongestionEvent& congestion_event) {
   if (full_bandwidth_reached_) {
@@ -107,7 +121,7 @@ void Bbr2StartupMode::CheckExcessiveLosses(
 
   // At the end of a round trip. Check if loss is too high in this round.
   if (loss_events_in_round >= Params().startup_full_loss_count &&
-      model_->IsInflightTooHigh(congestion_event)) {
+      model_->IsInflightTooHigh(congestion_event,sender_->GetBytesEcnInRounds())) {
     const QuicByteCount bdp = model_->BDP(model_->MaxBandwidth());
     QUIC_DVLOG(3) << sender_
                   << " Exiting STARTUP due to loss. inflight_hi:" << bdp;

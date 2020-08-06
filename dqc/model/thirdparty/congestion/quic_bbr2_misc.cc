@@ -10,6 +10,9 @@
 #include "flag_impl.h"
 #include "flag_util_impl.h"
 namespace dqc {
+namespace{
+    const uint32_t kEcnAlphaInit=BBR_UNIT;	/* 1.0, to respond quickly */
+}
 Bbr2Params::Bbr2Params(QuicByteCount cwnd_min, QuicByteCount cwnd_max)
 :cwnd_limits(cwnd_min, cwnd_max) {
     avoid_too_low_probe_bw_cwnd=GetQuicReloadableFlag(quic_bbr2_avoid_too_low_probe_bw_cwnd);
@@ -182,6 +185,19 @@ void Bbr2NetworkModel::AdaptLowerBounds(
     return;
   }
 
+    QuicByteCount ecn_inflight_lo=inflight_lo_default();
+	/* ECN response. */
+   if(Params().enable_ecn&&ecn_in_round_){
+       uint32_t ecn_cut=(BBR_UNIT -
+			   ((Params().ecn_alpha * Params().ecn_factor) >>
+			    BBR_SCALE));
+    if (inflight_lo_ == inflight_lo_default()) {
+      inflight_lo_ = congestion_event.prior_cwnd;
+    }
+    ecn_inflight_lo=(QuicByteCount)inflight_lo_*ecn_cut>>BBR_SCALE;
+    CHECK(ecn_inflight_lo>0);
+   }
+
   if (bytes_lost_in_round_ > 0) {
     if (bandwidth_lo_.IsInfinite()) {
       bandwidth_lo_ = MaxBandwidth();
@@ -200,14 +216,20 @@ void Bbr2NetworkModel::AdaptLowerBounds(
     inflight_lo_ = std::max<QuicByteCount>(
         inflight_latest_, inflight_lo_ * (1.0 - Params().beta));
   }
+  if(Params().enable_ecn&&ecn_in_round_){
+      inflight_lo_=std::min(inflight_lo_,ecn_inflight_lo);
+  }
 }
-
+void Bbr2NetworkModel::OnEcnUpdate(){
+    ecn_in_round_|=1;
+}
 void Bbr2NetworkModel::OnCongestionEventFinish(
     QuicPacketNumber least_unacked_packet,
     const Bbr2CongestionEvent& congestion_event) {
   if (congestion_event.end_of_round_trip) {
     bytes_lost_in_round_ = 0;
     loss_events_in_round_ = 0;
+    ecn_in_round_=0;
   }
 
   bandwidth_sampler_.RemoveObsoletePackets(least_unacked_packet);
@@ -250,8 +272,8 @@ bool Bbr2NetworkModel::IsCongestionWindowLimited(
   return prior_bytes_in_flight >= congestion_event.prior_cwnd;
 }
 
-bool Bbr2NetworkModel::IsInflightTooHigh(
-    const Bbr2CongestionEvent& congestion_event) const {
+bool Bbr2NetworkModel::IsInflightTooHigh(const Bbr2CongestionEvent& congestion_event,
+                                        QuicByteCount delivered_ce) const {
   const QuicSendTimeState& send_state = congestion_event.last_packet_send_state;
   if (!send_state.is_valid) {
     // Not enough information.
@@ -275,7 +297,18 @@ bool Bbr2NetworkModel::IsInflightTooHigh(
       return true;
     }
   }
-
+  //add by zsy for ecn marking
+  if(Params().enable_ecn){
+    //not quite accurate
+    QuicByteCount delivered=total_bytes_acked()-send_state.total_bytes_acked;
+    CHECK(delivered);
+    QuicByteCount ecn_in_round_threshold=delivered*Params().ecn_thresh>>BBR_SCALE;
+    if(delivered_ce>=ecn_in_round_threshold){
+        return true;
+    }
+  }
+  
+  
   return false;
 }
 

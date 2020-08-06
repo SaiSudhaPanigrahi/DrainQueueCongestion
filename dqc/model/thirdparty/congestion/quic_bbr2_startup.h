@@ -44,7 +44,7 @@ class QUIC_EXPORT_PRIVATE Bbr2StartupMode final : public Bbr2ModeBase {
                             QuicTime /*quiescence_start_time*/) override {
     return Bbr2Mode::STARTUP;
   }
-
+  void CheckEcnTooHigh(uint32_t ce_ratio);
   bool FullBandwidthReached() const { return full_bandwidth_reached_; }
 
   struct QUIC_EXPORT_PRIVATE DebugState {
@@ -65,6 +65,7 @@ class QUIC_EXPORT_PRIVATE Bbr2StartupMode final : public Bbr2ModeBase {
   bool full_bandwidth_reached_;
   QuicBandwidth full_bandwidth_baseline_;
   QuicRoundTripCount rounds_without_bandwidth_growth_;
+  QuicRoundTripCount rounds_ecn_{0};
 };
 
 QUIC_EXPORT_PRIVATE std::ostream& operator<<(

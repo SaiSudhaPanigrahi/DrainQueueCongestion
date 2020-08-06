@@ -2,10 +2,11 @@
 Congestion control algorithms evaluation on ns3  
 code is referenced from quic protocol for simulation purpose.   
 Implemented congestion control algorithms:  
-- [x] Reno cubic veno elastic  
+- [x] Reno cubic veno westwood c2tcp elastic  
 - [x] vegas tcp-lp copa  
-- [x] BBR PCC  
+- [x] BBR PCC BBRv2(ecn)  
 - [x] DCTCP(ecn)  
+
 
 Supported multipath congstion control algorithms:  
 - [x] lia wvegas olia balia  
