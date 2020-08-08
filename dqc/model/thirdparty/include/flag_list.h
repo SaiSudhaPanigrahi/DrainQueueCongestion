@@ -90,3 +90,5 @@ PROTO_FLAG(double, FLAGS_quic_bbr2_default_loss_threshold, 0.02)
 PROTO_FLAG(bool,
           FLAGS_quic_reloadable_flag_quic_bbr2_avoid_too_low_probe_bw_cwnd,
           false)
+PROTO_FLAG(float,
+          FLAGS_quic_reloadable_flag_reno_beta,0.7)

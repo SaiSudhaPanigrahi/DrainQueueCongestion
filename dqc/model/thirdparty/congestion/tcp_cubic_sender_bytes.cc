@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-
+#include "flag_impl.h"
 namespace dqc{
 
 namespace {
@@ -12,7 +12,6 @@ namespace {
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 // Constants based on TCP defaults.
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
-const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
 // fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
@@ -43,59 +42,11 @@ TcpCubicSenderBytes::TcpCubicSenderBytes(
                                      kDefaultTCPMSS),
       initial_max_tcp_congestion_window_(max_congestion_window *
                                          kDefaultTCPMSS),
-      min_slow_start_exit_window_(min_congestion_window_) {}
+      min_slow_start_exit_window_(min_congestion_window_),
+      reno_beta_(GetQuicReloadableFlag(reno_beta)) {
+     }
 
 TcpCubicSenderBytes::~TcpCubicSenderBytes() {}
-
-/*void TcpCubicSenderBytes::SetFromConfig(const QuicConfig& config,
-                                        Perspective perspective) {
-  if (perspective == Perspective::IS_SERVER) {
-    if (!GetQuicReloadableFlag(quic_unified_iw_options)) {
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW03)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(3);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW10)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(10);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW20)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(20);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kIW50)) {
-        // Initial window experiment.
-        SetInitialCongestionWindowInPackets(50);
-      }
-      if (config.HasReceivedConnectionOptions() &&
-          ContainsQuicTag(config.ReceivedConnectionOptions(), kMIN1)) {
-        // Min CWND experiment.
-        SetMinCongestionWindowInPackets(1);
-      }
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kMIN4)) {
-      // Min CWND of 4 experiment.
-      min4_mode_ = true;
-      SetMinCongestionWindowInPackets(1);
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kSSLR)) {
-      // Slow Start Fast Exit experiment.
-      slow_start_large_reduction_ = true;
-    }
-    if (config.HasReceivedConnectionOptions() &&
-        ContainsQuicTag(config.ReceivedConnectionOptions(), kNPRR)) {
-      // Use unity pacing instead of PRR.
-      no_prr_ = true;
-    }
-  }
-}
-*/
 void TcpCubicSenderBytes::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
@@ -112,7 +63,7 @@ float TcpCubicSenderBytes::RenoBeta() const {
   // emulation, which emulates the effective backoff of an ensemble of N
   // TCP-Reno connections on a single loss event. The effective multiplier is
   // computed as:
-  return (num_connections_ - 1 + kRenoBeta) / num_connections_;
+  return (num_connections_ - 1 + reno_beta_) / num_connections_;
 }
 
 void TcpCubicSenderBytes::OnCongestionEvent(

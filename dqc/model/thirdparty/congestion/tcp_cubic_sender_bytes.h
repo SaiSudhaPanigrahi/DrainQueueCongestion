@@ -141,5 +141,6 @@ class TcpCubicSenderBytes : public SendAlgorithmInterface {
 
   // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
+  float reno_beta_;
 };
 }

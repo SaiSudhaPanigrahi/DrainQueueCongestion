@@ -22,6 +22,9 @@ inline  int32_t GetFlagImpl(int32_t flag){
 inline double GetFlagImpl(double flag) {
   return flag;
 }
+inline float GetFlagImpl(float flag) {
+  return flag;
+}
 inline std::string GetFlagImpl(const std::string& flag) {
   return flag;
 }
@@ -33,6 +36,7 @@ inline std::string GetFlagImpl(const std::string& flag) {
 #define RESTART_FLAG(flag) FLAGS_quic_restart_flag_##flag
 
 #define GetQuicFlag(flag) GetFlagImpl(flag)
+#define SetQuicFlag(flag,value) SetFlagImpl(flag,value)
 
 #define GetQuicReloadableFlagImpl(flag) GetFlagImpl(RELOADABLE_FLAG(flag))
 #define SetQuicReloadableFlagImpl(flag, value) \

@@ -16,12 +16,20 @@ namespace ns3{
 class DqcReceiver:public Application,
 public dqc::ProtoFrameVisitor{
 public:
-    DqcReceiver();
-    ~DqcReceiver(){}
+    DqcReceiver(uint32_t goodput_granularity=1000);
+    ~DqcReceiver();
 	typedef Callback<void,uint32_t,uint32_t,uint32_t> TraceOwd;
 	void SetOwdTraceFuc(TraceOwd cb){
 		m_traceOwdCb=cb;
 	}
+	typedef Callback<void,uint64_t,uint64_t,uint64_t,uint64_t,float> TraceStats;
+	void SetStatsTraceFuc(TraceStats cb){
+		m_traceStatsCb=cb;
+	}
+    typedef Callback<void,uint32_t> TraceGoodput;
+    void SetGoodputTraceFuc(TraceGoodput cb){
+        m_traceGoodputCb=cb;
+    }
 	void Bind(uint16_t port);
 	InetSocketAddress GetLocalAddress();
     bool OnStreamFrame(dqc::PacketStream &frame) override;
@@ -45,6 +53,8 @@ private:
 	void RecvPacket(Ptr<Socket> socket);
     void RecvEcnCallback(uint8_t ecn);
 	void SendToNetwork(Ptr<Packet> p);
+    void CalGoodput(uint32_t now);
+    uint32_t m_goodputGra=1000;
 	bool m_running{true};
     bool m_knowPeer{false};   
     Ipv4Address m_peerIp;
@@ -59,6 +69,15 @@ private:
     dqc::ProtoFramer m_frameEncoder;
     IntervalSet<dqc::StreamOffset> m_recvInterval;
 	TraceOwd m_traceOwdCb;
+    TraceStats m_traceStatsCb;
+    TraceGoodput m_traceGoodputCb;
     bool m_ecn_flag{false};
+    uint64_t m_recvCounter=0;
+    uint64_t m_recvBytes=0;
+    uint64_t m_timeFirstPacket=0;
+    uint32_t m_timeLastPacket=0;
+    uint64_t m_sumOwd=0;
+    uint32_t m_lastCalGoodTime=0;
+    uint32_t m_lastGoodRecv=0;
 };    
 }

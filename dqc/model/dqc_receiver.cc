@@ -16,11 +16,24 @@ public:
 private:
 	DqcReceiver *receiver_{nullptr};
 };*/
-DqcReceiver::DqcReceiver()
+
+DqcReceiver::DqcReceiver(uint32_t goodput_granularity)
 {
 	m_recvManager.set_save_timestamps(true);
 	m_frameEncoder.set_process_timestamps(true);
 	m_frameDecoder.set_visitor(this);
+    m_goodputGra=goodput_granularity;
+}
+DqcReceiver::~DqcReceiver(){
+    if(!m_traceStatsCb.IsNull()){
+        uint64_t duration=m_timeLastPacket-m_timeFirstPacket;
+        double average_owd=0.0;
+        if(m_recvCounter)
+            average_owd=1.0*m_sumOwd/m_recvCounter;
+        m_traceStatsCb(m_recvCounter,m_largestSeq.ToUint64(),
+                       m_recvBytes,duration,
+                       (float)average_owd);
+    }	
 }
 void DqcReceiver::Bind(uint16_t port){
     if (m_socket== NULL) {
@@ -79,9 +92,6 @@ void DqcReceiver::StartApplication(){
 }
 void DqcReceiver::StopApplication(){
 	m_running=false;
-	if(!m_traceOwdCb.IsNull()){
-		//m_traceOwdCb((uint32_t)m_largestSeq.ToUint64(),0,0);
-	}	
 }
 void DqcReceiver::SendAckFrame(){
     ProtoTime now=m_clock.Now();
@@ -106,10 +116,21 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
 		m_knowPeer=true;
 	}
 	ProtoTime now=m_clock.Now();
+    uint32_t now_ms=Simulator::Now().GetMilliSeconds();
 	uint32_t recv=packet->GetSize ();
 	TimeTag tag;
 	packet->PeekPacketTag (tag);
-	uint32_t owd=Simulator::Now().GetMilliSeconds()-tag.GetSentTime();
+	uint32_t owd=now_ms-tag.GetSentTime();
+    m_recvBytes+=recv;
+    m_sumOwd+=owd;
+    m_recvCounter++;
+
+    if(m_lastCalGoodTime==0||now_ms-m_lastCalGoodTime>=m_goodputGra){
+        CalGoodput(now_ms);
+        m_lastGoodRecv=m_recvBytes;
+        m_lastCalGoodTime=now_ms;
+    }
+    
 	uint8_t buf[1500]={'\0'};
 	packet->CopyData(buf,recv);
     basic::DataReader r((char*)buf,recv);
@@ -120,11 +141,13 @@ void DqcReceiver::RecvPacket(Ptr<Socket> socket){
     m_frameDecoder.ProcessFrameData(&r,header);
 	if(!m_largestSeq.IsInitialized()){
 		m_largestSeq=seq;
+        m_timeFirstPacket=now_ms;
 	}else{
 		if(seq>m_largestSeq){
 			m_largestSeq=seq;
 		}
 	}
+    m_timeLastPacket=now_ms;
 	if(!m_traceOwdCb.IsNull()){
 		m_traceOwdCb((uint32_t)seq.ToUint64(),owd,recv);
 	}
@@ -142,5 +165,21 @@ void DqcReceiver::RecvEcnCallback(uint8_t ecn){
 }
 void DqcReceiver::SendToNetwork(Ptr<Packet> p){
     m_socket->SendTo(p,0,InetSocketAddress{m_peerIp,m_peerPort});
+}
+void DqcReceiver::CalGoodput(uint32_t now){
+    if(m_traceGoodputCb.IsNull()){
+        return;
+    }
+    if(m_lastCalGoodTime==0){
+        m_lastGoodRecv=0;
+        m_traceGoodputCb(0);
+    }else{
+        uint32_t duration=now-m_lastCalGoodTime;
+        uint32_t kbps=0;
+        if(duration>0){
+            kbps=(m_recvBytes-m_lastGoodRecv)*8/duration;
+        }
+        m_traceGoodputCb(kbps);
+    }
 }
 }

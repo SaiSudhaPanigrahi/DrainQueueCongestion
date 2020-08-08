@@ -370,23 +370,30 @@ CongestionControlType TcpC2tcpSenderBytes::GetCongestionControlType() const {
 void TcpC2tcpSenderBytes::C2TcpPacketAcked(ProtoTime event_time,
                     QuicPacketNumber packet_number,
                     QuicByteCount prior_in_flight){
+    //if(InSlowStart()||InRecovery()){return;}
     uint64_t rtt_us=rtt_stats_->latest_rtt().ToMicroseconds();
     if(rtt_us==0){return;}
-    if(c2tcp_min_urtt_==0||c2tcp_min_urtt_>rtt_us){
-        c2tcp_min_urtt_=rtt_us;
-    }
+    c2tcp_min_urtt_=rtt_stats_->MinOrInitialRtt().ToMicroseconds();
+/*    if(c2tcp_min_urtt_==0||c2tcp_min_urtt_>rtt_us){
+        =rtt_us;
+    }*/
     uint32_t min_rtt_ms=c2tcp_min_urtt_/1000;
     uint32_t interval,set_point;
     set_point=min_rtt_ms*c2tcp_alpha_/TCP_C2TCP_X_SCALE;
     interval=set_point;
     uint32_t now=(event_time-ProtoTime::Zero()).ToMilliseconds();
     uint32_t rtt_ms=rtt_us/1000;
+    if(InRecovery()){
+        first_above_time_=0;
+        N_=1;	
+    }
     if(set_point>rtt_ms){
         first_above_time_=0;
         N_=1;
-        uint32_t temp=set_point/rtt_ms;
+        uint32_t temp=kDefaultTCPMSS*set_point/rtt_ms;
+        //std::cout<<temp<<" "<<congestion_window_<<std::endl;
         num_acked_packets_+=temp;
-        if(num_acked_packets_>=congestion_window_ / kDefaultTCPMSS){
+        if(num_acked_packets_>=congestion_window_){
             congestion_window_ += kDefaultTCPMSS;
             num_acked_packets_=0;
             congestion_window_=std::min(congestion_window_,max_congestion_window_);
@@ -403,6 +410,8 @@ void TcpC2tcpSenderBytes::C2TcpPacketAcked(ProtoTime event_time,
         rec_inv_sqrt_=NewtonStep(rec_inv_sqrt_,N_);
         OnPacketLost(packet_number,0,prior_in_flight);
         //TO Test, tp->snd_cwnd = 1;
+	congestion_window_=initial_tcp_congestion_window_;
+	slowstart_threshold_ = congestion_window_;
         num_acked_packets_=0;
     }
 }
