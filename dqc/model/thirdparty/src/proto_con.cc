@@ -88,6 +88,7 @@ void ProtoCon::ProcessUdpPacket(SocketAddress &self,SocketAddress &peer,
     ProtoPacketHeader header;
     ProcessPacketHeader(&r,header);
     frame_decoder_.ProcessFrameData(&r,header);
+    MaybeSendBulkData();
 }
 void ProtoCon::Close(uint32_t id){
 
@@ -97,6 +98,10 @@ void ProtoCon::Process(){
         DLOG(INFO)<<"set writer first";
         return;
     }
+    MaybeSendBulkData();
+}
+void ProtoCon::SendInitData(){
+    CHECK(packet_writer_);
     MaybeSendBulkData();
 }
 bool ProtoCon::CanWrite(HasRetransmittableData has_retrans){

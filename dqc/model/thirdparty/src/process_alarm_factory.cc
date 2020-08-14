@@ -11,8 +11,8 @@ MainEngine::~MainEngine(){
     }
 }
 void MainEngine::HeartBeat(ProtoTime time){
-    TimeDelta delta=time-ProtoTime::Zero();
-    int64_t now=delta.ToMilliseconds();
+    TimeDelta wall_time=time-ProtoTime::Zero();
+    int64_t now=wall_time.ToMilliseconds();
     std::vector<std::pair<AlarmCb*,int64_t>> registers;
     while(!cbs_.empty()){
         auto it=cbs_.begin();
@@ -32,6 +32,18 @@ void MainEngine::HeartBeat(ProtoTime time){
             RegisterAlarm(it->second,it->first);
         }
     }
+}
+void MainEngine::ExecuteCallback(ProtoTime time){
+	HeartBeat(time);
+}
+ProtoTime MainEngine::PeekNextEventTime(){
+	ProtoTime nextTime=ProtoTime::Infinite();
+	if(!cbs_.empty()){
+        auto it=cbs_.begin();
+        int64_t time=it->first;
+        nextTime=ProtoTime::Zero()+TimeDelta::FromMilliseconds(time);
+	}
+	return nextTime;
 }
 void MainEngine::RegisterAlarm(int64_t &time_out,AlarmCb* alarm){
     if(stop_){

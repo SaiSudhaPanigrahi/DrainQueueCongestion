@@ -159,6 +159,14 @@ void DqcTraceState::OnStats(uint32_t id,uint64_t recv_count,uint64_t largest,
     m_recvCount+=recv_count;
     m_totalRecv+=largest;
     m_totalRecvBytes+=recv_bytes;
+    if(!m_ccType1Ids.empty()){
+        auto it=m_ccType1Ids.find(id);
+        if(it!=m_ccType1Ids.end()){
+            m_ccType1TotalRecvBytes+=recv_bytes;
+        }else{
+            m_ccType2TotalRecvBytes+=recv_bytes;
+        }
+    }
     if(m_delayIds.empty()){
         return;
     }
@@ -170,24 +178,43 @@ void DqcTraceState::OnStats(uint32_t id,uint64_t recv_count,uint64_t largest,
 }
 void DqcTraceState::Flush(uint32_t capacity,uint32_t simulation_time){
     m_count++;
-    double util=1.0*m_totalRecvBytes*8/(capacity*simulation_time);
+    double average_rate=1.0*m_totalRecvBytes*8/simulation_time;
+    double util=(average_rate/capacity);
     double loss=10000.0-10000.0*m_recvCount/m_totalRecv;
     float loss_rate=loss/100;
     double delay=0.0;
+    double ratio=0.0;
+    if(m_ccType2TotalRecvBytes>0){
+        ratio=1.0*m_ccType1TotalRecvBytes/m_ccType2TotalRecvBytes;
+    }
     if(!m_delayIds.empty()&&m_delayCount>0){
         delay=1.0*m_sumDelay/m_delayCount;
     }
     if(m_stats.is_open()){
         char line [256];
         memset(line,0,256);
-        sprintf (line, "%d %16f %16f %16f",
-                m_count,(float)loss_rate,(float)delay,(float)util);
+        sprintf (line, "%d %16f %16f %16f %16f %16f",
+                m_count,(float)loss_rate,(float)average_rate,
+                (float)delay,(float)util,(float)ratio);
         m_stats<<line<<std::endl;        
     }
     Reset();
 }
+void DqcTraceState::RecordRuningTime(float millis,float mimutes){
+    if(m_stats.is_open()){
+        char line [256];
+        memset(line,0,256);
+        sprintf (line, "%f %16f",millis,mimutes);
+        m_stats<<line<<std::endl;
+    }
+}
 void DqcTraceState::ReisterAvgDelayId(uint32_t id){
     m_delayIds.insert(id);
+}
+void DqcTraceState::RegisterCongestionType(uint32_t id,uint32_t type){
+    if(!type){
+        m_ccType1Ids.insert(id);
+    }
 }
 void DqcTraceState::Reset(){
     m_recvCount=0;

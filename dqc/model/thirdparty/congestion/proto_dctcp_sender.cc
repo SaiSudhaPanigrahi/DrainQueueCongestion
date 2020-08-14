@@ -6,10 +6,10 @@
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include "flag_impl.h"
 namespace dqc{
 
 namespace {
-const float kRenoBeta = 0.5f;
 const QuicPacketCount kMaxResumptionCongestionWindow = 200;
 const QuicByteCount kMaxBurstBytes = 3 * kDefaultTCPMSS;
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
@@ -48,7 +48,8 @@ ProtoDctcpSender::ProtoDctcpSender(
                                    kDefaultTCPMSS),
     initial_max_tcp_congestion_window_(max_congestion_window *
                                        kDefaultTCPMSS),
-    min_slow_start_exit_window_(min_congestion_window_){
+    min_slow_start_exit_window_(min_congestion_window_),
+    reno_beta_(GetQuicReloadableFlag(reno_beta)){
         alpha_=DCTCP_MAX_ALPHA;
     }
 
@@ -63,7 +64,7 @@ float ProtoDctcpSender::RenoBeta() const {
   // emulation, which emulates the effective backoff of an ensemble of N
   // TCP-Reno connections on a single loss event. The effective multiplier is
   // computed as:
-  return (num_connections_ - 1 + kRenoBeta) / num_connections_;
+  return (num_connections_ - 1 + reno_beta_) / num_connections_;
 }
 void ProtoDctcpSender::OnCongestionEvent(
     bool rtt_updated,

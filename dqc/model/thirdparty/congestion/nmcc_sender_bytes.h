@@ -1,21 +1,25 @@
 #pragma once
+#include <list>
 #include "proto_types.h"
 #include "hybrid_slow_start.h"
 #include "prr_sender.h"
 #include "proto_send_algorithm_interface.h"
+/*
+    Multipath congestion control with network assistance
+    Low Latency Friendliness for Multipath TCP
+*/
 namespace dqc{
 class RttStats;
-class ProtoDctcpSender : public SendAlgorithmInterface {
+class NmccSender : public SendAlgorithmInterface {
  public:
-  ProtoDctcpSender(const ProtoClock* clock,
+  NmccSender(const ProtoClock* clock,
                       const RttStats* rtt_stats,
-                      const UnackedPacketMap* unacked_packets,
                       QuicPacketCount initial_tcp_congestion_window,
                       QuicPacketCount max_congestion_window,
                       QuicConnectionStats* stats);
-  ProtoDctcpSender(const ProtoDctcpSender&) = delete;
-  ProtoDctcpSender& operator=(const ProtoDctcpSender&) = delete;
-  ~ProtoDctcpSender() override;
+  NmccSender(const NmccSender&) = delete;
+  NmccSender& operator=(const NmccSender&) = delete;
+  ~NmccSender() override;
 
   // Start implementation of SendAlgorithmInterface.
   //void SetFromConfig(const QuicConfig& config,
@@ -49,13 +53,20 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
   bool ShouldSendProbingPacket() const override;
   std::string GetDebugState() const override;
   void OnApplicationLimited(QuicByteCount bytes_in_flight) override;
-  void OnUpdateEcnBytes(uint64_t ecn_ce_count) override;
+  void SetCongestionId(uint32_t cid) override;
+  uint32_t GetCongestionId() override{ return congestion_id_;}
+  void RegisterCoupleCC(SendAlgorithmInterface*cc) override;
+  void UnRegisterCoupleCC(SendAlgorithmInterface*cc) override;
   // End implementation of SendAlgorithmInterface.
 
   QuicByteCount min_congestion_window() const { return min_congestion_window_; }
-
-  protected:
+  TimeDelta GetSrtt() const;
+  TimeDelta GetMinRtt() const;
+  void NotifyUpdateFactor();
+ protected:
+  // Compute the TCP Reno beta based on the current number of connections.
   float RenoBeta() const;
+
   bool IsCwndLimited(QuicByteCount bytes_in_flight) const;
 
   // TODO(ianswett): Remove these and migrate to OnCongestionEvent.
@@ -63,26 +74,25 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
                      QuicByteCount acked_bytes,
                      QuicByteCount prior_in_flight,
                      ProtoTime event_time);
+  void SetCongestionWindowFromBandwidthAndRtt(QuicBandwidth bandwidth,
+                                              TimeDelta rtt);
   void SetMinCongestionWindowInPackets(QuicPacketCount congestion_window);
   void ExitSlowstart();
   void OnPacketLost(QuicPacketNumber largest_loss,
                     QuicByteCount lost_bytes,
                     QuicByteCount prior_in_flight);
-  void OnReduceCongstionWindow(QuicPacketNumber packet_number,
-                                QuicByteCount prior_in_flight);
   void MaybeIncreaseCwnd(QuicPacketNumber acked_packet_number,
                          QuicByteCount acked_bytes,
                          QuicByteCount prior_in_flight,
                          ProtoTime event_time);
   void HandleRetransmissionTimeout();
-  void UpdateRoundTripAlpha(QuicPacketNumber last_acked_packet);
+  void UpdateFactor();
  private:
   //friend class test::TcpCubicSenderBytesPeer;
 
   HybridSlowStart hybrid_slow_start_;
   PrrSender prr_;
   const RttStats* rtt_stats_;
-  const UnackedPacketMap* unacked_packets_;
   QuicConnectionStats* stats_;
   // Number of connections to simulate.
   uint32_t num_connections_;
@@ -108,6 +118,7 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
 
   // When true, use unity pacing instead of PRR.
   bool no_prr_;
+
   // ACK counter for the Reno implementation.
   uint64_t num_acked_packets_;
 
@@ -130,14 +141,11 @@ class ProtoDctcpSender : public SendAlgorithmInterface {
   // Initial maximum TCP congestion window in bytes. This variable can only be
   // set when this algorithm is created.
   const QuicByteCount initial_max_tcp_congestion_window_;
+
+  // The minimum window when exiting slow start with large reduction.
   QuicByteCount min_slow_start_exit_window_;
-  QuicPacketNumber last_sent_packet_;
-  QuicPacketNumber current_round_trip_end_;
-  QuicByteCount old_bytes_sent_{0};
-  QuicByteCount old_ce_count_{0};
-  bool enc_ece_rcvd_{false};
-  QuicByteCount ecn_ce_count_{0};
-  uint32_t alpha_;
-  float reno_beta_;
+  uint32_t congestion_id_{0};
+  std::list<NmccSender*> other_ccs_;
+  float m_{1.0};
 };
 }

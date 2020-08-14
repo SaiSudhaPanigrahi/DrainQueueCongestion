@@ -56,6 +56,7 @@ def build(bld):
     'model/thirdparty/congestion/lia_sender_enhance.cc',
     'model/thirdparty/congestion/lia_sender_enhance3.cc',
     'model/thirdparty/congestion/lptcp_sender_bytes.cc',
+        'model/thirdparty/congestion/nmcc_sender_bytes.cc',
     'model/thirdparty/congestion/mp_veno_sender_bytes.cc',
     'model/thirdparty/congestion/mp_westwood_sender_bytes.cc',
     'model/thirdparty/congestion/olia_sender_bytes.cc',

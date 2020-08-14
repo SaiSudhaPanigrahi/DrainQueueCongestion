@@ -10,6 +10,7 @@
 #include "lia_sender_bytes.h"
 #include "lia_sender_enhance.h"
 #include "lia_sender_enhance3.h"
+#include "nmcc_sender_bytes.h"
 #include "olia_sender_bytes.h"
 #include "pcc_sender.h"
 
@@ -168,6 +169,14 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats);
+        }
+        case kNmccBytes:{
+            return new NmccSender(clock,
+                               rtt_stats,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               stats
+                               );
         }
         case kOlia:{
             return new OliaSender(clock,
@@ -420,6 +429,15 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                random,stats
+                               );
+        }
+        case kQuicBBRD:{
+            return new QuicBbrSender(clock->Now(),
+                               rtt_stats,
+                               unacked_packets,
+                               initial_congestion_window,
+                               max_congestion_window,
+                               random,stats,true
                                );
         }
         default:{

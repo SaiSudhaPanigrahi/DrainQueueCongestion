@@ -44,7 +44,7 @@ void DqcReceiver::Bind(uint16_t port){
     }
     m_bindPort=port;
     m_socket->SetRecvCallback (MakeCallback(&DqcReceiver::RecvPacket,this));
-    m_socket->SetEcnCallback (MakeCallback(&DqcReceiver::RecvEcnCallback,this));    
+    //m_socket->SetEcnCallback (MakeCallback(&DqcReceiver::RecvEcnCallback,this));    
 }
 InetSocketAddress DqcReceiver::GetLocalAddress(){
     Ptr<Node> node=GetNode();

@@ -1,10 +1,12 @@
-#include "tcp_c2tcp_sender_bytes.h"
+#include "nmcc_sender_bytes.h"
 #include "rtt_stats.h"
 #include "logging.h"
+#include <iostream>
 #include <algorithm>
 #include <cstdint>
 #include <string>
-
+#include "couple_cc_manager.h"
+#include "quic_logging.h"
 namespace dqc{
 
 namespace {
@@ -16,34 +18,8 @@ const float kRenoBeta = 0.5f;  // Reno backoff factor 0.7 in quic.
 // The minimum cwnd based on RFC 3782 (TCP NewReno) for cwnd reductions on a
 // fast retransmission.
 const QuicByteCount kDefaultMinimumCongestionWindow = 2 * kDefaultTCPMSS;
-#define TCP_C2TCP_X_SCALE 100
-#define TCP_C2TCP_ALPHA_INIT 150
-#define DEFAULT_CODEL_LIMIT 1000
-#define REC_INV_SQRT_BITS (8 * sizeof(uint16_t))
-#define REC_INV_SQRT_SHIFT (32 - REC_INV_SQRT_BITS)
-uint16_t NewtonStep (uint16_t recInvSqrt, uint32_t count)
-{
-  uint32_t invsqrt = ((uint32_t) recInvSqrt) << REC_INV_SQRT_SHIFT;
-  uint32_t invsqrt2 = ((uint64_t) invsqrt * invsqrt) >> 32;
-  uint64_t val = (3ll << 32) - ((uint64_t) count * invsqrt2);
-
-  val >>= 2; /* avoid overflow */
-  val = (val * invsqrt) >> (32 - 2 + 1);
-  return static_cast<uint16_t>(val >> REC_INV_SQRT_SHIFT);
-}
-/* borrowed from the linux kernel */
-static inline uint32_t ReciprocalDivide (uint32_t A, uint32_t R)
-{
-  return (uint32_t)(((uint64_t)A * R) >> 32);
-}
- uint32_t ControlLaw (uint32_t t, uint32_t interval, uint32_t recInvSqrt)
-{
-  return t + ReciprocalDivide (interval, recInvSqrt << REC_INV_SQRT_SHIFT);
-}
-
 }  // namespace
-
-TcpC2tcpSenderBytes::TcpC2tcpSenderBytes(
+NmccSender::NmccSender(
     const ProtoClock* clock,
     const RttStats* rtt_stats,
     QuicPacketCount initial_tcp_congestion_window,
@@ -56,7 +32,6 @@ TcpC2tcpSenderBytes::TcpC2tcpSenderBytes(
       last_cutback_exited_slowstart_(false),
       slow_start_large_reduction_(false),
       no_prr_(false),
-      cubic_(clock),
       num_acked_packets_(0),
       congestion_window_(initial_tcp_congestion_window * kDefaultTCPMSS),
       min_congestion_window_(kDefaultMinimumCongestionWindow),
@@ -66,12 +41,10 @@ TcpC2tcpSenderBytes::TcpC2tcpSenderBytes(
                                      kDefaultTCPMSS),
       initial_max_tcp_congestion_window_(max_congestion_window *
                                          kDefaultTCPMSS),
-      min_slow_start_exit_window_(min_congestion_window_) {
-          c2tcp_alpha_=TCP_C2TCP_ALPHA_INIT;
-      }
+      min_slow_start_exit_window_(min_congestion_window_) {}
 
-TcpC2tcpSenderBytes::~TcpC2tcpSenderBytes() {}
-void TcpC2tcpSenderBytes::AdjustNetworkParameters(
+NmccSender::~NmccSender() {}
+void NmccSender::AdjustNetworkParameters(
     QuicBandwidth bandwidth,
     TimeDelta rtt,
     bool /*allow_cwnd_to_decrease*/) {
@@ -82,11 +55,15 @@ void TcpC2tcpSenderBytes::AdjustNetworkParameters(
   SetCongestionWindowFromBandwidthAndRtt(bandwidth, rtt);
 }
 
-float TcpC2tcpSenderBytes::RenoBeta() const {
+float NmccSender::RenoBeta() const {
+  // kNConnectionBeta is the backoff factor after loss for our N-connection
+  // emulation, which emulates the effective backoff of an ensemble of N
+  // TCP-Reno connections on a single loss event. The effective multiplier is
+  // computed as:
   return (num_connections_ - 1 + kRenoBeta) / num_connections_;
 }
 
-void TcpC2tcpSenderBytes::OnCongestionEvent(
+void NmccSender::OnCongestionEvent(
     bool rtt_updated,
     QuicByteCount prior_in_flight,
     ProtoTime event_time,
@@ -103,13 +80,12 @@ void TcpC2tcpSenderBytes::OnCongestionEvent(
                  prior_in_flight);
   }
   for (const AckedPacket acked_packet : acked_packets) {
-    C2TcpPacketAcked(event_time,acked_packet.packet_number,prior_in_flight);
     OnPacketAcked(acked_packet.packet_number, acked_packet.bytes_acked,
                   prior_in_flight, event_time);
   }
 }
 
-void TcpC2tcpSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
+void NmccSender::OnPacketAcked(QuicPacketNumber acked_packet_number,
                                         QuicByteCount acked_bytes,
                                         QuicByteCount prior_in_flight,
                                         ProtoTime event_time) {
@@ -128,7 +104,7 @@ void TcpC2tcpSenderBytes::OnPacketAcked(QuicPacketNumber acked_packet_number,
   }
 }
 
-void TcpC2tcpSenderBytes::OnPacketSent(
+void NmccSender::OnPacketSent(
     ProtoTime /*sent_time*/,
     QuicByteCount /*bytes_in_flight*/,
     QuicPacketNumber packet_number,
@@ -151,7 +127,7 @@ void TcpC2tcpSenderBytes::OnPacketSent(
   hybrid_slow_start_.OnPacketSent(packet_number);
 }
 
-bool TcpC2tcpSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
+bool NmccSender::CanSend(QuicByteCount bytes_in_flight) {
   if (!no_prr_ && InRecovery()) {
     // PRR is used when in recovery.
     return prr_.CanSend(GetCongestionWindow(), bytes_in_flight,
@@ -166,7 +142,7 @@ bool TcpC2tcpSenderBytes::CanSend(QuicByteCount bytes_in_flight) {
   return false;
 }
 
-QuicBandwidth TcpC2tcpSenderBytes::PacingRate(
+QuicBandwidth NmccSender::PacingRate(
     QuicByteCount /* bytes_in_flight */) const {
   // We pace at twice the rate of the underlying sender's bandwidth estimate
   // during slow start and 1.25x during congestion avoidance to ensure pacing
@@ -177,7 +153,7 @@ QuicBandwidth TcpC2tcpSenderBytes::PacingRate(
   return bandwidth * (InSlowStart() ? 2 : (no_prr_ && InRecovery() ? 1 : 1.25));
 }
 
-QuicBandwidth TcpC2tcpSenderBytes::BandwidthEstimate() const {
+QuicBandwidth NmccSender::BandwidthEstimate() const {
   TimeDelta srtt = rtt_stats_->smoothed_rtt();
   if (srtt.IsZero()) {
     // If we haven't measured an rtt, the bandwidth estimate is unknown.
@@ -186,11 +162,11 @@ QuicBandwidth TcpC2tcpSenderBytes::BandwidthEstimate() const {
   return QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(), srtt);
 }
 
-bool TcpC2tcpSenderBytes::InSlowStart() const {
+bool NmccSender::InSlowStart() const {
   return GetCongestionWindow() < GetSlowStartThreshold();
 }
 
-bool TcpC2tcpSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
+bool NmccSender::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   const QuicByteCount congestion_window = GetCongestionWindow();
   if (bytes_in_flight >= congestion_window) {
     return true;
@@ -201,17 +177,17 @@ bool TcpC2tcpSenderBytes::IsCwndLimited(QuicByteCount bytes_in_flight) const {
   return slow_start_limited || available_bytes <= kMaxBurstBytes;
 }
 
-bool TcpC2tcpSenderBytes::InRecovery() const {
+bool NmccSender::InRecovery() const {
   return largest_acked_packet_number_.IsInitialized() &&
          largest_sent_at_last_cutback_.IsInitialized() &&
          largest_acked_packet_number_ <= largest_sent_at_last_cutback_;
 }
 
-bool TcpC2tcpSenderBytes::ShouldSendProbingPacket() const {
+bool NmccSender::ShouldSendProbingPacket() const {
   return false;
 }
 
-void TcpC2tcpSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
+void NmccSender::OnRetransmissionTimeout(bool packets_retransmitted) {
   largest_sent_at_last_cutback_.Clear();
   if (!packets_retransmitted) {
     return;
@@ -220,13 +196,13 @@ void TcpC2tcpSenderBytes::OnRetransmissionTimeout(bool packets_retransmitted) {
   HandleRetransmissionTimeout();
 }
 
-std::string TcpC2tcpSenderBytes::GetDebugState() const {
+std::string NmccSender::GetDebugState() const {
   return "";
 }
 
-void TcpC2tcpSenderBytes::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
+void NmccSender::OnApplicationLimited(QuicByteCount bytes_in_flight) {}
 
-void TcpC2tcpSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
+void NmccSender::SetCongestionWindowFromBandwidthAndRtt(
     QuicBandwidth bandwidth,
     TimeDelta rtt) {
   QuicByteCount new_congestion_window = bandwidth.ToBytesPerPeriod(rtt);
@@ -237,26 +213,25 @@ void TcpC2tcpSenderBytes::SetCongestionWindowFromBandwidthAndRtt(
                         kMaxResumptionCongestionWindow * kDefaultTCPMSS));
 }
 
-void TcpC2tcpSenderBytes::SetInitialCongestionWindowInPackets(
+void NmccSender::SetInitialCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpC2tcpSenderBytes::SetMinCongestionWindowInPackets(
+void NmccSender::SetMinCongestionWindowInPackets(
     QuicPacketCount congestion_window) {
   min_congestion_window_ = congestion_window * kDefaultTCPMSS;
 }
 
-void TcpC2tcpSenderBytes::SetNumEmulatedConnections(int num_connections) {
+void NmccSender::SetNumEmulatedConnections(int num_connections) {
   num_connections_ = std::max(1, num_connections);
-  cubic_.SetNumConnections(num_connections_);
 }
 
-void TcpC2tcpSenderBytes::ExitSlowstart() {
+void NmccSender::ExitSlowstart() {
   slowstart_threshold_ = congestion_window_;
 }
 
-void TcpC2tcpSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
+void NmccSender::OnPacketLost(QuicPacketNumber packet_number,
                                        QuicByteCount lost_bytes,
                                        QuicByteCount prior_in_flight) {
   // TCP NewReno (RFC6582) says that once a loss occurs, any losses in packets
@@ -273,7 +248,7 @@ void TcpC2tcpSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
         slowstart_threshold_ = congestion_window_;
       }
     }
-    /*QUIC_DVLOG(1)*/DLOG(INFO)<< "Ignoring loss for largest_missing:" << packet_number
+    QUIC_DVLOG(1)<< "Ignoring loss for largest_missing:" << packet_number
                   << " because it was sent prior to the last CWND cutback.";
     return;
   }
@@ -286,7 +261,6 @@ void TcpC2tcpSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
   if (!no_prr_) {
     prr_.OnPacketLost(prior_in_flight);
   }
-
   // TODO(b/77268641): Separate out all of slow start into a separate class.
   if (slow_start_large_reduction_ && InSlowStart()) {
     DCHECK_LT(kDefaultTCPMSS, congestion_window_);
@@ -294,28 +268,47 @@ void TcpC2tcpSenderBytes::OnPacketLost(QuicPacketNumber packet_number,
       min_slow_start_exit_window_ = congestion_window_ / 2;
     }
     congestion_window_ = congestion_window_ - kDefaultTCPMSS;
-  } else {
-    congestion_window_ =
-        cubic_.CongestionWindowAfterPacketLoss(congestion_window_);
+  } else{
+    congestion_window_ = congestion_window_ * RenoBeta();
   }
   if (congestion_window_ < min_congestion_window_) {
     congestion_window_ = min_congestion_window_;
   }
   slowstart_threshold_ = congestion_window_;
   largest_sent_at_last_cutback_ = largest_sent_packet_number_;
+  // Reset packet count from congestion avoidance mode. We start counting again
+  // when we're out of recovery.
+  num_acked_packets_ = 0;
+    bool subflows_exit_slow_start=true;
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        NmccSender *sender=(*it);
+        if(sender->InSlowStart()){
+            subflows_exit_slow_start=false;
+            break;
+        }
+    }
+    if(subflows_exit_slow_start){
+        NotifyUpdateFactor();
+        for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+            NmccSender *sender=(*it);
+            sender->NotifyUpdateFactor();
+        }        
+    }
+  QUIC_DVLOG(1)<< "Incoming loss; congestion window: " << congestion_window_
+                << " slowstart threshold: " << slowstart_threshold_;
 }
 
-QuicByteCount TcpC2tcpSenderBytes::GetCongestionWindow() const {
+QuicByteCount NmccSender::GetCongestionWindow() const {
   return congestion_window_;
 }
 
-QuicByteCount TcpC2tcpSenderBytes::GetSlowStartThreshold() const {
+QuicByteCount NmccSender::GetSlowStartThreshold() const {
   return slowstart_threshold_;
 }
 
 // Called when we receive an ack. Normal TCP tracks how many packets one ack
 // represents, but quic has a separate ack for each packet.
-void TcpC2tcpSenderBytes::MaybeIncreaseCwnd(
+void NmccSender::MaybeIncreaseCwnd(
     QuicPacketNumber acked_packet_number,
     QuicByteCount acked_bytes,
     QuicByteCount prior_in_flight,
@@ -324,7 +317,6 @@ void TcpC2tcpSenderBytes::MaybeIncreaseCwnd(
   // Do not increase the congestion window unless the sender is close to using
   // the current window.
   if (!IsCwndLimited(prior_in_flight)) {
-    cubic_.OnApplicationLimited();
     return;
   }
   if (congestion_window_ >= max_congestion_window_) {
@@ -337,82 +329,117 @@ void TcpC2tcpSenderBytes::MaybeIncreaseCwnd(
                   << " slowstart threshold: " << slowstart_threshold_;
     return;
   }
-  // Congestion avoidance.
-    congestion_window_ = std::min(
-        max_congestion_window_,
-        cubic_.CongestionWindowAfterAck(acked_bytes, congestion_window_,
-                                        rtt_stats_->min_rtt(), event_time));
+  ++num_acked_packets_;
+  if(!other_ccs_.empty()){
+	  bool subflows_exit_slow_start=true;
+	  for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		  NmccSender *sender=(*it);
+		  if(sender->InSlowStart()){
+			  subflows_exit_slow_start=false;
+			  break;
+		  }
+	  }
+	  if(subflows_exit_slow_start){
+		  QuicByteCount send_cwnd=0;
+          send_cwnd=((m_*congestion_window_)/kDefaultTCPMSS)*kDefaultTCPMSS;
+		  if(num_acked_packets_*num_connections_*kDefaultTCPMSS>=send_cwnd){
+			  congestion_window_ += kDefaultTCPMSS;
+              UpdateFactor();
+			  num_acked_packets_=0;
+		  }
+	  }else{
+		    if (num_acked_packets_ * num_connections_ >=
+		        congestion_window_ / kDefaultTCPMSS) {
+		      congestion_window_ += kDefaultTCPMSS;
+		      num_acked_packets_ = 0;
+		    }
+	  }
+  }else{
+	    if (num_acked_packets_ * num_connections_ >=
+	        congestion_window_ / kDefaultTCPMSS) {
+	      congestion_window_ += kDefaultTCPMSS;
+	      num_acked_packets_ = 0;
+	    }
+  }
+  DLOG(INFO)<< "Lia congestion window: " << congestion_window_
+                << " slowstart threshold: " << slowstart_threshold_
+                << " congestion window count: " << num_acked_packets_;
+
 }
 
-void TcpC2tcpSenderBytes::HandleRetransmissionTimeout() {
-  cubic_.ResetCubicState();
+void NmccSender::HandleRetransmissionTimeout() {
   slowstart_threshold_ = congestion_window_ / 2;
   congestion_window_ = min_congestion_window_;
 }
 
-void TcpC2tcpSenderBytes::OnConnectionMigration() {
+void NmccSender::OnConnectionMigration() {
   hybrid_slow_start_.Restart();
   prr_ = PrrSender();
   largest_sent_packet_number_.Clear();
   largest_acked_packet_number_.Clear();
   largest_sent_at_last_cutback_.Clear();
   last_cutback_exited_slowstart_ = false;
-  cubic_.ResetCubicState();
   num_acked_packets_ = 0;
   congestion_window_ = initial_tcp_congestion_window_;
   max_congestion_window_ = initial_max_tcp_congestion_window_;
   slowstart_threshold_ = initial_max_tcp_congestion_window_;
 }
 
-CongestionControlType TcpC2tcpSenderBytes::GetCongestionControlType() const {
-  return  kC2TcpBytes;
+CongestionControlType NmccSender::GetCongestionControlType() const {
+  return kNmccBytes;
 }
-void TcpC2tcpSenderBytes::C2TcpPacketAcked(ProtoTime event_time,
-                    QuicPacketNumber packet_number,
-                    QuicByteCount prior_in_flight){
-    //if(InSlowStart()||InRecovery()){return;}
-    uint64_t rtt_us=rtt_stats_->latest_rtt().ToMicroseconds();
-    if(rtt_us==0){return;}
-    c2tcp_min_urtt_=rtt_stats_->MinOrInitialRtt().ToMicroseconds();
-/*    if(c2tcp_min_urtt_==0||c2tcp_min_urtt_>rtt_us){
-        =rtt_us;
-    }*/
-    uint32_t min_rtt_ms=c2tcp_min_urtt_/1000;
-    uint32_t interval,set_point;
-    set_point=min_rtt_ms*c2tcp_alpha_/TCP_C2TCP_X_SCALE;
-    interval=set_point;
-    uint32_t now=(event_time-ProtoTime::Zero()).ToMilliseconds();
-    uint32_t rtt_ms=rtt_us/1000;
-    if(InRecovery()){
-        first_above_time_=0;
-        N_=1;	
-    }
-    if(set_point>rtt_ms){
-        first_above_time_=0;
-        N_=1;
-        uint32_t temp=kDefaultTCPMSS*set_point/rtt_ms;
-        //std::cout<<temp<<" "<<congestion_window_<<std::endl;
-        num_acked_packets_+=temp;
-        if(num_acked_packets_>=congestion_window_){
-            congestion_window_ += kDefaultTCPMSS;
-            num_acked_packets_=0;
-            congestion_window_=std::min(congestion_window_,max_congestion_window_);
+void NmccSender::SetCongestionId(uint32_t cid){
+	if(congestion_id_!=0||cid==0){
+		return;
+	}
+	congestion_id_=cid;
+	CoupleManager::Instance()->OnCongestionCreate(this);
+}
+void NmccSender::RegisterCoupleCC(SendAlgorithmInterface*cc){
+	bool exist=false;
+    NmccSender *sender=dynamic_cast<NmccSender*>(cc);
+    if(this==sender) {return ;}
+	for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+		if(sender==(*it)){
+			exist=true;
+			break;
+		}
+	}
+	if(!exist){
+		other_ccs_.push_back(sender);
+	}
+}
+void NmccSender::UnRegisterCoupleCC(SendAlgorithmInterface*cc){
+    NmccSender *sender=dynamic_cast<NmccSender*>(cc);
+	if(!other_ccs_.empty()){
+		other_ccs_.remove(sender);
+	}
+}
+TimeDelta NmccSender::GetSrtt() const{
+	return rtt_stats_->smoothed_rtt();
+}
+TimeDelta NmccSender::GetMinRtt() const{
+    return rtt_stats_->MinOrInitialRtt();
+}
+void NmccSender::NotifyUpdateFactor(){
+    UpdateFactor();
+}
+void NmccSender::UpdateFactor(){
+    TimeDelta srtt=GetSrtt();
+    TimeDelta rtt_squre=TimeDelta::FromMilliseconds(srtt.ToMilliseconds()*srtt.ToMilliseconds());
+	QuicBandwidth bw=QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(),rtt_squre);
+    QuicBandwidth max_bw=bw;
+    QuicBandwidth total_bw=bw;
+    for(auto it=other_ccs_.begin();it!=other_ccs_.end();it++){
+        NmccSender *sender=(*it);
+        srtt=sender->GetSrtt();
+        rtt_squre=TimeDelta::FromMilliseconds(srtt.ToMilliseconds()*srtt.ToMilliseconds());
+        bw=QuicBandwidth::FromBytesAndTimeDelta(GetCongestionWindow(),rtt_squre);
+        if(max_bw<bw){
+            max_bw=bw;
         }
-    }else if(first_above_time_==0){
-        first_above_time_=now+interval;
-        next_time_=first_above_time_;
-        N_=1;
-        rec_inv_sqrt_=~0U >> REC_INV_SQRT_SHIFT;
-        rec_inv_sqrt_=NewtonStep(rec_inv_sqrt_,N_);
-    }else if(now>next_time_){
-        next_time_=ControlLaw(now,interval,rec_inv_sqrt_);
-        N_+=1;
-        rec_inv_sqrt_=NewtonStep(rec_inv_sqrt_,N_);
-        OnPacketLost(packet_number,0,prior_in_flight);
-        //TO Test, tp->snd_cwnd = 1;
-	congestion_window_=initial_tcp_congestion_window_;
-	slowstart_threshold_ = congestion_window_;
-        num_acked_packets_=0;
+        total_bw=total_bw+bw;
     }
+    m_=1.0*total_bw.ToBitsPerSecond()/max_bw.ToBitsPerSecond();
 }
 }

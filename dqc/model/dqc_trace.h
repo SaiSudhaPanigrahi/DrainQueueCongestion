@@ -56,7 +56,10 @@ public:
     void OnStats(uint32_t id,uint64_t recv_count,uint64_t largest,
                  uint64_t recv_bytes,float avg_owd);
     void Flush(uint32_t capacity,uint32_t simulation_time);
+    void RecordRuningTime(float millis,float mimutes);
     void ReisterAvgDelayId(uint32_t id);
+    //compare inter -protocol fairness and rtt unfairness
+    void RegisterCongestionType(uint32_t id,uint32_t type=0);
     void Reset();
 private:
     std::fstream m_stats;
@@ -67,5 +70,8 @@ private:
     uint64_t m_delayCount=0;
     uint64_t m_sumDelay=0;
     std::set<uint32_t> m_delayIds;
+    std::set<uint32_t> m_ccType1Ids;
+    uint64_t m_ccType1TotalRecvBytes=0;
+    uint64_t m_ccType2TotalRecvBytes=0;
 };
 }
