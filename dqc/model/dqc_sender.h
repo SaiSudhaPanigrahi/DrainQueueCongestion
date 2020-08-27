@@ -37,7 +37,7 @@ public dqc::ProtoStream::StreamCanWriteVisitor,
 public dqc::ProtoCon::TraceSentSeq{
 public:
     DqcSender(bool ecn=false);
-    DqcSender(dqc::CongestionControlType cc_type,bool ecn=false,bool engine_time=true); 
+    DqcSender(dqc::CongestionControlType cc_type,bool ecn=false); 
     ~DqcSender(){}
     void SetMaxBandwidth(uint32_t bps);
     typedef Callback<void,int32_t> TraceBandwidth;
@@ -68,9 +68,6 @@ private:
 	virtual void StopApplication() override;
     void RecvPacket(Ptr<Socket> socket);
     void Process();
-    void CheckNoPacketOut();
-    void EngineEvent();
-    void UpdateEngineEvent();
     void PostProceeAfterReceiveFromPeer();
     bool m_ecn{false};
     bool m_running{false};
@@ -88,8 +85,6 @@ private:
     std::shared_ptr<dqc::AlarmFactory> m_alarmFactory;
     dqc::ProtoCon m_connection;
     dqc::ProtoStream *m_stream{nullptr};
-    bool m_enableEngineTimer{false};
-    EventId m_engineTimer;
     EventId m_processTimer;
     int64_t m_packetInteval{100};//0.5 ms
     int m_packetGenerated{0};

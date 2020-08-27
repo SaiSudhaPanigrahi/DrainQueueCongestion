@@ -11,8 +11,6 @@ public:
     MainEngine(){}
     ~MainEngine();
     void HeartBeat(ProtoTime time);
-    void ExecuteCallback(ProtoTime time);
-    ProtoTime PeekNextEventTime();
     void RegisterAlarm(int64_t &time_out,AlarmCb* alarm);
     iterator RegisterAlarm(iterator token,int64_t &time_out);
     void UnRegister(iterator token);

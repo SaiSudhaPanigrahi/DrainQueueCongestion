@@ -26,12 +26,11 @@ int FakePackeWriter::SendTo(const char*buf,size_t size,dqc::SocketAddress &dst){
 }
 /*kQueueLimit kShadow kBBRv2 kBBR kPOTEN kCubicBytes*/
 DqcSender::DqcSender(bool ecn):DqcSender(kBBR,ecn){}
-DqcSender::DqcSender(dqc::CongestionControlType cc_type,bool ecn,bool engine_time)
+DqcSender::DqcSender(dqc::CongestionControlType cc_type,bool ecn)
 :m_writer(this)
 ,m_alarmFactory(new ProcessAlarmFactory(&m_timeDriver))
 ,m_connection(&m_clock,m_alarmFactory.get(), cc_type){
 	m_ecn=ecn;
-    m_enableEngineTimer=engine_time;
 }
 void DqcSender::SetBwTraceFuc(TraceBandwidth cb){
 	m_traceBwCb=cb;
@@ -124,18 +123,11 @@ void DqcSender::DataGenerator(int times){
 }
 void DqcSender::StartApplication(){
     m_running=true;
-    if(m_enableEngineTimer){
-        m_connection.SendInitData();
-        UpdateEngineEvent();        
-    }else{
-        m_processTimer=Simulator::ScheduleNow(&DqcSender::Process,this);
-    }
-
+	m_processTimer=Simulator::ScheduleNow(&DqcSender::Process,this);
 }
 void DqcSender::StopApplication(){
     m_running=false;
 	m_processTimer.Cancel();
-	m_engineTimer.Cancel();
     m_sinks.clear();
 }
 void DqcSender::RecvPacket(Ptr<Socket> socket){
@@ -149,11 +141,6 @@ void DqcSender::RecvPacket(Ptr<Socket> socket){
     ProtoReceivedPacket packet((char*)buf,recv,now);
     m_connection.ProcessUdpPacket(m_self,m_remote,packet);
     PostProceeAfterReceiveFromPeer();
-    if(m_enableEngineTimer){
-        //when acked, new packet may be allowed to be sent out,so update callback timer;
-        UpdateEngineEvent();        
-    }
-	
 }
 void DqcSender::SendToNetwork(Ptr<Packet> p){
 	uint32_t ms=Simulator::Now().GetMilliSeconds();
@@ -177,53 +164,33 @@ void DqcSender::OnSent(dqc::PacketNumber seq,dqc::ProtoTime sent_ts) {
 void DqcSender::Process(){
     if(!m_running){return ;}
     if(m_processTimer.IsExpired()){
-    	CheckNoPacketOut();
+		int64_t now_ms=Simulator::Now().GetMilliSeconds();
+		//NS_LOG_INFO("now "<<std::to_string(Simulator::Now().GetMicroSeconds()));
+		if(m_lastSentTs!=0){
+			if((now_ms-m_lastSentTs)>5000){
+				SendPacketManager *sent_manager=m_connection.GetSentPacketManager();
+				int32_t largest_sent=(int32_t)(m_connection.GetMaxSentSeq().ToUint64());
+				int32_t largest_acked=(int32_t)(sent_manager->largest_acked().ToUint64());
+				int buffer=m_stream->BufferedBytes();
+				ByteCount in_flight=0;
+				ByteCount cwnd=0;
+				sent_manager->InFlight(&in_flight,&cwnd);
+				NS_LOG_ERROR(__FILE__<<std::to_string(largest_sent)<<" "<<std::to_string(largest_acked));
+				NS_LOG_ERROR(std::to_string(buffer)
+				<<" "<<std::to_string(m_stream->get_send_buffer_len())
+				<<" "<<sent_manager->CheckCanSend()
+				<<" "<<std::to_string(in_flight)
+				<<" cwnd "<<std::to_string(cwnd)
+				<<"fres "<<m_connection.GetFastRetrans()
+				);
+			}
+		}
     	ProtoTime now=m_clock.Now();
     	m_timeDriver.HeartBeat(now);
     	m_connection.Process();
         Time next=MicroSeconds(m_packetInteval);
         m_processTimer=Simulator::Schedule(next,&DqcSender::Process,this);
     }
-}
-void DqcSender::CheckNoPacketOut(){
-    if(!m_running){return ;}
-	int64_t now_ms=Simulator::Now().GetMilliSeconds();
-	if(m_lastSentTs!=0){
-		if((now_ms-m_lastSentTs)>5000){
-			SendPacketManager *sent_manager=m_connection.GetSentPacketManager();
-			int32_t largest_sent=(int32_t)(m_connection.GetMaxSentSeq().ToUint64());
-			int32_t largest_acked=(int32_t)(sent_manager->largest_acked().ToUint64());
-			int buffer=m_stream->BufferedBytes();
-			ByteCount in_flight=0;
-			ByteCount cwnd=0;
-			sent_manager->InFlight(&in_flight,&cwnd);
-			NS_LOG_ERROR(__FILE__<<std::to_string(largest_sent)<<" "<<std::to_string(largest_acked));
-			NS_LOG_ERROR(std::to_string(buffer)
-			<<" "<<std::to_string(m_stream->get_send_buffer_len())
-			<<" "<<sent_manager->CheckCanSend()
-			<<" "<<std::to_string(in_flight)
-			<<" cwnd "<<std::to_string(cwnd)
-			<<"fres "<<m_connection.GetFastRetrans()
-			);
-		}
-	}
-}
-void DqcSender::EngineEvent(){
-    if(!m_running){return ;}
-	if(m_engineTimer.IsExpired()){
-		UpdateEngineEvent();
-		CheckNoPacketOut();
-	}
-}
-void DqcSender::UpdateEngineEvent(){
-    ProtoTime now=m_clock.Now();
-    m_timeDriver.ExecuteCallback(now);
-    ProtoTime nextEventTime=m_timeDriver.PeekNextEventTime();
-	if(!m_engineTimer.IsExpired()){m_engineTimer.Cancel();}
-    CHECK(nextEventTime!=ProtoTime::Infinite());
-    CHECK(nextEventTime>=now);
-    Time next=MicroSeconds((nextEventTime-now).ToMicroseconds());
-    m_engineTimer=Simulator::Schedule(next,&DqcSender::EngineEvent,this);
 }
 void DqcSender::SetSenderId(uint32_t id){
     if(m_id!=0||id==0){

@@ -10,7 +10,6 @@
 #include "lia_sender_bytes.h"
 #include "lia_sender_enhance.h"
 #include "lia_sender_enhance3.h"
-#include "nmcc_sender_bytes.h"
 #include "olia_sender_bytes.h"
 #include "pcc_sender.h"
 
@@ -38,7 +37,6 @@
 #include "mp_westwood_sender_bytes.h"
 #include "lptcp_sender_bytes.h"
 #include "xmp_sender_bytes.h"
-#include "proto_linux_sender.h"
 namespace dqc{
 SendAlgorithmInterface * SendAlgorithmInterface::Create(
         const ProtoClock *clock,
@@ -169,14 +167,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats);
-        }
-        case kNmccBytes:{
-            return new NmccSender(clock,
-                               rtt_stats,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               stats
-                               );
         }
         case kOlia:{
             return new OliaSender(clock,
@@ -413,14 +403,6 @@ SendAlgorithmInterface * SendAlgorithmInterface::Create(
                                initial_congestion_window,
                                max_congestion_window,
                                stats);
-        }
-        case kLinuxBBR:{
-            return new LinuxSender(clock->Now(),
-                               rtt_stats,
-                               unacked_packets,
-                               initial_congestion_window,
-                               max_congestion_window,
-                               random);
         }
         case kQuicBBR:{
             return new QuicBbrSender(clock->Now(),

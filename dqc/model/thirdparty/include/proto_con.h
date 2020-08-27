@@ -40,7 +40,7 @@ public:
     void SetMaxBandwidth(uint32_t bps);
     void set_peer(SocketAddress &peer){peer_=peer;}
     void Process();
-    void SendInitData();
+
     void SetThisCongestionId(uint32_t cid);
     void SetThisNumEmulatedConnections(int num_connections);    
 

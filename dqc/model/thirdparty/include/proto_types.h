@@ -113,7 +113,7 @@ kCubicBytes,kC2TcpBytes,kCubicPlus,
 kElastic,
 kVeno,kWestwood,kMpWest,
 kBalia,kLiaBytes,kLiaEnhance,kLiaEnhance2,kLiaEnhance3,
-kNmccBytes,kOlia,kWvegas,kMpVeno,
+kOlia,kWvegas,kMpVeno,
 kDwcBytes,kCoupleBBR,kBBR_DELAY, 
 kBBR,kBBRD,kBBRPlus,
 kBBRRand,kTsunami,kHighSpeedRail,
@@ -123,7 +123,7 @@ kWebRTCVivace,kVegas,
 kLedbat,kLpTcp,kLpBBR,kLpBBRNo,
 kLearningBytes,kLearningBytesHalf,
 kHunnanBytes,kXmpBytes,
-kDctcp,kLinuxBBR,
+kDctcp,
 kQuicBBR,kQuicBBRD};
 ProtoPacketNumberLength ReadPacketNumberLength(uint8_t flag);
 ProtoPacketNumberLengthFlag PktNumLen2Flag(ProtoPacketNumberLength byte);
